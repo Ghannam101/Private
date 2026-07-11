@@ -1791,26 +1791,39 @@ struct MovieDetailView: View {
     }
 
     private var backdrop: some View {
-        ZStack(alignment: .bottomLeading) {
+        ZStack(alignment: .bottom) {
+            // Taller, cinematic full-bleed backdrop with a layered scrim.
             Color.clear
-                .frame(maxWidth: .infinity).frame(height: 270)
+                .frame(maxWidth: .infinity).frame(height: 330)
                 .overlay { S8KImage(url: m.backdropURL ?? m.posterURL, placeholder: "film") }
                 .clipped()
                 .overlay(LinearGradient(
-                    colors: [Color.s8kBlack, .clear],
-                    startPoint: .bottom, endPoint: .center))
+                    stops: [
+                        .init(color: .s8kBlack,                 location: 0.0),
+                        .init(color: .s8kBlack.opacity(0.55),   location: 0.34),
+                        .init(color: .clear,                    location: 0.72),
+                        .init(color: .s8kBlack.opacity(0.35),   location: 1.0)
+                    ],
+                    startPoint: .bottom, endPoint: .top))
 
             HStack(alignment: .bottom, spacing: 14) {
+                // Floating poster with a soft drop shadow.
                 S8KImage(url: m.posterURL, placeholder: "film")
-                    .frame(width: 88, height: 125)
-                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md))
-                    .overlay(RoundedRectangle(cornerRadius: S8KRadius.md)
-                        .strokeBorder(Color.s8kBorderGold, lineWidth: 1))
+                    .frame(width: 100, height: 145)
+                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.15), lineWidth: 1))
+                    .shadow(color: .black.opacity(0.6), radius: 12, y: 6)
 
-                VStack(alignment: .trailing, spacing: 6) {
-                    Text(m.name).font(S8KFont.title2).foregroundColor(.s8kTextPrimary)
+                VStack(alignment: .trailing, spacing: 8) {
+                    Text(m.name).font(.system(size: 24, weight: .black)).foregroundColor(.s8kTextPrimary)
                         .multilineTextAlignment(.trailing)
                         .fixedSize(horizontal: false, vertical: true)
+                        .shadow(color: .black.opacity(0.5), radius: 4)
+                    // Editorial lime underline
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(S8KGradient.goldFlat)
+                        .frame(width: 34, height: 3)
                     HStack(spacing: 6) {
                         if let y = m.year  { infoTag(y) }
                         if let g = m.genre { infoTag(g) }
@@ -1820,13 +1833,13 @@ struct MovieDetailView: View {
                         HStack(spacing: 3) {
                             Image(systemName: "star.fill").font(.system(size: 10)).foregroundColor(.s8kGoldHigh)
                             Text(String(format: "%.1f", rv)).font(S8KFont.caption1.weight(.bold))
-                                .foregroundColor(.s8kGoldMid)
+                                .foregroundColor(.s8kGoldHigh)
                         }
                     }
                 }
                 Spacer()
             }
-            .padding(.horizontal, S8KSpace.xl).padding(.bottom, S8KSpace.xl)
+            .padding(.horizontal, S8KSpace.xl).padding(.bottom, S8KSpace.lg)
         }
         // Swipe the header down to dismiss (in addition to the close button)
         .highPriorityGesture(DragGesture(minimumDistance: 20).onEnded { v in
@@ -2020,20 +2033,34 @@ struct SeriesDetailView: View {
     }
 
     private var seriesHeader: some View {
-        ZStack(alignment: .bottomLeading) {
+        ZStack(alignment: .bottom) {
             Color.clear
-                .frame(maxWidth: .infinity).frame(height: 256)
+                .frame(maxWidth: .infinity).frame(height: 330)
                 .overlay { S8KImage(url: series.backdropURL ?? series.coverURL, placeholder: "tv") }
                 .clipped()
-                .overlay(LinearGradient(colors: [Color.s8kBlack, .clear], startPoint: .bottom, endPoint: .center))
+                .overlay(LinearGradient(
+                    stops: [
+                        .init(color: .s8kBlack,               location: 0.0),
+                        .init(color: .s8kBlack.opacity(0.55), location: 0.34),
+                        .init(color: .clear,                  location: 0.72),
+                        .init(color: .s8kBlack.opacity(0.35), location: 1.0)
+                    ],
+                    startPoint: .bottom, endPoint: .top))
             HStack(alignment: .bottom, spacing: 14) {
                 S8KImage(url: series.coverURL, placeholder: "tv")
-                    .frame(width: 84, height: 118)
-                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md))
-                    .overlay(RoundedRectangle(cornerRadius: S8KRadius.md)
-                        .strokeBorder(Color.s8kBorderGold, lineWidth: 1))
-                VStack(alignment: .trailing, spacing: 6) {
-                    Text(series.name).font(S8KFont.title2).foregroundColor(.s8kTextPrimary)
+                    .frame(width: 100, height: 145)
+                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.15), lineWidth: 1))
+                    .shadow(color: .black.opacity(0.6), radius: 12, y: 6)
+                VStack(alignment: .trailing, spacing: 8) {
+                    Text(series.name).font(.system(size: 24, weight: .black)).foregroundColor(.s8kTextPrimary)
+                        .multilineTextAlignment(.trailing)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .shadow(color: .black.opacity(0.5), radius: 4)
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(S8KGradient.goldFlat)
+                        .frame(width: 34, height: 3)
                     if let y = series.year { Text(y).font(S8KFont.caption1).foregroundColor(.s8kTextTertiary) }
                     Button(action: { favs.toggleSeries(series.id) }) {
                         HStack(spacing: 5) {
@@ -2048,7 +2075,7 @@ struct SeriesDetailView: View {
                 }
                 Spacer()
             }
-            .padding(.horizontal, S8KSpace.xl).padding(.bottom, S8KSpace.xl)
+            .padding(.horizontal, S8KSpace.xl).padding(.bottom, S8KSpace.lg)
         }
         .highPriorityGesture(DragGesture(minimumDistance: 20).onEnded { v in
             if v.translation.height > 80 && abs(v.translation.width) < 120 { dismiss() }
