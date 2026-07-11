@@ -145,21 +145,14 @@ struct LoginView: View {
                                        value: logoFloat)
                             .onAppear { logoFloat = true }
 
-                        VStack(spacing: 8) {
+                        VStack(spacing: 10) {
                             S8KWordmark(size: 27)
 
-                            // Gold divider with center dot
-                            HStack(spacing: 8) {
-                                Rectangle().fill(LinearGradient(
-                                    colors: [.clear, Color.s8kGoldDeep.opacity(0.6)],
-                                    startPoint: .leading, endPoint: .trailing))
-                                    .frame(width: 50, height: 1)
-                                Circle().fill(Color.s8kGoldHigh).frame(width: 4, height: 4)
-                                Rectangle().fill(LinearGradient(
-                                    colors: [Color.s8kGoldDeep.opacity(0.6), .clear],
-                                    startPoint: .leading, endPoint: .trailing))
-                                    .frame(width: 50, height: 1)
-                            }
+                            // Editorial lime underline accent (replaces the gold divider+dot)
+                            RoundedRectangle(cornerRadius: 1.5)
+                                .fill(S8KGradient.goldFlat)
+                                .frame(width: 44, height: 3)
+                                .shadow(color: .s8kGoldHigh.opacity(0.5), radius: 4)
 
                             Text(L("login.welcome"))
                                 .font(S8KFont.footnote)
@@ -261,13 +254,16 @@ struct LoginView: View {
 
                     }
                     .padding(22)
+                    // Editorial: clean flat surface + crisp hairline (no gold gradient
+                    // stroke, sharper corner). Kept solid — not glass — to avoid
+                    // glass-on-glass with the glass input fields inside.
                     .background(
-                        RoundedRectangle(cornerRadius: 20)
-                            .fill(Color.s8kSurface.opacity(0.6))
-                            .overlay(RoundedRectangle(cornerRadius: 20)
-                                .strokeBorder(LinearGradient(
-                                    colors: [Color.s8kGoldDeep.opacity(0.35), Color.s8kBorder.opacity(0.2)],
-                                    startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1))
+                        RoundedRectangle(cornerRadius: S8KRadius.xl, style: .continuous)
+                            .fill(Color.s8kSurface.opacity(0.72))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: S8KRadius.xl, style: .continuous)
+                            .strokeBorder(Color.s8kBorder, lineWidth: 1)
                     )
                     .padding(.horizontal, 22)
                     .opacity(appear ? 1 : 0)
