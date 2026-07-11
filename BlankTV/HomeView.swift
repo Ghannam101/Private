@@ -829,19 +829,42 @@ struct ContentBootView: View {
             RadialGradient(colors: [Color.s8kGoldMid.opacity(0.12), .clear],
                            center: .center, startRadius: 0, endRadius: 340).ignoresSafeArea()
 
-            VStack(spacing: 34) {
-                Image("Logo").resizable().scaledToFit().frame(width: 104, height: 104)
-                    .shadow(color: .s8kGoldHigh.opacity(0.45), radius: 26)
-                    .scaleEffect(logoPulse ? 1.04 : 0.97)
-                    .animation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true), value: logoPulse)
-                S8KWordmark(size: 26)
+            let overall = (p[0] + p[1] + p[2]) / 3
+            VStack(spacing: 30) {
+                VStack(spacing: 12) {
+                    Image("Logo").resizable().scaledToFit().frame(width: 88, height: 88)
+                        .shadow(color: .s8kGoldHigh.opacity(0.45), radius: 24)
+                        .scaleEffect(logoPulse ? 1.04 : 0.97)
+                        .animation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true), value: logoPulse)
+                    S8KWordmark(size: 26)
+                }
 
-                VStack(spacing: 18) {
+                // Editorial: one BIG bold percentage + a single slim lime bar.
+                VStack(spacing: 16) {
+                    Text("\(Int(overall * 100))%")
+                        .font(.system(size: 66, weight: .black, design: .rounded))
+                        .foregroundStyle(S8KGradient.goldFlat)
+                        .monospacedDigit()
+                        .shadow(color: .s8kGoldHigh.opacity(0.3), radius: 12)
+                    GeometryReader { g in
+                        ZStack(alignment: .trailing) {
+                            Capsule().fill(Color.white.opacity(0.08))
+                            Capsule().fill(S8KGradient.goldFlat)
+                                .frame(width: g.size.width * overall)
+                                .shadow(color: .s8kGoldHigh.opacity(0.4), radius: 5)
+                        }
+                    }
+                    .frame(height: 6)
+                    .animation(.easeOut(duration: 0.3), value: overall)
+                }
+                .padding(.horizontal, 48)
+
+                // Section status chips — fill lime + check as each completes.
+                HStack(spacing: 10) {
                     ForEach(0..<3, id: \.self) { i in
-                        row(sections[i].0, sections[i].1, p[i])
+                        chip(sections[i].0, sections[i].1, p[i])
                     }
                 }
-                .padding(.horizontal, 40)
 
                 Text(L("home.preparing"))
                     .font(S8KFont.footnote).foregroundColor(.s8kTextTertiary)
@@ -865,32 +888,21 @@ struct ContentBootView: View {
         else if p[i] < 0.92 { p[i] += 0.018 }
     }
 
-    private func row(_ name: String, _ icon: String, _ value: Double) -> some View {
-        VStack(spacing: 8) {
-            HStack {
-                Text("\(Int(value * 100))%")
-                    .font(.system(size: 12, weight: .bold, design: .monospaced))
-                    .foregroundColor(value >= 1 ? .s8kGoldHigh : .s8kTextTertiary)
-                Spacer()
-                HStack(spacing: 8) {
-                    Text(name).font(S8KFont.subhead)
-                        .foregroundColor(value >= 1 ? .s8kTextPrimary : .s8kTextSecondary)
-                    Image(systemName: value >= 1 ? "checkmark.circle.fill" : icon)
-                        .font(.system(size: 14))
-                        .foregroundColor(value >= 1 ? .s8kGoldMid : .s8kTextDisabled)
-                }
-            }
-            GeometryReader { g in
-                ZStack(alignment: .trailing) {
-                    Capsule().fill(Color.white.opacity(0.07))
-                    Capsule().fill(S8KGradient.goldFlat)
-                        .frame(width: g.size.width * value)
-                        .shadow(color: .s8kGoldHigh.opacity(value > 0 ? 0.4 : 0), radius: 4)
-                }
-            }
-            .frame(height: 5)
-            .animation(.easeOut(duration: 0.25), value: value)
+    private func chip(_ name: String, _ icon: String, _ value: Double) -> some View {
+        let done = value >= 1
+        return HStack(spacing: 6) {
+            Image(systemName: done ? "checkmark.circle.fill" : icon)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(done ? .s8kGoldHigh : .s8kTextDisabled)
+            Text(name).font(S8KFont.caption1.weight(.semibold))
+                .foregroundColor(done ? .s8kTextPrimary : .s8kTextTertiary)
         }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(done ? Color.s8kGoldHigh.opacity(0.12) : Color.s8kElevated)
+        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+            .strokeBorder(done ? Color.s8kGoldHigh.opacity(0.3) : Color.s8kBorder, lineWidth: 1))
+        .animation(.easeOut(duration: 0.25), value: done)
     }
 }
 

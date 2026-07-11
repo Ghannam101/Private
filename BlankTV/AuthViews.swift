@@ -136,31 +136,30 @@ struct LoginView: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
 
-                    // ===== Logo Block =====
-                    VStack(spacing: 18) {
-                        // Clean logo — no halo, no ring (charcoal identity)
-                        BrandLogo(size: 128)
+                    // ===== Brand Header (editorial) =====
+                    VStack(spacing: 16) {
+                        BrandLogo(size: 100)
                             .offset(y: logoFloat ? -6 : 0)
                             .animation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true),
                                        value: logoFloat)
                             .onAppear { logoFloat = true }
 
-                        VStack(spacing: 10) {
-                            S8KWordmark(size: 27)
+                        VStack(spacing: 11) {
+                            S8KWordmark(size: 30)
 
-                            // Editorial lime underline accent (replaces the gold divider+dot)
-                            RoundedRectangle(cornerRadius: 1.5)
+                            // Editorial lime underline accent
+                            RoundedRectangle(cornerRadius: 2)
                                 .fill(S8KGradient.goldFlat)
-                                .frame(width: 44, height: 3)
-                                .shadow(color: .s8kGoldHigh.opacity(0.5), radius: 4)
+                                .frame(width: 52, height: 4)
+                                .shadow(color: .s8kGoldHigh.opacity(0.55), radius: 5)
 
                             Text(L("login.welcome"))
-                                .font(S8KFont.footnote)
-                                .foregroundColor(.s8kTextTertiary)
+                                .font(S8KFont.subhead)
+                                .foregroundColor(.s8kTextSecondary)
                         }
                     }
-                    .padding(.top, 80)
-                    .padding(.bottom, 46)
+                    .padding(.top, 58)
+                    .padding(.bottom, 30)
                     .opacity(appear ? 1 : 0)
                     .offset(y: appear ? 0 : 14)
 
@@ -253,18 +252,9 @@ struct LoginView: View {
                         }
 
                     }
-                    .padding(22)
-                    // Editorial: clean flat surface + crisp hairline (no gold gradient
-                    // stroke, sharper corner). Kept solid — not glass — to avoid
-                    // glass-on-glass with the glass input fields inside.
-                    .background(
-                        RoundedRectangle(cornerRadius: S8KRadius.xl, style: .continuous)
-                            .fill(Color.s8kSurface.opacity(0.72))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: S8KRadius.xl, style: .continuous)
-                            .strokeBorder(Color.s8kBorder, lineWidth: 1)
-                    )
+                    // Editorial: NO surrounding card — the fields sit open on the page
+                    // (each already has its own glass surface). A structurally
+                    // different login from the reference's boxed form.
                     .padding(.horizontal, 22)
                     .opacity(appear ? 1 : 0)
                     .offset(y: appear ? 0 : 20)
@@ -363,44 +353,40 @@ struct LoginView: View {
         .padding(.top, 54).padding(.leading, 20)
     }
 
-    // MARK: - Login Mode Switcher (Xtream / M3U)
+    // MARK: - Login Mode Switcher (Xtream / M3U) — editorial underline tabs
     private var modeSwitcher: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 26) {
+            Spacer(minLength: 0)
             modeTab(.xtream, title: "Xtream Codes", icon: "person.badge.key.fill")
             modeTab(.m3u,    title: L("login.mode_m3u"),     icon: "link")
         }
-        .padding(4)
-        .background(Color.s8kBlack.opacity(0.6))
-        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md))
-        .overlay(RoundedRectangle(cornerRadius: S8KRadius.md)
-            .strokeBorder(Color.s8kBorder, lineWidth: 1))
+        .padding(.bottom, 4)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.s8kBorder).frame(height: 1)
+        }
     }
 
     private func modeTab(_ mode: LoginMode, title: String, icon: String) -> some View {
-        Button(action: {
+        let on = loginMode == mode
+        return Button(action: {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 loginMode = mode
                 auth.error = nil
             }
         }) {
-            HStack(spacing: 6) {
-                Image(systemName: icon).font(.system(size: 11, weight: .bold))
-                Text(title).font(S8KFont.caption1.weight(.bold))
-            }
-            .foregroundColor(loginMode == mode ? .black : .s8kTextTertiary)
-            .frame(maxWidth: .infinity, minHeight: 38)
-            .background(
-                Group {
-                    if loginMode == mode {
-                        LinearGradient(colors: [.s8kGoldHigh, .s8kGoldMid],
-                                       startPoint: .leading, endPoint: .trailing)
-                    } else {
-                        Color.clear
-                    }
+            VStack(spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: icon).font(.system(size: 12, weight: .bold))
+                    Text(title).font(S8KFont.subhead.weight(.bold))
                 }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm))
-            .shadow(color: loginMode == mode ? .s8kGoldMid.opacity(0.35) : .clear, radius: 6, y: 2)
+                .foregroundColor(on ? .s8kTextPrimary : .s8kTextTertiary)
+
+                Capsule()
+                    .fill(S8KGradient.goldFlat)
+                    .frame(height: 3)
+                    .opacity(on ? 1 : 0)
+            }
+            .fixedSize()
         }
         .buttonStyle(S8KButtonStyle())
     }

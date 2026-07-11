@@ -193,10 +193,13 @@ struct BlankTVApp: App {
             // Hide the system tab bar (incl. the new iPadOS 18 top tab bar) so
             // only our custom AppTabBar shows.
             .toolbar(.hidden, for: .tabBar)
+            // Content fills to the physical bottom (scrolls behind the glass bar)…
+            .ignoresSafeArea(edges: .bottom)
 
+            // …but the floating glass bar itself RESPECTS the safe area, so it sits
+            // a comfortable margin above the home indicator (not glued to the edge).
             AppTabBar(selected: $router.tab)
         }
-        .ignoresSafeArea(edges: .bottom)
         // Top-bar presentations live HERE (stable host) so they present
         // identically in demo and real playlist mode and can never be lost
         // by a HomeView re-render. See AppRouter.homeSheet.
