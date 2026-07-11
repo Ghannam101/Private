@@ -1410,22 +1410,22 @@ struct MoviePosterCell: View {
                     Color.clear
                         .frame(maxWidth: .infinity).frame(height: 150)
                         .overlay { S8KImage(url: movie.posterURL, placeholder: "film") }
-                        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm))
-                        .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm)
-                            .strokeBorder(Color.s8kBorder, lineWidth: 1))
+                        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
                     if let y = movie.year {
-                        Text(y).font(S8KFont.caption3).foregroundColor(.s8kGoldMid)
-                            .padding(.horizontal, 5).padding(.vertical, 2)
-                            .background(Color.black.opacity(0.75))
-                            .clipShape(RoundedRectangle(cornerRadius: 3)).padding(5)
+                        Text(y).font(S8KFont.caption3.weight(.bold)).foregroundColor(.s8kBlack)
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(S8KGradient.goldFlat)
+                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous)).padding(5)
                     }
                 }
-                Text(movie.name).font(S8KFont.caption2.weight(.semibold))
+                Text(movie.name).font(S8KFont.caption2.weight(.bold))
                     .foregroundColor(.s8kTextPrimary).lineLimit(1)
                 if let r = movie.rating, let rv = Double(r), rv > 0 {
                     HStack(spacing: 3) {
                         Image(systemName: "star.fill").font(.system(size: 8)).foregroundColor(.s8kGoldHigh)
-                        Text(String(format: "%.1f", rv)).font(S8KFont.caption3).foregroundColor(.s8kGoldMid)
+                        Text(String(format: "%.1f", rv)).font(S8KFont.caption3).foregroundColor(.s8kGoldHigh)
                     }
                 }
             }
@@ -1667,10 +1667,10 @@ struct SeriesPosterCell: View {
                 Color.clear
                     .frame(maxWidth: .infinity).frame(height: 150)
                     .overlay { S8KImage(url: series.coverURL, placeholder: "tv") }
-                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm))
-                    .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm)
-                        .strokeBorder(Color.s8kBorder, lineWidth: 1))
-                Text(series.name).font(S8KFont.caption2.weight(.semibold))
+                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
+                Text(series.name).font(S8KFont.caption2.weight(.bold))
                     .foregroundColor(.s8kTextPrimary).lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .trailing)
                 if let y = series.year {
