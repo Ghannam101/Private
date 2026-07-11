@@ -568,13 +568,18 @@ struct SettingsView: View {
     @ViewBuilder
     private func group<Content: View>(label: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(spacing: 0) {
-            // Refined section header — clean Arabic-friendly weight, no uppercase
-            // or heavy tracking (which break Arabic letterforms).
-            Text(label)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.s8kTextTertiary)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.horizontal, 24).padding(.bottom, 8)
+            // Editorial section header — heavier label with a short lime accent bar
+            // (RTL: bar sits on the trailing/right edge). Clean, Arabic-friendly.
+            HStack(spacing: 8) {
+                Spacer(minLength: 0)
+                Text(label)
+                    .font(.system(size: 13, weight: .heavy))
+                    .foregroundColor(.s8kTextSecondary)
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(S8KGradient.goldFlat)
+                    .frame(width: 3, height: 14)
+            }
+            .padding(.horizontal, 24).padding(.bottom, 8)
 
             VStack(spacing: 0) { content() }
                 .s8kGlass(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous))
