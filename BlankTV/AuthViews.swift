@@ -136,30 +136,25 @@ struct LoginView: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
 
-                    // ===== Brand Header (editorial) =====
-                    VStack(spacing: 16) {
-                        BrandLogo(size: 100)
-                            .offset(y: logoFloat ? -6 : 0)
+                    // ===== Add-Subscription sheet header =====
+                    VStack(spacing: 12) {
+                        BrandLogo(size: 74)
+                            .offset(y: logoFloat ? -5 : 0)
                             .animation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true),
                                        value: logoFloat)
                             .onAppear { logoFloat = true }
 
-                        VStack(spacing: 11) {
-                            S8KWordmark(size: 30)
+                        Text(L("subs.add"))
+                            .font(.system(size: 24, weight: .black))
+                            .foregroundColor(.s8kTextPrimary)
 
-                            // Editorial lime underline accent
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(S8KGradient.goldFlat)
-                                .frame(width: 52, height: 4)
-                                .shadow(color: .s8kGoldHigh.opacity(0.55), radius: 5)
-
-                            Text(L("login.welcome"))
-                                .font(S8KFont.subhead)
-                                .foregroundColor(.s8kTextSecondary)
-                        }
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(S8KGradient.goldFlat)
+                            .frame(width: 46, height: 4)
+                            .shadow(color: .s8kGoldHigh.opacity(0.55), radius: 5)
                     }
-                    .padding(.top, 58)
-                    .padding(.bottom, 30)
+                    .padding(.top, 34)
+                    .padding(.bottom, 26)
                     .opacity(appear ? 1 : 0)
                     .offset(y: appear ? 0 : 14)
 
@@ -353,20 +348,15 @@ struct LoginView: View {
         .padding(.top, 54).padding(.leading, 20)
     }
 
-    // MARK: - Login Mode Switcher (Xtream / M3U) — editorial underline tabs
+    // MARK: - Connection method picker (Xtream / M3U) — big selectable cards
     private var modeSwitcher: some View {
-        HStack(spacing: 26) {
-            Spacer(minLength: 0)
-            modeTab(.xtream, title: "Xtream Codes", icon: "person.badge.key.fill")
-            modeTab(.m3u,    title: L("login.mode_m3u"),     icon: "link")
-        }
-        .padding(.bottom, 4)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(Color.s8kBorder).frame(height: 1)
+        HStack(spacing: 10) {
+            methodCard(.xtream, title: "Xtream Codes", icon: "person.badge.key.fill")
+            methodCard(.m3u,    title: L("login.mode_m3u"), icon: "link")
         }
     }
 
-    private func modeTab(_ mode: LoginMode, title: String, icon: String) -> some View {
+    private func methodCard(_ mode: LoginMode, title: String, icon: String) -> some View {
         let on = loginMode == mode
         return Button(action: {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -374,19 +364,29 @@ struct LoginView: View {
                 auth.error = nil
             }
         }) {
-            VStack(spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: icon).font(.system(size: 12, weight: .bold))
-                    Text(title).font(S8KFont.subhead.weight(.bold))
-                }
-                .foregroundColor(on ? .s8kTextPrimary : .s8kTextTertiary)
-
-                Capsule()
-                    .fill(S8KGradient.goldFlat)
-                    .frame(height: 3)
-                    .opacity(on ? 1 : 0)
+            VStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 21, weight: .bold))
+                    .foregroundColor(on ? .s8kBlack : .s8kGoldHigh)
+                    .frame(width: 46, height: 46)
+                    .background(
+                        Group {
+                            if on { S8KGradient.goldFlat }
+                            else { Color.s8kGoldHigh.opacity(0.12) }
+                        }
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous))
+                Text(title)
+                    .font(S8KFont.subhead.weight(.heavy))
+                    .foregroundColor(on ? .s8kTextPrimary : .s8kTextSecondary)
             }
-            .fixedSize()
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous)
+                .fill(on ? Color.s8kGoldHigh.opacity(0.07) : Color.s8kCard))
+            .overlay(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous)
+                .strokeBorder(on ? Color.s8kGoldHigh.opacity(0.6) : Color.s8kBorder,
+                              lineWidth: on ? 1.5 : 1))
         }
         .buttonStyle(S8KButtonStyle())
     }
