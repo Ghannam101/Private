@@ -170,7 +170,7 @@ struct ActivationRequiredView: View {
                                     .foregroundColor(.black)
                                     .frame(maxWidth: .infinity, minHeight: 46)
                                     .background(S8KGradient.goldFlat)
-                                    .clipShape(Capsule())
+                                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous))
                             }
                             .buttonStyle(S8KButtonStyle())
                         }
@@ -192,7 +192,8 @@ struct ActivationRequiredView: View {
                         .font(S8KFont.subhead)
                         .foregroundColor(.s8kGoldMid)
                         .frame(maxWidth: .infinity, minHeight: 50)
-                        .overlay(Capsule().strokeBorder(Color.s8kGoldHigh.opacity(0.4), lineWidth: 1.5))
+                        .overlay(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
+                            .strokeBorder(Color.s8kGoldHigh.opacity(0.4), lineWidth: 1.5))
                     }
                     .buttonStyle(S8KButtonStyle())
                     .padding(.horizontal, S8KSpace.xl)
@@ -208,7 +209,8 @@ struct ActivationRequiredView: View {
                             }
                             .font(S8KFont.subhead).foregroundColor(.black)
                             .frame(maxWidth: .infinity, minHeight: 50)
-                            .background(S8KGradient.goldFlat).clipShape(Capsule())
+                            .background(S8KGradient.goldFlat)
+                            .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous))
                             .shadow(color: .s8kGoldMid.opacity(0.4), radius: 8, y: 3)
                         }
                         .buttonStyle(S8KButtonStyle())
@@ -224,7 +226,8 @@ struct ActivationRequiredView: View {
                         }
                         .font(S8KFont.subhead).foregroundColor(.s8kGoldMid)
                         .frame(maxWidth: .infinity, minHeight: 50)
-                        .overlay(Capsule().strokeBorder(Color.s8kGoldHigh.opacity(0.4), lineWidth: 1.5))
+                        .overlay(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
+                            .strokeBorder(Color.s8kGoldHigh.opacity(0.4), lineWidth: 1.5))
                     }
                     .buttonStyle(S8KButtonStyle())
                     .padding(.horizontal, S8KSpace.xl)
