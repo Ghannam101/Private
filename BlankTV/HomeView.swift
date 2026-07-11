@@ -200,8 +200,10 @@ struct HomeView: View {
                 if contentFailed { contentErrorBanner }
                 announcementBar
                 bannerSection
-                heroSection
+                // BLANK TV: action-first home — quick section tiles sit ABOVE the
+                // cinematic hero (distinct from the reference's hero-first order).
                 quickNav
+                heroSection
                 continueWatching
                 liveSection
                 moviesSection
@@ -510,6 +512,7 @@ struct HomeView: View {
                          sub: "\(vm.series.count)+ \(L("unit.series"))", color: .s8kGoldMid, tab: .series)
         }
         .padding(.horizontal, S8KSpace.xl)
+        .padding(.top, S8KSpace.md)
         .padding(.bottom, S8KSpace.xxl)
     }
 
