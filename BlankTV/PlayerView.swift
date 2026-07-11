@@ -850,9 +850,14 @@ struct PlayerEngineView: View {
                         ctrlBtn(icon: "gobackward.10", size: 28) { vm.skip(-10) }
                     }
                     Button(action: { vm.togglePlay(); resetControlsTimer() }) {
-                        Image(systemName: vm.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                            .font(.system(size: 64)).foregroundColor(.s8kGoldHigh)
-                            .shadow(color: .s8kGoldHigh.opacity(0.35), radius: 12)
+                        ZStack {
+                            Circle().fill(S8KGradient.goldFlat)
+                                .frame(width: 66, height: 66)
+                                .shadow(color: .s8kGoldHigh.opacity(0.4), radius: 14)
+                            Image(systemName: vm.isPlaying ? "pause.fill" : "play.fill")
+                                .font(.system(size: 27, weight: .black))
+                                .foregroundColor(.s8kBlack)
+                        }
                     }
                     .buttonStyle(S8KButtonStyle())
                     if !vm.isLive {
@@ -989,20 +994,20 @@ struct PlayerEngineView: View {
         Button(action: { action(); resetControlsTimer() }) {
             VStack(spacing: 7) {
                 ZStack {
-                    Circle()
+                    RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
                         .fill(active ? AnyShapeStyle(S8KGradient.goldFlat)
                                      : AnyShapeStyle(Color.white.opacity(0.10)))
                         .frame(width: 48, height: 48)
-                        .overlay(Circle().strokeBorder(
+                        .overlay(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous).strokeBorder(
                             active ? Color.clear : Color.white.opacity(0.16), lineWidth: 1))
                         .shadow(color: active ? .s8kGoldMid.opacity(0.4) : .clear, radius: 8, y: 2)
                     Image(systemName: icon)
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(active ? .black : .white)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(active ? .s8kBlack : .white)
                 }
                 Text(label)
                     .font(S8KFont.caption3)
-                    .foregroundColor(active ? .s8kGoldMid : .s8kTextSecondary)
+                    .foregroundColor(active ? .s8kGoldHigh : .s8kTextSecondary)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity)
