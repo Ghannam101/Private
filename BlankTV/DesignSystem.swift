@@ -877,9 +877,12 @@ struct AppTabBar: View {
     @Namespace private var indicatorNS
 
     var body: some View {
-        // BLANK TV — Editorial tab bar: a FLAT bar with a sliding lime top-line
-        // indicator over the active tab and always-visible labels (no floating
-        // capsule). Distinct, modern, high-contrast.
+        // BLANK TV — FLOATING Liquid-Glass tab bar (iOS 26 style). A rounded glass
+        // pill floats above the content; real `glassEffect` on iOS 26 lets the
+        // content flow behind it (no solid fill — per Apple's glass guidance), with
+        // a tuned material fallback on iOS 17–25. A sliding lime top-line marks the
+        // active tab; labels stay visible. `.contentShape` keeps every touch on the
+        // bar so taps never fall through.
         HStack(spacing: 0) {
             ForEach(AppTab.allCases) { tab in
                 let isOn = selected == tab
@@ -887,21 +890,20 @@ struct AppTabBar: View {
                     withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) { selected = tab }
                 }) {
                     VStack(spacing: 5) {
-                        // Top active-indicator line (the Editorial signature)
                         ZStack {
                             Capsule().fill(Color.clear).frame(height: 3)
                             if isOn {
                                 Capsule()
                                     .fill(S8KGradient.goldFlat)
-                                    .frame(width: 28, height: 3)
-                                    .shadow(color: .s8kGoldHigh.opacity(0.6), radius: 5)
+                                    .frame(width: 26, height: 3)
+                                    .shadow(color: .s8kGoldHigh.opacity(0.7), radius: 5)
                                     .matchedGeometryEffect(id: "tabIndicator", in: indicatorNS)
                             }
                         }
                         Image(systemName: isOn ? tab.activeIcon : tab.icon)
-                            .font(.system(size: 21, weight: isOn ? .bold : .regular))
-                            .foregroundColor(isOn ? .s8kGoldHigh : .s8kTextTertiary)
-                            .frame(height: 24)
+                            .font(.system(size: 20, weight: isOn ? .bold : .regular))
+                            .foregroundColor(isOn ? .s8kGoldHigh : .s8kTextSecondary)
+                            .frame(height: 23)
                             .scaleEffect(isOn ? 1.05 : 1.0)
 
                         Text(tab.title)
@@ -909,32 +911,26 @@ struct AppTabBar: View {
                             .foregroundColor(isOn ? .s8kTextPrimary : .s8kTextTertiary)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.top, 8)
-                    .padding(.bottom, 4)
+                    .padding(.top, 9)
+                    .padding(.bottom, 8)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(S8KButtonStyle())
             }
         }
-        // Cap + center the tab cluster on iPad so 5 tabs aren't spread across the
-        // whole width; the flat bar below still spans edge-to-edge.
-        .frame(maxWidth: hSize == .regular ? 560 : .infinity)
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, S8KSpace.sm)
-        .padding(.top, 6)
-        .padding(.bottom, 28)
-        .frame(maxWidth: .infinity)
-        // Flat bar: a near-solid dark surface (still blurs content behind it) with
-        // a crisp hairline top border instead of a gold sheen. `.contentShape`
-        // captures every touch so taps never fall through to content behind it.
-        .background(
-            ZStack(alignment: .top) {
-                Rectangle().fill(.ultraThinMaterial)
-                Color.s8kBlack.opacity(0.78)
-                Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
-            }
-            .ignoresSafeArea(edges: .bottom)
+        .padding(.horizontal, 4)
+        // Cap + center the floating pill on iPad so 5 tabs aren't stretched.
+        .frame(maxWidth: hSize == .regular ? 480 : .infinity)
+        // Real Liquid Glass (iOS 26) with graceful fallback — no solid fill behind.
+        .s8kGlass(RoundedRectangle(cornerRadius: S8KRadius.xxl, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: S8KRadius.xxl, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+                .allowsHitTesting(false)
         )
+        .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
+        .padding(.horizontal, S8KSpace.lg)
+        .padding(.bottom, 8)
         .contentShape(Rectangle())
     }
 }

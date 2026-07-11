@@ -406,16 +406,21 @@ struct HomeView: View {
                     .frame(height: 240)
                     .allowsHitTesting(false)   // decorative scrim — never intercept the hero buttons
 
-                VStack(alignment: .trailing, spacing: 8) {
+                VStack(alignment: .trailing, spacing: 9) {
                     HStack(spacing: 6) {
                         tag(L("home.featured"), isGold: true)
                         tag(L("home.new_tag"), color: .s8kBlue)
                     }
                     if let m = heroes[safe: vm.heroIndex] {
-                        Text(m.name).font(S8KFont.title2).foregroundColor(.s8kTextPrimary)
+                        Text(m.name).font(.system(size: 25, weight: .black)).foregroundColor(.s8kTextPrimary)
                             .lineLimit(2).multilineTextAlignment(.trailing)
-                            .shadow(color: .black.opacity(0.5), radius: 4)
+                            .shadow(color: .black.opacity(0.6), radius: 5)
                             .frame(maxWidth: .infinity, alignment: .trailing)
+                        // Editorial lime underline accent under the hero title
+                        RoundedRectangle(cornerRadius: 1.5)
+                            .fill(S8KGradient.goldFlat)
+                            .frame(width: 40, height: 3)
+                            .shadow(color: .s8kGoldHigh.opacity(0.6), radius: 4)
                         if let y = m.year {
                             Text(y).font(S8KFont.caption1).foregroundColor(.s8kTextSecondary)
                         }
@@ -426,11 +431,12 @@ struct HomeView: View {
                         }) {
                             HStack(spacing: 7) {
                                 Image(systemName: "play.fill").font(.system(size: 12, weight: .bold))
-                                Text(L("common.play")).font(S8KFont.subhead)
+                                Text(L("common.play")).font(S8KFont.subhead.weight(.bold))
                             }
-                            .foregroundColor(.black)
-                            .padding(.horizontal, 20).padding(.vertical, 10)
-                            .background(S8KGradient.goldFlat).clipShape(Capsule())
+                            .foregroundColor(.s8kBlack)
+                            .padding(.horizontal, 22).padding(.vertical, 11)
+                            .background(S8KGradient.goldFlat)
+                            .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
                             .shadow(color: .s8kGoldMid.opacity(0.45), radius: 8, y: 3)
                         }
                         .buttonStyle(S8KButtonStyle())
@@ -439,12 +445,14 @@ struct HomeView: View {
                         }) {
                             HStack(spacing: 6) {
                                 Image(systemName: "info.circle").font(.system(size: 12))
-                                Text(L("common.details")).font(S8KFont.caption1.weight(.medium))
+                                Text(L("common.details")).font(S8KFont.caption1.weight(.semibold))
                             }
                             .foregroundColor(.s8kTextPrimary)
-                            .padding(.horizontal, 14).padding(.vertical, 10)
-                            .background(Color.white.opacity(0.12)).clipShape(Capsule())
-                            .overlay(Capsule().strokeBorder(Color.white.opacity(0.2), lineWidth: 1))
+                            .padding(.horizontal, 15).padding(.vertical, 11)
+                            .background(Color.white.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.2), lineWidth: 1))
                         }
                         .buttonStyle(S8KButtonStyle())
                     }
@@ -507,23 +515,26 @@ struct HomeView: View {
 
     private func quickNavCard(_ title: String, icon: String, sub: String, color: Color, tab: AppTab) -> some View {
         Button(action: { AppRouter.shared.tab = tab }) {
-            VStack(spacing: 10) {
+            // Editorial tile: rounded-square icon badge top-left, heavy title + count
+            // below, left-aligned. Distinct from the reference's centered circle card.
+            VStack(alignment: .leading, spacing: 12) {
                 ZStack {
-                    Circle()
-                        .fill(color.opacity(0.14))
-                        .frame(width: 48, height: 48)
-                        .overlay(Circle().strokeBorder(color.opacity(0.25), lineWidth: 1))
+                    RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
+                        .fill(color.opacity(0.16))
+                        .frame(width: 44, height: 44)
+                        .overlay(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
+                            .strokeBorder(color.opacity(0.30), lineWidth: 1))
                     Image(systemName: icon)
-                        .font(.system(size: 20, weight: .semibold))
+                        .font(.system(size: 19, weight: .bold))
                         .foregroundColor(color)
                 }
-                VStack(spacing: 2) {
-                    Text(title).font(S8KFont.caption1.weight(.bold)).foregroundColor(.s8kTextPrimary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(S8KFont.subhead.weight(.heavy)).foregroundColor(.s8kTextPrimary)
                     Text(sub).font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
                 }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, S8KSpace.lg)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(S8KSpace.md)
             .s8kGlass(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous)
                 .strokeBorder(Color.s8kBorder, lineWidth: 1))
