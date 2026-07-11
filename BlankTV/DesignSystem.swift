@@ -111,13 +111,16 @@ enum S8KSpace {
 }
 
 // MARK: - Radius
+// BLANK TV — Editorial language: crisper, more geometric corners than the
+// soft/cinematic reference. Tighter radii read as "modern editorial", not
+// "rounded media player".
 enum S8KRadius {
-    static let xs:   CGFloat = 6
-    static let sm:   CGFloat = 10
-    static let md:   CGFloat = 14
-    static let lg:   CGFloat = 18
-    static let xl:   CGFloat = 24
-    static let xxl:  CGFloat = 32
+    static let xs:   CGFloat = 4
+    static let sm:   CGFloat = 7
+    static let md:   CGFloat = 10
+    static let lg:   CGFloat = 13
+    static let xl:   CGFloat = 16
+    static let xxl:  CGFloat = 22
     static let pill: CGFloat = 9999
 }
 
@@ -305,6 +308,8 @@ struct S8KTextField: View {
 }
 
 // MARK: - Filter Pill
+// BLANK TV — Editorial: crisp rectangular chip (not a soft capsule). Solid lime
+// fill when active, quiet elevated surface + hairline when inactive.
 struct FilterPill: View {
     let title: String
     let isOn: Bool
@@ -314,60 +319,66 @@ struct FilterPill: View {
         Button(action: action) {
             Text(title)
                 .font(S8KFont.caption1.weight(.bold))
-                .foregroundColor(isOn ? .black : .s8kTextTertiary)
+                .foregroundColor(isOn ? .s8kBlack : .s8kTextSecondary)
                 .padding(.horizontal, S8KSpace.lg)
                 .padding(.vertical, S8KSpace.sm)
                 .background(
                     Group {
                         if isOn {
                             LinearGradient(colors: [.s8kGoldHigh, .s8kGoldMid], startPoint: .leading, endPoint: .trailing)
-                                .clipShape(Capsule())
                         } else {
-                            Capsule().fill(.clear).s8kGlass(Capsule())
+                            Color.s8kElevated
                         }
                     }
                 )
+                .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
                 .overlay(
-                    Capsule().strokeBorder(isOn ? Color.clear : Color.s8kBorder, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+                        .strokeBorder(isOn ? Color.clear : Color.s8kBorder, lineWidth: 1)
                 )
-                .shadow(color: isOn ? .s8kGoldMid.opacity(0.35) : .clear, radius: 6, y: 2)
         }
         .buttonStyle(S8KButtonStyle())
     }
 }
 
 // MARK: - Section Header
+// BLANK TV — Editorial: a heavy bold title with a short lime underline block
+// beneath it (magazine-style), replacing the reference's thin left bar.
 struct SectionHeader: View {
     let title: String
     var count: Int?       = nil
     var onSeeAll: (() -> Void)? = nil
 
     var body: some View {
-        HStack(spacing: 10) {
-            RoundedRectangle(cornerRadius: 2)
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 10) {
+                Text(title)
+                    .font(.system(size: 21, weight: .heavy))
+                    .foregroundColor(.s8kTextPrimary)
+
+                if let count {
+                    Text("\(count)")
+                        .font(S8KFont.caption3)
+                        .foregroundColor(.s8kGoldHigh)
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(Color.s8kGoldHigh.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                }
+                Spacer()
+                if let onSeeAll {
+                    Button(action: onSeeAll) {
+                        HStack(spacing: 3) {
+                            Text(L("common.all")).font(S8KFont.caption1.weight(.bold))
+                            Image(systemName: "chevron.left").font(.system(size: 9, weight: .bold))
+                        }
+                        .foregroundColor(.s8kGoldHigh)
+                    }
+                }
+            }
+            RoundedRectangle(cornerRadius: 1.5)
                 .fill(S8KGradient.goldFlat)
-                .frame(width: 3, height: 18)
-                .shadow(color: .s8kGoldMid.opacity(0.5), radius: 4)
-
-            Text(title)
-                .font(S8KFont.title3)
-                .foregroundColor(.s8kTextPrimary)
-
-            if let count {
-                Text("\(count)")
-                    .font(S8KFont.caption3)
-                    .foregroundColor(.s8kTextDisabled)
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(Color.s8kElevated)
-                    .clipShape(Capsule())
-                    .overlay(Capsule().strokeBorder(Color.s8kBorder, lineWidth: 1))
-            }
-            Spacer()
-            if let onSeeAll {
-                Button(L("common.all"), action: onSeeAll)
-                    .font(S8KFont.caption1.weight(.semibold))
-                    .foregroundColor(.s8kGoldMid)
-            }
+                .frame(width: 32, height: 3)
+                .shadow(color: .s8kGoldHigh.opacity(0.5), radius: 4)
         }
         .padding(.horizontal, S8KSpace.xl)
         .padding(.bottom, S8KSpace.md)
@@ -863,62 +874,65 @@ struct AppTabBar: View {
     @Binding var selected: AppTab
     @StateObject private var loc = LocalizationManager.shared
     @Environment(\.horizontalSizeClass) private var hSize
+    @Namespace private var indicatorNS
 
     var body: some View {
-        HStack(spacing: 4) {
+        // BLANK TV — Editorial tab bar: a FLAT bar with a sliding lime top-line
+        // indicator over the active tab and always-visible labels (no floating
+        // capsule). Distinct, modern, high-contrast.
+        HStack(spacing: 0) {
             ForEach(AppTab.allCases) { tab in
                 let isOn = selected == tab
                 Button(action: {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.72)) { selected = tab }
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) { selected = tab }
                 }) {
-                    VStack(spacing: 3) {
-                        Image(systemName: isOn ? tab.activeIcon : tab.icon)
-                            .font(.system(size: 20, weight: isOn ? .bold : .regular))
-                            .foregroundColor(isOn ? .black : .s8kTextTertiary)
-                            .frame(height: 24)
-                            .scaleEffect(isOn ? 1.06 : 1.0)
-
-                        Text(tab.title)
-                            .font(S8KFont.caption3)
-                            .foregroundColor(isOn ? .black : .s8kTextTertiary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 9)
-                    .background(
-                        // Selected tab rides a gold capsule that morphs between slots
-                        Group {
+                    VStack(spacing: 5) {
+                        // Top active-indicator line (the Editorial signature)
+                        ZStack {
+                            Capsule().fill(Color.clear).frame(height: 3)
                             if isOn {
                                 Capsule()
                                     .fill(S8KGradient.goldFlat)
-                                    .shadow(color: .s8kGoldMid.opacity(0.45), radius: 8, y: 2)
+                                    .frame(width: 28, height: 3)
+                                    .shadow(color: .s8kGoldHigh.opacity(0.6), radius: 5)
+                                    .matchedGeometryEffect(id: "tabIndicator", in: indicatorNS)
                             }
                         }
-                    )
-                    .animation(.spring(response: 0.35, dampingFraction: 0.72), value: selected)
+                        Image(systemName: isOn ? tab.activeIcon : tab.icon)
+                            .font(.system(size: 21, weight: isOn ? .bold : .regular))
+                            .foregroundColor(isOn ? .s8kGoldHigh : .s8kTextTertiary)
+                            .frame(height: 24)
+                            .scaleEffect(isOn ? 1.05 : 1.0)
+
+                        Text(tab.title)
+                            .font(S8KFont.caption3)
+                            .foregroundColor(isOn ? .s8kTextPrimary : .s8kTextTertiary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 8)
+                    .padding(.bottom, 4)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(S8KButtonStyle())
             }
         }
         // Cap + center the tab cluster on iPad so 5 tabs aren't spread across the
-        // whole width; the frosted bar below still spans edge-to-edge.
+        // whole width; the flat bar below still spans edge-to-edge.
         .frame(maxWidth: hSize == .regular ? 560 : .infinity)
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, S8KSpace.md)
-        .padding(.top, 8)
+        .padding(.horizontal, S8KSpace.sm)
+        .padding(.top, 6)
         .padding(.bottom, 28)
         .frame(maxWidth: .infinity)
-        // Frosted "smoked glass" bar: an ultra-thin material blurs the content
-        // scrolling behind it, a dark tint keeps it on-brand, and a top sheen
-        // adds depth. `.contentShape(Rectangle())` still captures every touch in
-        // its area, so taps can never fall through to content behind it.
+        // Flat bar: a near-solid dark surface (still blurs content behind it) with
+        // a crisp hairline top border instead of a gold sheen. `.contentShape`
+        // captures every touch so taps never fall through to content behind it.
         .background(
-            ZStack {
+            ZStack(alignment: .top) {
                 Rectangle().fill(.ultraThinMaterial)
-                Color.s8kBlack.opacity(0.45)
-                LinearGradient(colors: [Color.white.opacity(0.05), .clear],
-                               startPoint: .top, endPoint: .bottom)
+                Color.s8kBlack.opacity(0.78)
+                Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
             }
-            .overlay(GoldDivider(), alignment: .top)
             .ignoresSafeArea(edges: .bottom)
         )
         .contentShape(Rectangle())

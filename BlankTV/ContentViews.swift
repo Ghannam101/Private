@@ -657,10 +657,15 @@ struct ContentTitleBar: View {
     var body: some View {
         HStack(spacing: 12) {
             if let onBack {
-                circleButton("chevron.right", action: onBack)
+                squareButton("chevron.right", action: onBack)
             }
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(title).font(S8KFont.title1).foregroundColor(.s8kTextPrimary).lineLimit(1)
+            // Editorial: an oversized black-weight title with a short lime underline.
+            VStack(alignment: .trailing, spacing: 6) {
+                Text(title).font(.system(size: 28, weight: .black)).foregroundColor(.s8kTextPrimary).lineLimit(1)
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(S8KGradient.goldFlat)
+                    .frame(width: 30, height: 3)
+                    .shadow(color: .s8kGoldHigh.opacity(0.5), radius: 4)
                 if let subtitle {
                     Text(subtitle).font(S8KFont.caption1).foregroundColor(.s8kTextTertiary)
                 }
@@ -674,26 +679,31 @@ struct ContentTitleBar: View {
                     }
                     .foregroundColor(.s8kGoldMid)
                     .padding(.horizontal, 12).frame(height: 38)
-                    .background(Color.s8kSurface).clipShape(Capsule())
-                    .overlay(Capsule().strokeBorder(Color.s8kBorder, lineWidth: 1))
+                    .background(Color.s8kSurface)
+                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+                        .strokeBorder(Color.s8kBorder, lineWidth: 1))
                 }
                 .buttonStyle(S8KButtonStyle())
             }
             if let trailingIcon, let onTrailing {
-                circleButton(trailingIcon, action: onTrailing)
+                squareButton(trailingIcon, action: onTrailing)
             }
         }
         .padding(.horizontal, S8KSpace.xl)
         .padding(.top, onBack == nil ? 60 : 24).padding(.bottom, S8KSpace.lg)
     }
 
-    private func circleButton(_ icon: String, action: @escaping () -> Void) -> some View {
+    // Editorial: crisp rounded-square icon button (was a circle).
+    private func squareButton(_ icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 15, weight: .bold)).foregroundColor(.s8kGoldMid)
                 .frame(width: 38, height: 38)
-                .background(Color.s8kSurface).clipShape(Circle())
-                .overlay(Circle().strokeBorder(Color.s8kBorder, lineWidth: 1))
+                .background(Color.s8kSurface)
+                .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+                    .strokeBorder(Color.s8kBorder, lineWidth: 1))
         }
         .buttonStyle(S8KButtonStyle())
     }
@@ -906,46 +916,43 @@ enum ContentTab: String, CaseIterable, Identifiable {
     }
 }
 
+// BLANK TV — Editorial: underline segmented control (no filled capsules). The
+// active segment is marked by a lime underline; text brightens. Modern + clean.
 struct ContentTabBar: View {
     @StateObject private var loc = LocalizationManager.shared
     @Binding var selected: ContentTab
     var allCount: Int = 0     // total items in the section, shown on the "All" tab
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(spacing: 24) {
                 ForEach(ContentTab.allCases) { t in
                     let on = selected == t
                     Button(action: { withAnimation(.spring(response: 0.3)) { selected = t } }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: t.icon).font(.system(size: 11, weight: .bold))
-                            Text(t.title).font(S8KFont.caption1.weight(.bold))
-                            if t == .all && allCount > 0 {
-                                Text("\(allCount)")
-                                    .font(.system(size: 10, weight: .black))
-                                    .foregroundColor(on ? .black : .s8kGoldMid)
-                                    .padding(.horizontal, 6).padding(.vertical, 1)
-                                    .background((on ? Color.black.opacity(0.15) : Color.s8kGoldMid.opacity(0.15)))
-                                    .clipShape(Capsule())
+                        VStack(spacing: 7) {
+                            HStack(spacing: 6) {
+                                Image(systemName: t.icon).font(.system(size: 11, weight: .bold))
+                                Text(t.title).font(S8KFont.subhead.weight(.bold))
+                                if t == .all && allCount > 0 {
+                                    Text("\(allCount)")
+                                        .font(.system(size: 10, weight: .black))
+                                        .foregroundColor(on ? .s8kGoldHigh : .s8kTextTertiary)
+                                }
                             }
+                            .foregroundColor(on ? .s8kTextPrimary : .s8kTextTertiary)
+
+                            Capsule()
+                                .fill(S8KGradient.goldFlat)
+                                .frame(height: 3)
+                                .opacity(on ? 1 : 0)
                         }
-                        .foregroundColor(on ? .black : .s8kTextTertiary)
-                        .padding(.horizontal, S8KSpace.lg).padding(.vertical, 9)
-                        .background(
-                            Group {
-                                if on { LinearGradient(colors: [.s8kGoldHigh, .s8kGoldMid],
-                                                       startPoint: .leading, endPoint: .trailing) }
-                                else { Color.s8kSurface }
-                            }
-                        )
-                        .clipShape(Capsule())
-                        .overlay(Capsule().strokeBorder(on ? Color.clear : Color.s8kBorder, lineWidth: 1))
+                        .fixedSize()
                     }
                     .buttonStyle(S8KButtonStyle())
                 }
             }
             .padding(.horizontal, S8KSpace.xl)
         }
-        .padding(.bottom, S8KSpace.lg)
+        .padding(.bottom, S8KSpace.md)
     }
 }
 
