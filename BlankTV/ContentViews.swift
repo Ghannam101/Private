@@ -355,8 +355,9 @@ struct ChannelRow: View {
 
                     S8KImage(url: channel.logoURL, placeholder: "antenna.radiowaves.left.and.right")
                         .frame(width: 46, height: 46).background(Color.s8kElevated)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.s8kBorder, lineWidth: 1))
+                        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
 
                     VStack(alignment: .trailing, spacing: 4) {
                         Text(channel.name).font(S8KFont.subhead).foregroundColor(.s8kTextPrimary)
@@ -381,9 +382,10 @@ struct ChannelRow: View {
             .buttonStyle(S8KButtonStyle())
 
             Button(action: onTap) {
-                Circle().fill(S8KGradient.goldFlat).frame(width: 30, height: 30)
-                    .overlay(Image(systemName: "play.fill").font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.black).offset(x: 1))
+                RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+                    .fill(S8KGradient.goldFlat).frame(width: 32, height: 32)
+                    .overlay(Image(systemName: "play.fill").font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.s8kBlack))
                     .shadow(color: .s8kGoldMid.opacity(0.3), radius: 4)
             }
             .buttonStyle(S8KButtonStyle())
