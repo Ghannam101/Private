@@ -1,0 +1,18 @@
+# macOS / Xcode
+.DS_Store
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+
+# Temp / extraction leftovers
+temp_*/
+*.zip
+
+# Codemagic local artifacts
+*.ipa
+*.dSYM.zip
+
+# CocoaPods (generated on CI by pod install)
+Pods/
+*.xcworkspace

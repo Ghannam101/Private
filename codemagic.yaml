@@ -1,0 +1,83 @@
+workflows:
+  ios-release:
+    name: BLANK TV iOS
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: BlankTV
+    environment:
+      groups:
+        - codesign
+      vars:
+        XCODE_PROJECT: "BlankTV.xcodeproj"
+        XCODE_WORKSPACE: "BlankTV.xcworkspace"
+        XCODE_SCHEME: "BlankTV"
+        BUNDLE_ID: "com.blanktv.player"
+      # Pin the toolchain — do NOT use `latest`. Codemagic's "latest" floated to
+      # Xcode 26.4, whose stricter Swift concurrency + SDK changes broke a build
+      # that previously passed (the source didn't change, the toolchain did).
+      # Pinned to the last known-good stable Xcode for reproducible builds.
+      xcode: 26.3
+    scripts:
+      - name: Verify key exists
+        script: |
+          if [ -z "$CERTIFICATE_PRIVATE_KEY" ]; then
+            echo "ERROR: CERTIFICATE_PRIVATE_KEY is empty!"
+            exit 1
+          fi
+          echo "Key is present, length: ${#CERTIFICATE_PRIVATE_KEY}"
+      - name: Set up keychain
+        script: |
+          keychain initialize
+      - name: Fetch signing files
+        script: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+      - name: Add certs to keychain
+        script: |
+          keychain add-certificates
+      - name: Install CocoaPods (MobileVLCKit)
+        script: |
+          # MobileVLCKit's podspecs are served by the CocoaPods CDN (GitHub raw),
+          # which intermittently returns HTTP 429 (rate limit) and fails the build.
+          # Retry with backoff. Plain `pod install` makes FAR fewer requests than
+          # `--repo-update` (which refreshes every MobileVLCKit beta spec), so it is
+          # much less likely to be rate-limited; only the final attempt falls back
+          # to `--repo-update`.
+          # `pod install` sits inside an `if` condition on purpose: commands in an
+          # if-test are exempt from `set -e`, so a failed attempt does NOT abort the
+          # script — the loop keeps retrying.
+          for n in 1 2 3 4 5; do
+            if [ "$n" -eq 5 ]; then
+              if pod install --repo-update; then exit 0; fi
+            else
+              if pod install; then exit 0; fi
+              echo "pod install failed (attempt $n/5) — retrying in $((n*20))s…"
+              sleep $((n*20))
+            fi
+          done
+          echo "pod install failed after 5 attempts (CocoaPods CDN 429?)"
+          exit 1
+      - name: Apply profiles
+        script: |
+          xcode-project use-profiles
+      - name: Increment build number
+        script: |
+          cd "$CM_BUILD_DIR"
+          # PROJECT_BUILD_NUMBER is Codemagic's auto-incrementing counter per workflow.
+          # Offset keeps us above the last manually-set build (2).
+          NEW_BUILD_NUMBER=$(($PROJECT_BUILD_NUMBER + 2))
+          agvtool new-version -all "$NEW_BUILD_NUMBER"
+          echo "CURRENT_PROJECT_VERSION set to $NEW_BUILD_NUMBER"
+      - name: Build ipa
+        script: |
+          xcode-project build-ipa \
+            --workspace "$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
