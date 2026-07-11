@@ -829,45 +829,32 @@ struct ContentBootView: View {
             RadialGradient(colors: [Color.s8kGoldMid.opacity(0.12), .clear],
                            center: .center, startRadius: 0, endRadius: 340).ignoresSafeArea()
 
-            let overall = (p[0] + p[1] + p[2]) / 3
-            VStack(spacing: 30) {
-                VStack(spacing: 12) {
-                    Image("Logo").resizable().scaledToFit().frame(width: 88, height: 88)
+            // Clean, minimal loader — NO percentage bar (per owner feedback). The
+            // section chips fill lime + check off as each section finishes loading.
+            VStack(spacing: 28) {
+                VStack(spacing: 14) {
+                    Image("Logo").resizable().scaledToFit().frame(width: 92, height: 92)
                         .shadow(color: .s8kGoldHigh.opacity(0.45), radius: 24)
-                        .scaleEffect(logoPulse ? 1.04 : 0.97)
-                        .animation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true), value: logoPulse)
-                    S8KWordmark(size: 26)
+                        .scaleEffect(logoPulse ? 1.05 : 0.96)
+                        .animation(.easeInOut(duration: 1.3).repeatForever(autoreverses: true), value: logoPulse)
+                    S8KWordmark(size: 27)
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(S8KGradient.goldFlat)
+                        .frame(width: 46, height: 4)
+                        .shadow(color: .s8kGoldHigh.opacity(0.5), radius: 5)
                 }
 
-                // Editorial: one BIG bold percentage + a single slim lime bar.
-                VStack(spacing: 16) {
-                    Text("\(Int(overall * 100))%")
-                        .font(.system(size: 66, weight: .black, design: .rounded))
-                        .foregroundStyle(S8KGradient.goldFlat)
-                        .monospacedDigit()
-                        .shadow(color: .s8kGoldHigh.opacity(0.3), radius: 12)
-                    GeometryReader { g in
-                        ZStack(alignment: .trailing) {
-                            Capsule().fill(Color.white.opacity(0.08))
-                            Capsule().fill(S8KGradient.goldFlat)
-                                .frame(width: g.size.width * overall)
-                                .shadow(color: .s8kGoldHigh.opacity(0.4), radius: 5)
-                        }
-                    }
-                    .frame(height: 6)
-                    .animation(.easeOut(duration: 0.3), value: overall)
-                }
-                .padding(.horizontal, 48)
-
-                // Section status chips — fill lime + check as each completes.
                 HStack(spacing: 10) {
                     ForEach(0..<3, id: \.self) { i in
                         chip(sections[i].0, sections[i].1, p[i])
                     }
                 }
 
-                Text(L("home.preparing"))
-                    .font(S8KFont.footnote).foregroundColor(.s8kTextTertiary)
+                HStack(spacing: 9) {
+                    ProgressView().tint(.s8kGoldHigh).scaleEffect(0.85)
+                    Text(L("home.preparing"))
+                        .font(S8KFont.footnote).foregroundColor(.s8kTextTertiary)
+                }
             }
         }
         .onAppear { logoPulse = true }

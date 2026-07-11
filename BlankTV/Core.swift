@@ -304,6 +304,11 @@ enum L10n {
         "playlists.url_ph":     [.ar: "رابط M3U / get.php", .en: "M3U / get.php URL", .fr: "URL M3U / get.php", .tr: "M3U / get.php bağlantısı", .es: "URL M3U / get.php"],
         "playlists.add_activate":[.ar: "إضافة وتفعيل",  .en: "Add & Activate",  .fr: "Ajouter et activer", .tr: "Ekle ve Etkinleştir", .es: "Añadir y activar"],
         "playlists.add_failed": [.ar: "تعذّر إضافة القائمة", .en: "Couldn't add the playlist", .fr: "Impossible d'ajouter la liste", .tr: "Liste eklenemedi", .es: "No se pudo añadir la lista"],
+        "subs.title":       [.ar: "اشتراكاتي",           .en: "My Subscriptions", .fr: "Mes abonnements",  .tr: "Aboneliklerim",   .es: "Mis suscripciones"],
+        "subs.choose":      [.ar: "اختر اشتراكاً للمتابعة", .en: "Choose a subscription to continue", .fr: "Choisissez un abonnement", .tr: "Devam etmek için bir abonelik seçin", .es: "Elige una suscripción para continuar"],
+        "subs.add":         [.ar: "إضافة اشتراك",        .en: "Add subscription", .fr: "Ajouter un abonnement", .tr: "Abonelik ekle", .es: "Añadir suscripción"],
+        "subs.add_first":   [.ar: "أضف اشتراكك الأول",    .en: "Add your first subscription", .fr: "Ajoutez votre premier abonnement", .tr: "İlk aboneliğinizi ekleyin", .es: "Añade tu primera suscripción"],
+        "subs.welcome":     [.ar: "مرحباً بك في بلانك تي في", .en: "Welcome to BLANK TV", .fr: "Bienvenue sur BLANK TV", .tr: "BLANK TV'ye hoş geldiniz", .es: "Bienvenido a BLANK TV"],
 
         // About
         "about.subtitle":   [.ar: "Premium IPTV Player", .en: "Premium IPTV Player", .fr: "Lecteur IPTV Premium", .tr: "Premium IPTV Oynatıcı", .es: "Reproductor IPTV Premium"],

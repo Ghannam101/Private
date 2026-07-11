@@ -164,7 +164,9 @@ struct BlankTVApp: App {
                             .transition(.opacity)
                     }
                 } else {
-                    LoginView()
+                    // NEW: multi-subscription entry gate (lists saved accounts +
+                    // switch/add/demo). LoginView is now the "add subscription" form.
+                    SubscriptionsGateView()
                         .transition(.opacity)
                 }
             }

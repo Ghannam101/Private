@@ -483,3 +483,222 @@ struct TermsView: View {
         .overlay(RoundedRectangle(cornerRadius: S8KRadius.md).strokeBorder(Color.s8kBorder, lineWidth: 1))
     }
 }
+
+// ============================================================
+// BLANK TV — Multi-subscription entry gate (the NEW main gate).
+// Lists the customer's saved subscriptions as elegant cards and lets them
+// switch between accounts, add a new one, or browse the demo. Shown while
+// NOT logged in (after logout, saved subscriptions persist). A structurally
+// new entry experience — nothing like the reference single-form login.
+// ============================================================
+struct SubscriptionsGateView: View {
+    @StateObject private var auth       = AuthService.shared
+    @StateObject private var activation = ActivationService.shared
+    @StateObject private var loc        = LocalizationManager.shared
+
+    @State private var accounts: [SavedPlaylist] = Store.shared.savedPlaylists
+    @State private var showAdd   = false
+    @State private var entering: String? = nil    // id currently being entered
+    @State private var appear    = false
+    @State private var logoFloat = false
+
+    var body: some View {
+        ZStack {
+            // Distinct backdrop — deep green base + lime/teal ambient glows.
+            Color.s8kBlack.ignoresSafeArea()
+            RadialGradient(colors: [Color.s8kGoldHigh.opacity(0.10), .clear],
+                           center: .topTrailing, startRadius: 0, endRadius: 460).ignoresSafeArea()
+            RadialGradient(colors: [Color.s8kGoldMid.opacity(0.08), .clear],
+                           center: .bottomLeading, startRadius: 0, endRadius: 380).ignoresSafeArea()
+
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    header
+                    if accounts.isEmpty { emptyState } else { accountList }
+                    footer
+                }
+                .frame(maxWidth: 520)
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .overlay(alignment: .topLeading) { langMenu }
+        .onAppear {
+            accounts = Store.shared.savedPlaylists
+            withAnimation(.easeOut(duration: 0.6)) { appear = true }
+            logoFloat = true
+        }
+        // The add-form is the existing LoginView, as a dismissible sheet. On a
+        // successful add it flips auth.loggedIn → the whole gate unmounts.
+        .sheet(isPresented: $showAdd, onDismiss: { accounts = Store.shared.savedPlaylists }) {
+            LoginView()
+        }
+    }
+
+    // MARK: Header
+    private var header: some View {
+        VStack(spacing: 14) {
+            BrandLogo(size: 84)
+                .offset(y: logoFloat ? -5 : 0)
+                .animation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true), value: logoFloat)
+            S8KWordmark(size: 26)
+            RoundedRectangle(cornerRadius: 2)
+                .fill(S8KGradient.goldFlat)
+                .frame(width: 48, height: 4)
+                .shadow(color: .s8kGoldHigh.opacity(0.5), radius: 5)
+        }
+        .padding(.top, 56).padding(.bottom, 30)
+        .opacity(appear ? 1 : 0).offset(y: appear ? 0 : 12)
+    }
+
+    // MARK: Account list
+    private var accountList: some View {
+        VStack(alignment: .trailing, spacing: 14) {
+            HStack {
+                Text(L("subs.title")).font(.system(size: 22, weight: .black)).foregroundColor(.s8kTextPrimary)
+                Spacer()
+                Text("\(accounts.count)")
+                    .font(S8KFont.caption2.weight(.bold)).foregroundColor(.s8kGoldHigh)
+                    .padding(.horizontal, 9).padding(.vertical, 4)
+                    .background(Color.s8kGoldHigh.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            .padding(.horizontal, 4)
+
+            ForEach(accounts) { acc in accountCard(acc) }
+            addCard
+        }
+        .padding(.horizontal, 22)
+        .opacity(appear ? 1 : 0).offset(y: appear ? 0 : 18)
+    }
+
+    private func accountCard(_ acc: SavedPlaylist) -> some View {
+        let isActive   = acc.id == Store.shared.activePlaylistID
+        let isEntering = entering == acc.id
+        let isXtream   = acc.kind == .xtream
+        return Button(action: { enter(acc) }) {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
+                        .fill(S8KGradient.goldFlat)
+                        .frame(width: 52, height: 52)
+                        .shadow(color: .s8kGoldMid.opacity(0.4), radius: 8, y: 3)
+                    Image(systemName: isXtream ? "person.badge.key.fill" : "link")
+                        .font(.system(size: 20, weight: .bold)).foregroundColor(.s8kBlack)
+                }
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text(acc.name).font(S8KFont.title3).foregroundColor(.s8kTextPrimary).lineLimit(1)
+                    Text(acc.subtitle).font(S8KFont.caption1).foregroundColor(.s8kTextTertiary).lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                if isEntering {
+                    ProgressView().tint(.s8kGoldHigh)
+                } else if isActive {
+                    Image(systemName: "checkmark.circle.fill").font(.system(size: 16)).foregroundColor(.s8kGoldHigh)
+                } else {
+                    Image(systemName: "chevron.left").font(.system(size: 14, weight: .bold)).foregroundColor(.s8kTextTertiary)
+                }
+            }
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous).fill(Color.s8kCard))
+            .overlay(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous)
+                .strokeBorder(isActive ? Color.s8kGoldHigh.opacity(0.5) : Color.s8kBorder,
+                              lineWidth: isActive ? 1.5 : 1))
+        }
+        .buttonStyle(S8KButtonStyle())
+        .contextMenu {
+            Button(role: .destructive) {
+                Task { await auth.deletePlaylist(acc.id); accounts = Store.shared.savedPlaylists }
+            } label: { Label(L("common.delete"), systemImage: "trash") }
+        }
+    }
+
+    private var addCard: some View {
+        Button(action: { showAdd = true }) {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
+                        .strokeBorder(Color.s8kGoldMid.opacity(0.5),
+                                      style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                        .frame(width: 52, height: 52)
+                    Image(systemName: "plus").font(.system(size: 20, weight: .bold)).foregroundColor(.s8kGoldHigh)
+                }
+                Text(L("subs.add")).font(S8KFont.headline).foregroundColor(.s8kGoldHigh)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .padding(14)
+            .overlay(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous)
+                .strokeBorder(Color.s8kBorder, lineWidth: 1))
+        }
+        .buttonStyle(S8KButtonStyle())
+    }
+
+    // MARK: Empty state (first run)
+    private var emptyState: some View {
+        VStack(spacing: 22) {
+            Text(L("subs.welcome")).font(S8KFont.title3).foregroundColor(.s8kTextPrimary)
+            Text(L("login.welcome")).font(S8KFont.subhead).foregroundColor(.s8kTextSecondary)
+                .multilineTextAlignment(.center)
+            GoldButton(title: L("subs.add_first"), icon: "plus") { showAdd = true }
+        }
+        .padding(.horizontal, 30).padding(.top, 16)
+        .opacity(appear ? 1 : 0)
+    }
+
+    // MARK: Footer — demo + help
+    private var footer: some View {
+        VStack(spacing: 12) {
+            Button(action: { auth.enterDemo() }) {
+                HStack(spacing: 7) {
+                    Image(systemName: "play.rectangle.on.rectangle").font(.system(size: 13))
+                    Text(L("login.demo")).font(S8KFont.callout.weight(.semibold))
+                }
+                .foregroundColor(.s8kTextSecondary)
+                .frame(maxWidth: .infinity, minHeight: 48)
+                .overlay(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
+                    .strokeBorder(Color.s8kBorder, lineWidth: 1))
+            }
+            .buttonStyle(S8KButtonStyle())
+
+            if let support = activation.supportURL, let u = URL(string: support) {
+                Button(action: { UIApplication.shared.open(u) }) {
+                    Text(L("login.need_help")).font(S8KFont.caption1.weight(.semibold))
+                        .foregroundColor(.s8kGoldMid)
+                        .frame(maxWidth: .infinity, minHeight: 40)
+                }
+                .buttonStyle(S8KButtonStyle())
+            }
+        }
+        .padding(.horizontal, 22).padding(.top, 26).padding(.bottom, 44)
+        .opacity(appear ? 1 : 0)
+    }
+
+    private var langMenu: some View {
+        Menu {
+            ForEach(AppLang.allCases) { l in
+                Button(action: { loc.set(l) }) {
+                    if loc.lang == l { Label(l.display, systemImage: "checkmark") } else { Text(l.display) }
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "globe").font(.system(size: 13))
+                Text(loc.lang.display).font(S8KFont.caption1.weight(.semibold))
+            }
+            .foregroundColor(.s8kTextSecondary)
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .background(Color.white.opacity(0.06)).clipShape(Capsule())
+            .overlay(Capsule().strokeBorder(Color.s8kBorder, lineWidth: 1))
+        }
+        .padding(.top, 54).padding(.leading, 20)
+    }
+
+    private func enter(_ acc: SavedPlaylist) {
+        guard entering == nil else { return }
+        entering = acc.id
+        Task {
+            await auth.switchPlaylist(acc)
+            auth.loggedIn = true     // enter the app with the chosen subscription
+            entering = nil
+        }
+    }
+}
