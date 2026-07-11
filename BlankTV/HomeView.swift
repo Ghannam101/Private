@@ -200,10 +200,9 @@ struct HomeView: View {
                 if contentFailed { contentErrorBanner }
                 announcementBar
                 bannerSection
-                // BLANK TV: action-first home — quick section tiles sit ABOVE the
-                // cinematic hero (distinct from the reference's hero-first order).
-                quickNav
+                // Immersive full-bleed spotlight leads the home, then the quick tiles.
                 heroSection
+                quickNav
                 continueWatching
                 liveSection
                 moviesSection
@@ -386,43 +385,44 @@ struct HomeView: View {
     private var heroSection: some View {
         let heroes = Array(vm.movies.prefix(6))
         if !heroes.isEmpty {
-            ZStack(alignment: .bottomTrailing) {
+            ZStack(alignment: .bottom) {
+                // FULL-BLEED immersive spotlight (edge-to-edge, no card) filling the
+                // top of the home like a premium streaming hero — a 180° change from
+                // the reference's small rounded hero card.
                 if let m = heroes[safe: vm.heroIndex] {
-                    // A fixed-size Color.clear is the LAYOUT primary (screen width
-                    // × 240); the image is an overlay that's clipped to it. This
-                    // makes the box's size — never the image's intrinsic/fill size
-                    // — drive layout, so a wide source image can never widen the
-                    // page (the prior maxWidth+clipped still leaked the fill width).
                     Color.clear
                         .frame(maxWidth: .infinity)
-                        .frame(height: 240)
+                        .frame(height: 440)
                         .overlay { S8KImage(url: m.backdropURL ?? m.posterURL, placeholder: "film") }
-                        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.xl))
+                        .clipped()
                         .id(m.id)                                   // cross-fade on change
                         .transition(.opacity)
                 }
-                RoundedRectangle(cornerRadius: S8KRadius.xl)
-                    .fill(LinearGradient(
-                        colors: [Color.s8kBlack, Color.black.opacity(0.35), .clear],
-                        startPoint: .bottom, endPoint: .top))
-                    .frame(height: 240)
+                LinearGradient(
+                    stops: [
+                        .init(color: .s8kBlack,              location: 0.0),
+                        .init(color: .s8kBlack.opacity(0.6), location: 0.28),
+                        .init(color: .clear,                 location: 0.60),
+                        .init(color: .s8kBlack.opacity(0.5), location: 1.0)
+                    ],
+                    startPoint: .bottom, endPoint: .top)
+                    .frame(height: 440)
                     .allowsHitTesting(false)   // decorative scrim — never intercept the hero buttons
 
-                VStack(alignment: .trailing, spacing: 9) {
+                VStack(alignment: .trailing, spacing: 11) {
                     HStack(spacing: 6) {
                         tag(L("home.featured"), isGold: true)
                         tag(L("home.new_tag"), color: .s8kBlue)
                     }
                     if let m = heroes[safe: vm.heroIndex] {
-                        Text(m.name).font(.system(size: 25, weight: .black)).foregroundColor(.s8kTextPrimary)
+                        Text(m.name).font(.system(size: 32, weight: .black)).foregroundColor(.s8kTextPrimary)
                             .lineLimit(2).multilineTextAlignment(.trailing)
-                            .shadow(color: .black.opacity(0.6), radius: 5)
+                            .shadow(color: .black.opacity(0.7), radius: 6)
                             .frame(maxWidth: .infinity, alignment: .trailing)
-                        // Editorial lime underline accent under the hero title
-                        RoundedRectangle(cornerRadius: 1.5)
+                        RoundedRectangle(cornerRadius: 2)
                             .fill(S8KGradient.goldFlat)
-                            .frame(width: 40, height: 3)
-                            .shadow(color: .s8kGoldHigh.opacity(0.6), radius: 4)
+                            .frame(width: 52, height: 4)
+                            .shadow(color: .s8kGoldHigh.opacity(0.6), radius: 5)
                         if let y = m.year {
                             Text(y).font(S8KFont.caption1).foregroundColor(.s8kTextSecondary)
                         }
@@ -432,11 +432,11 @@ struct HomeView: View {
                             if let m = heroes[safe: vm.heroIndex] { cover = .movie(m) }
                         }) {
                             HStack(spacing: 7) {
-                                Image(systemName: "play.fill").font(.system(size: 12, weight: .bold))
+                                Image(systemName: "play.fill").font(.system(size: 13, weight: .bold))
                                 Text(L("common.play")).font(S8KFont.subhead.weight(.bold))
                             }
                             .foregroundColor(.s8kBlack)
-                            .padding(.horizontal, 22).padding(.vertical, 11)
+                            .padding(.horizontal, 26).padding(.vertical, 13)
                             .background(S8KGradient.goldFlat)
                             .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
                             .shadow(color: .s8kGoldMid.opacity(0.45), radius: 8, y: 3)
@@ -446,40 +446,35 @@ struct HomeView: View {
                             if let m = heroes[safe: vm.heroIndex] { cover = .movie(m) }
                         }) {
                             HStack(spacing: 6) {
-                                Image(systemName: "info.circle").font(.system(size: 12))
+                                Image(systemName: "info.circle").font(.system(size: 13))
                                 Text(L("common.details")).font(S8KFont.caption1.weight(.semibold))
                             }
                             .foregroundColor(.s8kTextPrimary)
-                            .padding(.horizontal, 15).padding(.vertical, 11)
-                            .background(Color.white.opacity(0.12))
+                            .padding(.horizontal, 17).padding(.vertical, 13)
+                            .background(Color.white.opacity(0.14))
                             .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
                             .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
                                 .strokeBorder(Color.white.opacity(0.2), lineWidth: 1))
                         }
                         .buttonStyle(S8KButtonStyle())
                     }
-                }
-                .padding(S8KSpace.xl)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-
-                HStack(spacing: 4) {
-                    ForEach(0..<heroes.count, id: \.self) { i in
-                        Capsule()
-                            .fill(i == vm.heroIndex ? AnyShapeStyle(S8KGradient.goldFlat)
-                                                    : AnyShapeStyle(Color.white.opacity(0.25)))
-                            .frame(width: i == vm.heroIndex ? 20 : 5, height: 5)
-                            .animation(.spring(response: 0.3), value: vm.heroIndex)
+                    HStack(spacing: 5) {
+                        ForEach(0..<heroes.count, id: \.self) { i in
+                            Capsule()
+                                .fill(i == vm.heroIndex ? AnyShapeStyle(S8KGradient.goldFlat)
+                                                        : AnyShapeStyle(Color.white.opacity(0.3)))
+                                .frame(width: i == vm.heroIndex ? 22 : 6, height: 6)
+                                .animation(.spring(response: 0.3), value: vm.heroIndex)
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.top, 4)
                 }
-                .padding(.horizontal, S8KSpace.xl).padding(.bottom, S8KSpace.lg)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, S8KSpace.xl)
+                .padding(.bottom, S8KSpace.xl)
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .frame(height: 240)
-            .clipShape(RoundedRectangle(cornerRadius: S8KRadius.xl))
-            .overlay(RoundedRectangle(cornerRadius: S8KRadius.xl)
-                .strokeBorder(Color.s8kBorderGold, lineWidth: 1))
-            .padding(.horizontal, S8KSpace.xl)
-            .padding(.bottom, S8KSpace.xxl)
+            .frame(height: 440)
             .animation(.easeInOut(duration: 0.6), value: vm.heroIndex)
         }
     }
