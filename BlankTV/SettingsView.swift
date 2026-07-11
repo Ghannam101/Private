@@ -127,38 +127,39 @@ struct SettingsView: View {
         HStack(spacing: S8KSpace.lg) {
             ZStack {
                 S8KGradient.goldFlat
-                    .frame(width: 60, height: 60)
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-                    .shadow(color: .s8kGoldMid.opacity(0.4), radius: 10)
+                    .frame(width: 64, height: 64)
+                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous))
+                    .shadow(color: .s8kGoldMid.opacity(0.45), radius: 10, y: 3)
                 Text(String((auth.user?.username.prefix(2) ?? "BT").uppercased()))
-                    .font(.system(size: 20, weight: .black))
-                    .foregroundColor(.black)
+                    .font(.system(size: 22, weight: .black))
+                    .foregroundColor(.s8kBlack)
             }
-            VStack(alignment: .trailing, spacing: 5) {
+            VStack(alignment: .trailing, spacing: 6) {
                 Text(auth.user?.username ?? (auth.mode == .m3u ? L("settings.m3u_list") : L("settings.user")))
-                    .font(S8KFont.title3)
+                    .font(.system(size: 20, weight: .black))
                     .foregroundColor(.s8kTextPrimary)
+                    .lineLimit(1)
                 HStack(spacing: 5) {
-                    Circle().fill(Color.s8kGreen).frame(width: 5, height: 5)
+                    Circle().fill(Color.s8kGreen).frame(width: 6, height: 6)
                     Text("\(L("common.connected")) — \(theme.serverName)")
                         .font(S8KFont.caption1)
-                        .foregroundColor(.s8kGoldMid)
+                        .foregroundColor(.s8kGoldHigh)
+                        .lineLimit(1)
                 }
             }
             Spacer()
             Text((auth.user?.plan ?? (auth.mode == .m3u ? "M3U" : "basic")).uppercased())
-                .font(S8KFont.caption3)
-                .foregroundColor(.black)
-                .padding(.horizontal, 12).padding(.vertical, 6)
+                .font(S8KFont.caption3.weight(.heavy))
+                .foregroundColor(.s8kBlack)
+                .padding(.horizontal, 11).padding(.vertical, 6)
                 .background(S8KGradient.goldFlat)
-                .clipShape(Capsule())
+                .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
                 .shadow(color: .s8kGoldMid.opacity(0.4), radius: 6)
         }
         .padding(S8KSpace.lg)
-        .background(Color.s8kSurface)
-        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.lg))
-        .overlay(RoundedRectangle(cornerRadius: S8KRadius.lg)
-            .strokeBorder(Color.s8kBorderGold, lineWidth: 1.5))
+        .background(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous).fill(Color.s8kCard))
+        .overlay(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous)
+            .strokeBorder(Color.s8kBorder, lineWidth: 1))
         .padding(.horizontal, S8KSpace.xl)
         .padding(.bottom, S8KSpace.lg)
     }
