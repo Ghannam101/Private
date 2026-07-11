@@ -254,50 +254,9 @@ struct LoginView: View {
                     .opacity(appear ? 1 : 0)
                     .offset(y: appear ? 0 : 20)
 
-                    // ===== Demo Mode (App Review, Guideline 2.1) =====
-                    Button(action: { auth.enterDemo() }) {
-                        HStack(spacing: 7) {
-                            Image(systemName: "play.rectangle.on.rectangle")
-                                .font(.system(size: 13))
-                            Text(L("login.demo"))
-                                .font(S8KFont.callout.weight(.semibold))
-                        }
-                        .foregroundColor(.s8kTextSecondary)
-                        .frame(maxWidth: .infinity, minHeight: 46)
-                        .overlay(RoundedRectangle(cornerRadius: S8KRadius.md)
-                            .strokeBorder(Color.s8kBorder, lineWidth: 1))
-                    }
-                    .buttonStyle(S8KButtonStyle())
-                    .padding(.horizontal, 22)
-                    .padding(.top, 14)
-                    .opacity(appear ? 1 : 0)
-
-                    // ===== Activation help (compliant CONTACT link, no prices) =====
-                    if let support = activation.supportURL, let u = URL(string: support) {
-                        Button(action: { UIApplication.shared.open(u) }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "questionmark.circle")
-                                    .font(.system(size: 13))
-                                Text(L("login.need_help"))
-                                    .font(S8KFont.caption1.weight(.semibold))
-                            }
-                            .foregroundColor(.s8kGoldMid)
-                            .frame(maxWidth: .infinity, minHeight: 40)
-                        }
-                        .buttonStyle(S8KButtonStyle())
-                        .padding(.horizontal, 22)
-                        .padding(.top, 6)
-                        .opacity(appear ? 1 : 0)
-                    }
-
-                    // ===== Legal =====
-                    VStack(spacing: 8) {
-                        // Player-only disclaimer (App Store 4.3 / legal) — shown
-                        // here too so it appears regardless of entry screen.
-                        Text(S8KLegal.disclaimer)
-                            .font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 22).padding(.bottom, 4)
+                    // ===== Legal (minimal — Demo / help / language live on the
+                    // subscriptions gate now; the form stays focused on adding). =====
+                    VStack(spacing: 6) {
                         Text(L("login.agree"))
                             .font(S8KFont.caption2).foregroundColor(.s8kTextDisabled)
                         HStack(spacing: 4) {
@@ -308,7 +267,7 @@ struct LoginView: View {
                                 .font(S8KFont.caption2).foregroundColor(.s8kGoldMid)
                         }
                     }
-                    .padding(.top, 28)
+                    .padding(.top, 26)
                     .padding(.bottom, 40)
                     .opacity(appear ? 1 : 0)
                 }
@@ -318,7 +277,6 @@ struct LoginView: View {
                 .frame(maxWidth: .infinity)
             }
         }
-        .overlay(alignment: .topLeading) { langMenu }
         .onAppear {
             withAnimation(.easeOut(duration: 0.7)) { appear = true }
         }
