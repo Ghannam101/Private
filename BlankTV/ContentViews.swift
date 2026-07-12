@@ -1339,7 +1339,7 @@ struct HistoryGrid: View {
     var empty: String = L("history.empty.generic")
     let onTap: (WatchHistory) -> Void
     @Environment(\.horizontalSizeClass) private var hSize
-    private var cols: [GridItem] { [GridItem(.adaptive(minimum: hSize == .regular ? 150 : 104), spacing: 12)] }
+    private var cols: [GridItem] { [GridItem(.adaptive(minimum: hSize == .regular ? 168 : 116), spacing: 14)] }
 
     var body: some View {
         if items.isEmpty {
@@ -1382,14 +1382,15 @@ struct PosterGrid: View {
     var empty: String = L("grid.empty")
     let onSelect: (Movie) -> Void
     @Environment(\.horizontalSizeClass) private var hSize
-    // Wider columns on iPad so posters aren't postage-stamps on a large screen.
-    private var cols: [GridItem] { [GridItem(.adaptive(minimum: hSize == .regular ? 150 : 104), spacing: 12)] }
+    // Larger, more immersive posters (fewer per row) — a bolder catalog than the
+    // reference's dense postage-stamp grid.
+    private var cols: [GridItem] { [GridItem(.adaptive(minimum: hSize == .regular ? 168 : 116), spacing: 14)] }
 
     var body: some View {
         if movies.isEmpty {
             EmptyState(icon: "film.slash", title: empty, subtitle: L("grid.empty.sub"))
         } else {
-            LazyVGrid(columns: cols, spacing: 16) {
+            LazyVGrid(columns: cols, spacing: 18) {
                 ForEach(movies) { m in MoviePosterCell(movie: m) { onSelect(m) } }
             }
             .padding(.horizontal, S8KSpace.lg)
@@ -1690,7 +1691,7 @@ struct SeriesGrid: View {
     var empty: String = L("grid.empty")
     let onSelect: (Series) -> Void
     @Environment(\.horizontalSizeClass) private var hSize
-    private var cols: [GridItem] { [GridItem(.adaptive(minimum: hSize == .regular ? 150 : 104), spacing: 12)] }
+    private var cols: [GridItem] { [GridItem(.adaptive(minimum: hSize == .regular ? 168 : 116), spacing: 14)] }
 
     var body: some View {
         if series.isEmpty {
