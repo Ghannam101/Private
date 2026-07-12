@@ -1661,11 +1661,49 @@ struct SeriesListView: View {
                 if !vm.search.isEmpty {
                     SeriesGrid(series: vm.searchResults, empty: L("empty.no_results")) { selected = $0 }
                 } else {
+                    featuredBanner
                     ContentTabBar(selected: $tab)
                     tabContent
                 }
                 Color.clear.frame(height: 110)
             }
+        }
+    }
+
+    // Featured spotlight banner atop the Series browse (mirrors Movies).
+    @ViewBuilder
+    private var featuredBanner: some View {
+        if let s = vm.series.first {
+            ZStack(alignment: .bottom) {
+                Color.clear
+                    .frame(maxWidth: .infinity).frame(height: 200)
+                    .overlay { S8KImage(url: s.backdropURL ?? s.coverURL, placeholder: "tv") }
+                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous))
+                LinearGradient(colors: [Color.s8kBlack, .clear], startPoint: .bottom, endPoint: .center)
+                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous))
+                    .allowsHitTesting(false)
+                VStack(alignment: .trailing, spacing: 8) {
+                    Text(s.name).font(.system(size: 20, weight: .black)).foregroundColor(.s8kTextPrimary)
+                        .lineLimit(1).frame(maxWidth: .infinity, alignment: .trailing)
+                    RoundedRectangle(cornerRadius: 1.5).fill(S8KGradient.goldFlat).frame(width: 34, height: 3)
+                    Button(action: { selected = s }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "play.fill").font(.system(size: 11, weight: .bold))
+                            Text(L("common.details")).font(S8KFont.caption1.weight(.bold))
+                        }
+                        .foregroundColor(.s8kBlack)
+                        .padding(.horizontal, 18).padding(.vertical, 9)
+                        .background(S8KGradient.goldFlat)
+                        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
+                    }
+                    .buttonStyle(S8KButtonStyle())
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+                .padding(S8KSpace.lg)
+            }
+            .frame(height: 200)
+            .padding(.horizontal, S8KSpace.xl)
+            .padding(.bottom, S8KSpace.lg)
         }
     }
 
