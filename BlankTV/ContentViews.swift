@@ -1284,23 +1284,56 @@ struct MoviesView: View {
     private var browser: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
-                ContentTitleBar(title: L("title.movies"), subtitle: "\(vm.movies.count) \(L("count.movie"))",
-                                trailingIcon: "line.3.horizontal.decrease.circle",
-                                onTrailing: { showCategories = true },
-                                reorderAction: { showReorder = true })
-                SearchField(text: $vm.search, placeholder: L("search.movies"))
-                    .padding(.horizontal, S8KSpace.xl).padding(.bottom, S8KSpace.lg)
-
+                // Clean category-LIBRARY layout (IBO/Netflix-style, top-rated 2026):
+                // a slim header (search + filter MENU) replaces the reference's
+                // oversized title bar and 4-chip tab strip; the default browse is the
+                // category rails (a magazine), not a single flat grid.
+                slimHeader
                 if !vm.search.isEmpty {
                     PosterGrid(movies: vm.searchResults, empty: L("empty.no_results")) { selected = $0 }
                 } else {
-                    featuredBanner
-                    ContentTabBar(selected: $tab)
+                    if tab == .all { featuredBanner }
                     tabContent
                 }
                 Color.clear.frame(height: 110)
             }
         }
+    }
+
+    // Slim, clean header: a filter menu (All/Favorites/Newest/History + reorder) and
+    // a search field — no oversized title, no 4-chip tab strip.
+    private var slimHeader: some View {
+        VStack(alignment: .trailing, spacing: 10) {
+            HStack(spacing: 10) {
+                Menu {
+                    Picker("", selection: $tab) {
+                        ForEach(ContentTab.allCases) { t in
+                            Label(t.title, systemImage: t.icon).tag(t)
+                        }
+                    }
+                    Button { showReorder = true } label: {
+                        Label(L("reorder.button"), systemImage: "arrow.up.arrow.down")
+                    }
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 17, weight: .bold)).foregroundColor(.s8kBlack)
+                        .frame(width: 44, height: 44)
+                        .background(S8KGradient.goldFlat)
+                        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
+                }
+                SearchField(text: $vm.search, placeholder: L("search.movies"))
+            }
+            if tab != .all {
+                HStack(spacing: 6) {
+                    Image(systemName: tab.icon).font(.system(size: 11, weight: .bold))
+                    Text(tab.title).font(S8KFont.caption1.weight(.bold))
+                }
+                .foregroundColor(.s8kGoldHigh)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        }
+        .padding(.horizontal, S8KSpace.xl)
+        .padding(.top, 56).padding(.bottom, S8KSpace.md)
     }
 
     // Featured spotlight banner at the top of the Movies browse (2026 VOD pattern:
