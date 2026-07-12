@@ -1294,11 +1294,50 @@ struct MoviesView: View {
                 if !vm.search.isEmpty {
                     PosterGrid(movies: vm.searchResults, empty: L("empty.no_results")) { selected = $0 }
                 } else {
+                    featuredBanner
                     ContentTabBar(selected: $tab)
                     tabContent
                 }
                 Color.clear.frame(height: 110)
             }
+        }
+    }
+
+    // Featured spotlight banner at the top of the Movies browse (2026 VOD pattern:
+    // a hero banner above the category rails). Uses the first movie as featured.
+    @ViewBuilder
+    private var featuredBanner: some View {
+        if let m = vm.movies.first {
+            ZStack(alignment: .bottom) {
+                Color.clear
+                    .frame(maxWidth: .infinity).frame(height: 200)
+                    .overlay { S8KImage(url: m.backdropURL ?? m.posterURL, placeholder: "film") }
+                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous))
+                LinearGradient(colors: [Color.s8kBlack, .clear], startPoint: .bottom, endPoint: .center)
+                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous))
+                    .allowsHitTesting(false)
+                VStack(alignment: .trailing, spacing: 8) {
+                    Text(m.name).font(.system(size: 20, weight: .black)).foregroundColor(.s8kTextPrimary)
+                        .lineLimit(1).frame(maxWidth: .infinity, alignment: .trailing)
+                    RoundedRectangle(cornerRadius: 1.5).fill(S8KGradient.goldFlat).frame(width: 34, height: 3)
+                    Button(action: { selected = m }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "play.fill").font(.system(size: 11, weight: .bold))
+                            Text(L("common.play")).font(S8KFont.caption1.weight(.bold))
+                        }
+                        .foregroundColor(.s8kBlack)
+                        .padding(.horizontal, 18).padding(.vertical, 9)
+                        .background(S8KGradient.goldFlat)
+                        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
+                    }
+                    .buttonStyle(S8KButtonStyle())
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+                .padding(S8KSpace.lg)
+            }
+            .frame(height: 200)
+            .padding(.horizontal, S8KSpace.xl)
+            .padding(.bottom, S8KSpace.lg)
         }
     }
 
