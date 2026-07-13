@@ -18,6 +18,44 @@ final class HomeVM: ObservableObject {
     @Published var doneChannels = false
     @Published var doneMovies   = false
     @Published var doneSeries   = false
+    @Published var heroItems:     [HeroItem]      = []   // mixed swipeable hero (movies + series)
+
+    // A hero carousel item can be a movie OR a series.
+    struct HeroItem: Identifiable {
+        enum Kind { case movie(Movie), series(Series) }
+        let kind: Kind
+        var id: String {
+            switch kind { case .movie(let m): return "m_\(m.id)"; case .series(let s): return "s_\(s.id)" }
+        }
+        var name: String {
+            switch kind { case .movie(let m): return m.name; case .series(let s): return s.name }
+        }
+        var backdropURL: String? {
+            switch kind {
+            case .movie(let m):  return m.backdropURL ?? m.posterURL
+            case .series(let s): return s.backdropURL ?? s.coverURL
+            }
+        }
+        var rating: String? {
+            switch kind { case .movie(let m): return m.rating; case .series(let s): return s.rating }
+        }
+        var genre: String? {
+            switch kind { case .movie(let m): return m.genre; case .series(let s): return s.genre }
+        }
+    }
+
+    /// Build the mixed hero: top-rated movies + top-rated series, interleaved, up to 8.
+    func rebuildHero() {
+        let topM = movies.sorted { $0.ratingDouble > $1.ratingDouble }.prefix(4).map { HeroItem(kind: .movie($0)) }
+        let topS = series.sorted { (Double($0.rating ?? "") ?? 0) > (Double($1.rating ?? "") ?? 0) }.prefix(4).map { HeroItem(kind: .series($0)) }
+        var out: [HeroItem] = []
+        for i in 0..<max(topM.count, topS.count) {
+            if i < topM.count { out.append(topM[i]) }
+            if i < topS.count { out.append(topS[i]) }
+        }
+        heroItems = Array(out.prefix(8))
+        if heroIndex >= heroItems.count { heroIndex = 0 }
+    }
 
     private let hist    = HistoryService.shared
     private let config  = ConfigService.shared
@@ -36,6 +74,7 @@ final class HomeVM: ObservableObject {
             g.addTask { await self.loadSeries() }
         }
         loaded = true
+        rebuildHero()
         isLoading = false
     }
 
@@ -57,6 +96,7 @@ final class HomeVM: ObservableObject {
         _ = await (c, m, s)
         history = Array(hist.items.prefix(8))
         loaded = true
+        rebuildHero()
         isLoading = false
     }
 
@@ -87,7 +127,7 @@ final class HomeVM: ObservableObject {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 withAnimation(.easeInOut(duration: 0.6)) {
-                    self.heroIndex = (self.heroIndex + 1) % max(1, self.movies.prefix(6).count)
+                    self.heroIndex = (self.heroIndex + 1) % max(1, self.heroItems.count)
                 }
             }
         }
@@ -381,112 +421,123 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Hero Section (cinematic latest movies; admin banner overrides via bannerSection)
+    // MARK: - Hero Section — SWIPEABLE cinematic carousel mixing top-rated movies +
+    // series (auto-rotates every 5s via the VM timer; the customer can also swipe).
     @ViewBuilder
     private var heroSection: some View {
-        let heroes = Array(vm.movies.prefix(6))
-        if !heroes.isEmpty {
-            ZStack(alignment: .bottom) {
-                // FULL-BLEED immersive spotlight (edge-to-edge, no card) filling the
-                // top of the home like a premium streaming hero — a 180° change from
-                // the reference's small rounded hero card.
-                if let m = heroes[safe: vm.heroIndex] {
-                    Color.clear
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 440)
-                        .overlay { S8KImage(url: m.backdropURL ?? m.posterURL, placeholder: "film") }
-                        .clipped()
-                        .id(m.id)                                   // cross-fade on change
-                        .transition(.opacity)
+        if !vm.heroItems.isEmpty {
+            TabView(selection: $vm.heroIndex) {
+                ForEach(Array(vm.heroItems.enumerated()), id: \.element.id) { idx, item in
+                    heroCard(item).tag(idx)
                 }
-                LinearGradient(
-                    stops: [
-                        .init(color: .s8kBlack,              location: 0.0),
-                        .init(color: .s8kBlack.opacity(0.6), location: 0.28),
-                        .init(color: .clear,                 location: 0.60),
-                        .init(color: .s8kBlack.opacity(0.5), location: 1.0)
-                    ],
-                    startPoint: .bottom, endPoint: .top)
-                    .frame(height: 440)
-                    .allowsHitTesting(false)   // decorative scrim — never intercept the hero buttons
-
-                VStack(alignment: .trailing, spacing: 11) {
-                    HStack(spacing: 6) {
-                        tag(L("home.featured"), isGold: true)
-                        tag(L("home.new_tag"), color: .s8kBlue)
-                    }
-                    if let m = heroes[safe: vm.heroIndex] {
-                        Text(m.name).font(.system(size: 32, weight: .black)).foregroundColor(.s8kTextPrimary)
-                            .lineLimit(2).multilineTextAlignment(.trailing)
-                            .shadow(color: .black.opacity(0.7), radius: 6)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(S8KGradient.goldFlat)
-                            .frame(width: 52, height: 4)
-                            .shadow(color: .s8kGoldHigh.opacity(0.6), radius: 5)
-                        // Funflix-style metadata line: ★ rating · genre
-                        HStack(spacing: 8) {
-                            if let r = m.rating, let rv = Double(r), rv > 0 {
-                                HStack(spacing: 3) {
-                                    Image(systemName: "star.fill").font(.system(size: 10)).foregroundColor(.s8kGoldHigh)
-                                    Text(String(format: "%.1f", rv)).font(S8KFont.caption1.weight(.bold)).foregroundColor(.s8kGoldHigh)
-                                }
-                            }
-                            if let g = m.genre {
-                                Text(g).font(S8KFont.caption1).foregroundColor(.s8kTextSecondary).lineLimit(1)
-                            } else if let y = m.year {
-                                Text(y).font(S8KFont.caption1).foregroundColor(.s8kTextSecondary)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                    }
-                    // Funflix signature: two CIRCULAR hero buttons (＋ outline, ▶ accent-filled).
-                    HStack(spacing: 14) {
-                        // Favorite (heart) toggle for the current hero title.
-                        Button(action: {
-                            if let m = heroes[safe: vm.heroIndex] { favs.toggleMovie(m.id) }
-                        }) {
-                            let isFav = heroes[safe: vm.heroIndex].map { favs.isMovieFav($0.id) } ?? false
-                            Image(systemName: isFav ? "heart.fill" : "heart").font(.system(size: 18, weight: .bold))
-                                .foregroundColor(isFav ? .s8kRed : .s8kTextPrimary)
-                                .frame(width: 50, height: 50)
-                                .background(Color.white.opacity(0.14))
-                                .clipShape(Circle())
-                                .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
-                        }
-                        .buttonStyle(S8KButtonStyle())
-                        // Play (accent-filled circle) — Funflix signature.
-                        Button(action: {
-                            if let m = heroes[safe: vm.heroIndex] { cover = .movie(m) }
-                        }) {
-                            Image(systemName: "play.fill").font(.system(size: 22, weight: .black))
-                                .foregroundColor(.s8kBlack)
-                                .frame(width: 58, height: 58)
-                                .background(S8KGradient.goldFlat)
-                                .clipShape(Circle())
-                                .shadow(color: .s8kGoldHigh.opacity(0.5), radius: 14, y: 3)
-                        }
-                        .buttonStyle(S8KButtonStyle())
-                    }
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    HStack(spacing: 5) {
-                        ForEach(0..<heroes.count, id: \.self) { i in
-                            Capsule()
-                                .fill(i == vm.heroIndex ? AnyShapeStyle(S8KGradient.goldFlat)
-                                                        : AnyShapeStyle(Color.white.opacity(0.3)))
-                                .frame(width: i == vm.heroIndex ? 22 : 6, height: 6)
-                                .animation(.spring(response: 0.3), value: vm.heroIndex)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.top, 4)
-                }
-                .padding(.horizontal, S8KSpace.xl)
-                .padding(.bottom, S8KSpace.xl)
-                .frame(maxWidth: .infinity, alignment: .trailing)
             }
+            .tabViewStyle(.page(indexDisplayMode: .never))
             .frame(height: 440)
-            .animation(.easeInOut(duration: 0.6), value: vm.heroIndex)
+        }
+    }
+
+    private func heroCard(_ item: HomeVM.HeroItem) -> some View {
+        ZStack(alignment: .bottom) {
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .frame(height: 440)
+                .overlay { S8KImage(url: item.backdropURL, placeholder: "film") }
+                .clipped()
+            LinearGradient(
+                stops: [
+                    .init(color: .s8kBlack,              location: 0.0),
+                    .init(color: .s8kBlack.opacity(0.6), location: 0.28),
+                    .init(color: .clear,                 location: 0.60),
+                    .init(color: .s8kBlack.opacity(0.5), location: 1.0)
+                ],
+                startPoint: .bottom, endPoint: .top)
+                .frame(height: 440)
+                .allowsHitTesting(false)
+
+            VStack(alignment: .trailing, spacing: 11) {
+                HStack(spacing: 6) {
+                    tag(L("home.featured"), isGold: true)
+                    tag(L("home.new_tag"), color: .s8kBlue)
+                }
+                Text(item.name).font(.system(size: 32, weight: .black)).foregroundColor(.s8kTextPrimary)
+                    .lineLimit(2).multilineTextAlignment(.trailing)
+                    .shadow(color: .black.opacity(0.7), radius: 6)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(S8KGradient.goldFlat)
+                    .frame(width: 52, height: 4)
+                    .shadow(color: .s8kGoldHigh.opacity(0.6), radius: 5)
+                HStack(spacing: 8) {
+                    if let r = item.rating, let rv = Double(r), rv > 0 {
+                        HStack(spacing: 3) {
+                            Image(systemName: "star.fill").font(.system(size: 10)).foregroundColor(.s8kGoldHigh)
+                            Text(String(format: "%.1f", rv)).font(S8KFont.caption1.weight(.bold)).foregroundColor(.s8kGoldHigh)
+                        }
+                    }
+                    if let g = item.genre {
+                        Text(g).font(S8KFont.caption1).foregroundColor(.s8kTextSecondary).lineLimit(1)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+
+                HStack(spacing: 14) {
+                    Button(action: { toggleHeroFav(item) }) {
+                        let isFav = heroIsFav(item)
+                        Image(systemName: isFav ? "heart.fill" : "heart").font(.system(size: 18, weight: .bold))
+                            .foregroundColor(isFav ? .s8kRed : .s8kTextPrimary)
+                            .frame(width: 50, height: 50)
+                            .background(Color.white.opacity(0.14))
+                            .clipShape(Circle())
+                            .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
+                    }
+                    .buttonStyle(S8KButtonStyle())
+                    Button(action: { openHero(item) }) {
+                        Image(systemName: "play.fill").font(.system(size: 22, weight: .black))
+                            .foregroundColor(.s8kBlack)
+                            .frame(width: 58, height: 58)
+                            .background(S8KGradient.goldFlat)
+                            .clipShape(Circle())
+                            .shadow(color: .s8kGoldHigh.opacity(0.5), radius: 14, y: 3)
+                    }
+                    .buttonStyle(S8KButtonStyle())
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+
+                HStack(spacing: 5) {
+                    ForEach(0..<vm.heroItems.count, id: \.self) { i in
+                        Capsule()
+                            .fill(i == vm.heroIndex ? AnyShapeStyle(S8KGradient.goldFlat)
+                                                    : AnyShapeStyle(Color.white.opacity(0.3)))
+                            .frame(width: i == vm.heroIndex ? 22 : 6, height: 6)
+                            .animation(.spring(response: 0.3), value: vm.heroIndex)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.top, 4)
+            }
+            .padding(.horizontal, S8KSpace.xl)
+            .padding(.bottom, S8KSpace.xl)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .frame(height: 440)
+    }
+
+    private func heroIsFav(_ item: HomeVM.HeroItem) -> Bool {
+        switch item.kind {
+        case .movie(let m):  return favs.isMovieFav(m.id)
+        case .series(let s): return favs.isSeriesFav(s.id)
+        }
+    }
+    private func toggleHeroFav(_ item: HomeVM.HeroItem) {
+        switch item.kind {
+        case .movie(let m):  favs.toggleMovie(m.id)
+        case .series(let s): favs.toggleSeries(s.id)
+        }
+    }
+    private func openHero(_ item: HomeVM.HeroItem) {
+        switch item.kind {
+        case .movie(let m):  cover = .movie(m)
+        case .series(let s): cover = .series(s)
         }
     }
 
