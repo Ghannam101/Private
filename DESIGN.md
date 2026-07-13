@@ -184,3 +184,28 @@ Xtream/M3U data into shelves/collections; we do not invent new backend intellige
 - [ ] Owner approval of concept + Movies template → then execute per §6 roadmap.
 - Known limitation: I design blind (no local preview) → mitigated by compile-review + owner
   device builds + screenshots. Plan approved BEFORE building to minimize reject cycles.
+
+## 11. ⭐ REFERENCE the owner chose: "Funflix" cinematic OTT (2026-07-13)
+Owner shared 3 screenshots of the **Funflix OTT** kit (Netro Creative) as the target LOOK.
+BLANK TV adopts this cinematic pattern **with the lime/green accent** (Funflix shows red/pink)
+— which itself keeps us distinct from Funflix too. Concrete spec extracted from the shots:
+
+**HOME (match this):**
+1. **Minimal top bar over the hero:** a menu/filter glyph (leading) + a profile/logo glyph
+   (trailing). Small, translucent, floats on the hero.
+2. **Immersive HERO (~40% height):** featured backdrop, bold title (or title art), a metadata
+   line `★ 8.3 · genre`, and **TWO CIRCULAR buttons: a `＋` (outline circle) + a `▶` play
+   (accent-FILLED circle, larger)** — this circular-play button is Funflix's signature.
+3. **Continue/recent RAIL:** small rounded thumbnail chips.
+4. **"Top Trending" section:** bold header + a **2-column poster GRID** (large rounded posters).
+
+**DETAIL (we're already close):** full-bleed backdrop → rounded **bottom info card**: title +
+`HD` badge, genre, `★ rating · year · age`, plot + "more", **"Watch now" (accent pill) +
+"Trailer" (outline pill)**.
+
+**STYLE:** cinematic dark, ONE accent color (ours = lime `#CBFF06`), rounded cards, minimal
+chrome, large imagery, circular hero buttons, bottom-sheet detail.
+
+**Build order to match Funflix:** (1) Home hero → circular ＋/▶ buttons + metadata line;
+(2) Home → Continue rail + "Top Trending" 2-col grid; (3) Detail → confirm Watch now/Trailer
+pills; (4) apply the cinematic card/hero spirit to Movies/Series/Live.

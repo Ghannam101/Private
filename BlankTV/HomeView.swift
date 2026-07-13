@@ -423,41 +423,48 @@ struct HomeView: View {
                             .fill(S8KGradient.goldFlat)
                             .frame(width: 52, height: 4)
                             .shadow(color: .s8kGoldHigh.opacity(0.6), radius: 5)
-                        if let y = m.year {
-                            Text(y).font(S8KFont.caption1).foregroundColor(.s8kTextSecondary)
+                        // Funflix-style metadata line: ★ rating · genre
+                        HStack(spacing: 8) {
+                            if let r = m.rating, let rv = Double(r), rv > 0 {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "star.fill").font(.system(size: 10)).foregroundColor(.s8kGoldHigh)
+                                    Text(String(format: "%.1f", rv)).font(S8KFont.caption1.weight(.bold)).foregroundColor(.s8kGoldHigh)
+                                }
+                            }
+                            if let g = m.genre {
+                                Text(g).font(S8KFont.caption1).foregroundColor(.s8kTextSecondary).lineLimit(1)
+                            } else if let y = m.year {
+                                Text(y).font(S8KFont.caption1).foregroundColor(.s8kTextSecondary)
+                            }
                         }
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                     }
-                    HStack(spacing: 8) {
+                    // Funflix signature: two CIRCULAR hero buttons (＋ outline, ▶ accent-filled).
+                    HStack(spacing: 14) {
                         Button(action: {
                             if let m = heroes[safe: vm.heroIndex] { cover = .movie(m) }
                         }) {
-                            HStack(spacing: 7) {
-                                Image(systemName: "play.fill").font(.system(size: 13, weight: .bold))
-                                Text(L("common.play")).font(S8KFont.subhead.weight(.bold))
-                            }
-                            .foregroundColor(.s8kBlack)
-                            .padding(.horizontal, 26).padding(.vertical, 13)
-                            .background(S8KGradient.goldFlat)
-                            .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
-                            .shadow(color: .s8kGoldMid.opacity(0.45), radius: 8, y: 3)
+                            Image(systemName: "plus").font(.system(size: 19, weight: .bold))
+                                .foregroundColor(.s8kTextPrimary)
+                                .frame(width: 50, height: 50)
+                                .background(Color.white.opacity(0.14))
+                                .clipShape(Circle())
+                                .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
                         }
                         .buttonStyle(S8KButtonStyle())
                         Button(action: {
                             if let m = heroes[safe: vm.heroIndex] { cover = .movie(m) }
                         }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "info.circle").font(.system(size: 13))
-                                Text(L("common.details")).font(S8KFont.caption1.weight(.semibold))
-                            }
-                            .foregroundColor(.s8kTextPrimary)
-                            .padding(.horizontal, 17).padding(.vertical, 13)
-                            .background(Color.white.opacity(0.14))
-                            .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
-                                .strokeBorder(Color.white.opacity(0.2), lineWidth: 1))
+                            Image(systemName: "play.fill").font(.system(size: 22, weight: .black))
+                                .foregroundColor(.s8kBlack)
+                                .frame(width: 58, height: 58)
+                                .background(S8KGradient.goldFlat)
+                                .clipShape(Circle())
+                                .shadow(color: .s8kGoldHigh.opacity(0.5), radius: 14, y: 3)
                         }
                         .buttonStyle(S8KButtonStyle())
                     }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                     HStack(spacing: 5) {
                         ForEach(0..<heroes.count, id: \.self) { i in
                             Capsule()
