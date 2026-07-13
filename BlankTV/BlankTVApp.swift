@@ -131,6 +131,9 @@ struct BlankTVApp: App {
     var body: some Scene {
         WindowGroup {
             content
+                // Rebuild the whole tree when the brand palette changes (reseller
+                // re-skin) so every computed color token resolves to the new theme.
+                .id(theme.brandTick)
                 .preferredColorScheme(.dark)
                 // Keep a consistent layout for all languages (same page/tab
                 // order); only the text changes. Arabic text stays right-aligned

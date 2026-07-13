@@ -320,6 +320,8 @@ final class AuthService: ObservableObject {
         Keychain.shared.clearAll()
         Store.shared.clearAll()                 // wipes the whole UserDefaults domain
         AppTheme.shared.reset()
+        AppTheme.shared.applyBrandTheme(hex: nil)   // revert to the official BLANK TV palette
+        ActivationService.shared.clearReseller()    // drop the reseller brand/host too
         ConfigService.shared.reset()            // mirror logout's full teardown so no
         ContentCache.reset()                    // previous-user config/content lingers
         ParentalService.shared.resetAll()       // account deletion clears the parental PIN too

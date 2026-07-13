@@ -14,33 +14,97 @@ import SwiftUI
 import ImageIO
 import UIKit
 
-// MARK: - Color System (BLANK TV — deep-green base + lime/teal accent)
+// MARK: - Brand theme (ready-made palettes + per-reseller re-skin)
+// The whole app's brand colors read from `BrandTheme.active`, so swapping ONE
+// palette (a ready-made brand, or a reseller's accent color) re-skins the entire
+// app. Text/status colors stay neutral. See DESIGN.md §white-label.
+struct BrandTheme {
+    var base: Color        // app background
+    var surface: Color
+    var card: Color
+    var elevated: Color
+    var accentHigh: Color  // primary accent — buttons, highlights, indicators
+    var accentMid: Color
+    var accentLow: Color
+    var accentDeep: Color
+
+    /// The active theme the whole app renders with. Change it → the app re-skins.
+    static var active: BrandTheme = .blankGreen
+
+    // ---- Ready-made palettes ----
+    static let blankGreen = BrandTheme(
+        base:     Color(red: 0.000, green: 0.102, blue: 0.043),   // #001A0B
+        surface:  Color(red: 0.016, green: 0.133, blue: 0.059),   // #04220F
+        card:     Color(red: 0.027, green: 0.169, blue: 0.078),   // #072B14
+        elevated: Color(red: 0.043, green: 0.212, blue: 0.110),   // #0B361C
+        accentHigh: Color(red: 0.796, green: 1.000, blue: 0.024), // #CBFF06 lime
+        accentMid:  Color(red: 0.000, green: 0.737, blue: 0.447), // #00BC72 teal
+        accentLow:  Color(red: 0.000, green: 0.569, blue: 0.349), // #009159
+        accentDeep: Color(red: 0.000, green: 0.451, blue: 0.290)  // #00734A
+    )
+    static let strongGold = BrandTheme(
+        base:     Color(red: 0.039, green: 0.039, blue: 0.039),   // #0A0A0A
+        surface:  Color(red: 0.055, green: 0.055, blue: 0.063),
+        card:     Color(red: 0.082, green: 0.082, blue: 0.094),
+        elevated: Color(red: 0.110, green: 0.110, blue: 0.125),
+        accentHigh: Color(red: 1.000, green: 0.843, blue: 0.000), // #FFD700 gold
+        accentMid:  Color(red: 0.784, green: 0.525, blue: 0.039), // #C8860A
+        accentLow:  Color(red: 0.545, green: 0.376, blue: 0.031),
+        accentDeep: Color(red: 0.420, green: 0.259, blue: 0.020)
+    )
+
+    /// Build a premium theme from a SINGLE reseller accent color: a neutral dark
+    /// base (looks good with any hue) + an accent ramp derived from the color.
+    static func fromAccent(_ hex: String) -> BrandTheme {
+        let a = Color(hex: hex)
+        return BrandTheme(
+            base:     Color(red: 0.039, green: 0.039, blue: 0.043),
+            surface:  Color(red: 0.055, green: 0.055, blue: 0.063),
+            card:     Color(red: 0.082, green: 0.082, blue: 0.094),
+            elevated: Color(red: 0.110, green: 0.110, blue: 0.125),
+            accentHigh: a,
+            accentMid:  a.adjusted(brightness: 0.80),
+            accentLow:  a.adjusted(brightness: 0.62),
+            accentDeep: a.adjusted(brightness: 0.48)
+        )
+    }
+}
+
+// MARK: - Color System — brand tokens read from the active BrandTheme
 extension Color {
-    // Background layers — deep green instead of black
-    static let s8kBlack      = Color(red: 0.000, green: 0.102, blue: 0.043) // #001A0B
-    static let s8kSurface    = Color(red: 0.016, green: 0.133, blue: 0.059) // #04220F
-    static let s8kCard       = Color(red: 0.027, green: 0.169, blue: 0.078) // #072B14
-    static let s8kElevated   = Color(red: 0.043, green: 0.212, blue: 0.110) // #0B361C
-    static let s8kBorder     = Color.white.opacity(0.07)
-    static let s8kBorderGold = Color(red: 0.000, green: 0.737, blue: 0.447).opacity(0.25)
+    // Brand-driven (re-skin with the active theme):
+    static var s8kBlack:      Color { BrandTheme.active.base }
+    static var s8kSurface:    Color { BrandTheme.active.surface }
+    static var s8kCard:       Color { BrandTheme.active.card }
+    static var s8kElevated:   Color { BrandTheme.active.elevated }
+    static let s8kBorder     = Color.white.opacity(0.07)                       // neutral
+    static var s8kBorderGold: Color { BrandTheme.active.accentMid.opacity(0.25) }
 
-    // Brand accent system — lime→teal (was gold)
-    static let s8kGoldHigh   = Color(red: 0.796, green: 1.000, blue: 0.024) // #CBFF06 lime
-    static let s8kGoldMid    = Color(red: 0.000, green: 0.737, blue: 0.447) // #00BC72 teal
-    static let s8kGoldLow    = Color(red: 0.000, green: 0.569, blue: 0.349) // #009159
-    static let s8kGoldDeep   = Color(red: 0.000, green: 0.451, blue: 0.290) // #00734A
+    static var s8kGoldHigh:   Color { BrandTheme.active.accentHigh }
+    static var s8kGoldMid:    Color { BrandTheme.active.accentMid }
+    static var s8kGoldLow:    Color { BrandTheme.active.accentLow }
+    static var s8kGoldDeep:   Color { BrandTheme.active.accentDeep }
 
-    // Text
+    // Neutral text — not brand-driven.
     static let s8kTextPrimary   = Color.white
     static let s8kTextSecondary = Color.white.opacity(0.60)
     static let s8kTextTertiary  = Color.white.opacity(0.35)
     static let s8kTextDisabled  = Color.white.opacity(0.20)
 
-    // Status
+    // Status — fixed system colors.
     static let s8kRed    = Color(red: 1.000, green: 0.231, blue: 0.188) // #FF3B30
     static let s8kGreen  = Color(red: 0.204, green: 0.780, blue: 0.349) // #34C759
     static let s8kBlue   = Color(red: 0.000, green: 0.478, blue: 1.000) // #007AFF
     static let s8kOrange = Color(red: 1.000, green: 0.584, blue: 0.000) // #FF9500
+
+    /// Adjust brightness (and optionally saturation) via HSB — used to derive
+    /// accent shades from a single reseller color.
+    func adjusted(brightness bScale: CGFloat, saturation sScale: CGFloat = 1) -> Color {
+        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, al: CGFloat = 0
+        guard UIColor(self).getHue(&h, saturation: &s, brightness: &b, alpha: &al) else { return self }
+        return Color(hue: Double(h), saturation: Double(min(1, s * sScale)),
+                     brightness: Double(min(1, b * bScale)), opacity: Double(al))
+    }
 
     // Hex initializer
     init(hex: String) {
@@ -128,13 +192,17 @@ enum S8KRadius {
 @MainActor
 final class AppTheme: ObservableObject {
     static let shared = AppTheme()
-    private init() { loadCached() }
+    private init() { restoreBrand(); loadCached() }
 
     @Published var primaryColor: Color   = .s8kGoldMid
     @Published var accentColor:  Color   = .s8kGoldHigh
     @Published var serverName:   String  = "BLANK TV"
     @Published var logoURL:      String? = nil
     @Published var isCustom:     Bool    = false
+    /// Bumped whenever the active BRAND palette (colors) changes → the root uses
+    /// it as an `.id` so the whole app re-renders and the computed Color tokens
+    /// pick up the new `BrandTheme.active`.
+    @Published var brandTick:    Int     = 0
 
     func apply(_ theme: ThemeConfig) {
         withAnimation(.easeInOut(duration: 0.3)) {
@@ -157,6 +225,30 @@ final class AppTheme: ObservableObject {
             logoURL      = nil
             isCustom     = false
         }
+    }
+
+    /// The accent hex currently driving the palette ("" = default BLANK TV).
+    private var appliedBrandHex: String = ""
+
+    /// Re-skin the WHOLE app with a reseller's accent color (nil/empty → default
+    /// BLANK TV palette). IDEMPOTENT — does nothing if the color is unchanged, so
+    /// it is safe to call on every activation check(). Persists via Store.brandColor;
+    /// bumps brandTick so the root rebuilds and every `s8k*` token re-resolves.
+    func applyBrandTheme(hex: String?) {
+        let clean = (hex ?? "").trimmingCharacters(in: .whitespaces).lowercased()
+        guard clean != appliedBrandHex else { return }
+        appliedBrandHex = clean
+        withAnimation(.easeInOut(duration: 0.3)) {
+            BrandTheme.active = clean.isEmpty ? .blankGreen : .fromAccent(clean)
+            brandTick += 1
+        }
+    }
+
+    /// Restore the reseller palette at launch (before the UI builds) from the
+    /// persisted Store.brandColor, so a branded device opens already re-skinned.
+    private func restoreBrand() {
+        let hex = (Store.shared.brandColor ?? "").trimmingCharacters(in: .whitespaces).lowercased()
+        if !hex.isEmpty { BrandTheme.active = .fromAccent(hex); appliedBrandHex = hex }
     }
 
     private func loadCached() {

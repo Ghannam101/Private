@@ -219,6 +219,7 @@ final class ActivationService: ObservableObject {
             Store.shared.brandColor = r.brand?.color
             Store.shared.brandLogo = r.brand?.logo
             brandName = r.brand?.name; brandColor = r.brand?.color; brandLogo = r.brand?.logo
+            AppTheme.shared.applyBrandTheme(hex: r.brand?.color)   // re-skin to the reseller
             await check()                      // becomes activated under the reseller
             // Report success on the ACTUAL entitlement, not merely that the code
             // resolved — otherwise the UI says "activated" while the gate stays
@@ -231,6 +232,7 @@ final class ActivationService: ObservableObject {
     func clearReseller() {
         Store.shared.clearReseller()
         brandName = nil; brandColor = nil; brandLogo = nil
+        AppTheme.shared.applyBrandTheme(hex: nil)   // back to the official BLANK TV identity
     }
 
     private func apply(_ r: ActivationResponse) {
@@ -252,6 +254,7 @@ final class ActivationService: ObservableObject {
         if let b = r.brand {
             Store.shared.brandName = b.name; Store.shared.brandColor = b.color; Store.shared.brandLogo = b.logo
             brandName = b.name; brandColor = b.color; brandLogo = b.logo
+            AppTheme.shared.applyBrandTheme(hex: b.color)          // keep the app re-skinned
         }
         gate           = isAllowed ? .allowed : .denied
         cache(r)
