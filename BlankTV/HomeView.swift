@@ -19,6 +19,8 @@ final class HomeVM: ObservableObject {
     @Published var doneMovies   = false
     @Published var doneSeries   = false
     @Published var heroItems:     [HeroItem]      = []   // mixed swipeable hero (movies + series)
+    @Published var topMovies:     [Movie]         = []   // top-rated (Netflix Top 10 rail) — sorted ONCE
+    @Published var topSeries:     [Series]        = []   // top-rated series rail — sorted ONCE
 
     // A hero carousel item can be a movie OR a series.
     struct HeroItem: Identifiable {
@@ -46,8 +48,15 @@ final class HomeVM: ObservableObject {
 
     /// Build the mixed hero: top-rated movies + top-rated series, interleaved, up to 8.
     func rebuildHero() {
-        let topM = movies.sorted { $0.ratingDouble > $1.ratingDouble }.prefix(4).map { HeroItem(kind: .movie($0)) }
-        let topS = series.sorted { (Double($0.rating ?? "") ?? 0) > (Double($1.rating ?? "") ?? 0) }.prefix(4).map { HeroItem(kind: .series($0)) }
+        // Sort ONCE here (not on every SwiftUI render) — re-sorting a large catalog
+        // on each body eval was a major source of home jank.
+        let sortedM = movies.sorted { $0.ratingDouble > $1.ratingDouble }
+        let sortedS = series.sorted { (Double($0.rating ?? "") ?? 0) > (Double($1.rating ?? "") ?? 0) }
+        topMovies = Array(sortedM.prefix(10))
+        topSeries = Array(sortedS.prefix(10))
+
+        let topM = sortedM.prefix(4).map { HeroItem(kind: .movie($0)) }
+        let topS = sortedS.prefix(4).map { HeroItem(kind: .series($0)) }
         var out: [HeroItem] = []
         for i in 0..<max(topM.count, topS.count) {
             if i < topM.count { out.append(topM[i]) }
@@ -55,6 +64,9 @@ final class HomeVM: ObservableObject {
         }
         heroItems = Array(out.prefix(8))
         if heroIndex >= heroItems.count { heroIndex = 0 }
+
+        // Prefetch hero backdrops so swiping is smooth (image decode was the jank).
+        S8KImageCache.shared.prefetch(heroItems.compactMap { $0.backdropURL }, maxPixel: 1400)
     }
 
     private let hist    = HistoryService.shared
@@ -558,52 +570,35 @@ struct HomeView: View {
                 .strokeBorder(color?.opacity(0.35) ?? Color.clear, lineWidth: 0.5))
     }
 
-    // MARK: - Top-rated numbered rankings (Netflix "Top 10" style).
-    // Replaces the 3 section tiles: the home is now a discovery destination — the
-    // highest-m3u-rated movies + series as big-number ranked rails.
-    private var topMovies: [Movie] { Array(vm.movies.sorted { $0.ratingDouble > $1.ratingDouble }.prefix(10)) }
-    private var topSeries: [Series] {
-        Array(vm.series.sorted { (Double($0.rating ?? "") ?? 0) > (Double($1.rating ?? "") ?? 0) }.prefix(10))
-    }
-
+    // MARK: - Top-rated numbered rankings (Netflix "Top 10" — HOLLOW numbers ON the
+    // poster + global ★ rating). Uses the ONCE-sorted vm.topMovies/topSeries.
     private var quickNav: some View {
         VStack(spacing: 0) {
-            if !topMovies.isEmpty {
+            if !vm.topMovies.isEmpty {
                 rankRail(title: L("home.top_movies"),
-                         cells: topMovies.enumerated().map { ($0.offset + 1, $0.element.id, $0.element.posterURL) }) { id in
-                    if let m = topMovies.first(where: { $0.id == id }) { cover = .movie(m) }
+                         cells: vm.topMovies.enumerated().map { ($0.offset + 1, $0.element.id, $0.element.posterURL, $0.element.rating) }) { id in
+                    if let m = vm.topMovies.first(where: { $0.id == id }) { cover = .movie(m) }
                 }
             }
-            if !topSeries.isEmpty {
+            if !vm.topSeries.isEmpty {
                 rankRail(title: L("home.top_series"),
-                         cells: topSeries.enumerated().map { ($0.offset + 1, $0.element.id, $0.element.coverURL) }) { id in
-                    if let s = topSeries.first(where: { $0.id == id }) { cover = .series(s) }
+                         cells: vm.topSeries.enumerated().map { ($0.offset + 1, $0.element.id, $0.element.coverURL, $0.element.rating) }) { id in
+                    if let s = vm.topSeries.first(where: { $0.id == id }) { cover = .series(s) }
                 }
                 .padding(.bottom, S8KSpace.md)
             }
         }
     }
 
-    private func rankRail(title: String, cells: [(rank: Int, id: String, poster: String?)],
+    private func rankRail(title: String, cells: [(rank: Int, id: String, poster: String?, rating: String?)],
                           onTap: @escaping (String) -> Void) -> some View {
         VStack(spacing: 0) {
             SectionHeader(title: title)
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .bottom, spacing: 6) {
+                HStack(alignment: .bottom, spacing: 10) {
                     ForEach(cells, id: \.id) { c in
                         Button(action: { onTap(c.id) }) {
-                            HStack(alignment: .bottom, spacing: 0) {
-                                Text("\(c.rank)")
-                                    .font(.system(size: 84, weight: .black, design: .rounded))
-                                    .foregroundStyle(S8KGradient.goldFlat)
-                                    .shadow(color: .black.opacity(0.55), radius: 4)
-                                    .frame(minWidth: 44)
-                                Color.clear.frame(width: 98, height: 142)
-                                    .overlay { S8KImage(url: c.poster, placeholder: "film") }
-                                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
-                                    .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
-                                        .strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
-                            }
+                            rankCell(rank: c.rank, poster: c.poster, rating: c.rating)
                         }
                         .buttonStyle(S8KButtonStyle())
                     }
@@ -613,6 +608,45 @@ struct HomeView: View {
             }
         }
         .padding(.bottom, S8KSpace.lg)
+    }
+
+    // A big HOLLOW (outlined) rank number with the poster overlapping its right
+    // side, and the global rating (★ 8.3) badged on the poster.
+    private func rankCell(rank: Int, poster: String?, rating: String?) -> some View {
+        HStack(alignment: .bottom, spacing: -32) {
+            outlinedNumber(rank)
+            Color.clear.frame(width: 104, height: 152)
+                .overlay { S8KImage(url: poster, placeholder: "film") }
+                .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
+                .overlay(alignment: .bottomTrailing) {
+                    if let r = rating, let rv = Double(r), rv > 0 {
+                        HStack(spacing: 2) {
+                            Image(systemName: "star.fill").font(.system(size: 8)).foregroundColor(.s8kGoldHigh)
+                            Text(String(format: "%.1f", rv)).font(.system(size: 10, weight: .black)).foregroundColor(.white)
+                        }
+                        .padding(.horizontal, 5).padding(.vertical, 2)
+                        .background(Color.black.opacity(0.78)).clipShape(Capsule())
+                        .padding(5)
+                    }
+                }
+        }
+    }
+
+    // Outlined/hollow number: fill = deep-green (invisible on the dark bg) + a lime
+    // outline built from offset copies (SwiftUI has no native text stroke).
+    private func outlinedNumber(_ n: Int) -> some View {
+        let base = Text("\(n)").font(.system(size: 116, weight: .black, design: .rounded))
+        let offs: [(CGFloat, CGFloat)] = [(-2.4, 0), (2.4, 0), (0, -2.4), (0, 2.4),
+                                          (-1.7, -1.7), (1.7, 1.7), (-1.7, 1.7), (1.7, -1.7)]
+        return ZStack {
+            ForEach(Array(offs.enumerated()), id: \.offset) { _, o in
+                base.foregroundColor(.s8kGoldHigh).offset(x: o.0, y: o.1)
+            }
+            base.foregroundColor(.s8kBlack)
+        }
+        .shadow(color: .black.opacity(0.5), radius: 3)
     }
 
     // MARK: - Continue Watching
