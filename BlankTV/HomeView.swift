@@ -105,6 +105,7 @@ struct HomeView: View {
     @StateObject private var theme  = AppTheme.shared
     @StateObject private var auth   = AuthService.shared
     @StateObject private var activation = ActivationService.shared
+    @StateObject private var favs   = FavoritesService.shared
     @Environment(\.horizontalSizeClass) private var hSize
 
     // Single enum-driven presentation each — SwiftUI only honors one
@@ -441,17 +442,20 @@ struct HomeView: View {
                     }
                     // Funflix signature: two CIRCULAR hero buttons (＋ outline, ▶ accent-filled).
                     HStack(spacing: 14) {
+                        // Favorite (heart) toggle for the current hero title.
                         Button(action: {
-                            if let m = heroes[safe: vm.heroIndex] { cover = .movie(m) }
+                            if let m = heroes[safe: vm.heroIndex] { favs.toggleMovie(m.id) }
                         }) {
-                            Image(systemName: "plus").font(.system(size: 19, weight: .bold))
-                                .foregroundColor(.s8kTextPrimary)
+                            let isFav = heroes[safe: vm.heroIndex].map { favs.isMovieFav($0.id) } ?? false
+                            Image(systemName: isFav ? "heart.fill" : "heart").font(.system(size: 18, weight: .bold))
+                                .foregroundColor(isFav ? .s8kRed : .s8kTextPrimary)
                                 .frame(width: 50, height: 50)
                                 .background(Color.white.opacity(0.14))
                                 .clipShape(Circle())
                                 .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
                         }
                         .buttonStyle(S8KButtonStyle())
+                        // Play (accent-filled circle) — Funflix signature.
                         Button(action: {
                             if let m = heroes[safe: vm.heroIndex] { cover = .movie(m) }
                         }) {
@@ -503,48 +507,61 @@ struct HomeView: View {
                 .strokeBorder(color?.opacity(0.35) ?? Color.clear, lineWidth: 0.5))
     }
 
-    // MARK: - Quick Nav (tappable shortcuts to sections)
-    private var quickNav: some View {
-        HStack(spacing: 10) {
-            quickNavCard(L("home.qn_live"), icon: "antenna.radiowaves.left.and.right",
-                         sub: "\(vm.liveChannels.count) \(L("unit.channel"))", color: .s8kRed, tab: .live)
-            quickNavCard(L("home.qn_movies"), icon: "film.stack.fill",
-                         sub: "\(vm.movies.count)+ \(L("unit.movie"))", color: .s8kBlue, tab: .movies)
-            quickNavCard(L("home.qn_series"), icon: "play.tv.fill",
-                         sub: "\(vm.series.count)+ \(L("unit.series"))", color: .s8kGoldMid, tab: .series)
-        }
-        .padding(.horizontal, S8KSpace.xl)
-        .padding(.top, S8KSpace.md)
-        .padding(.bottom, S8KSpace.xxl)
+    // MARK: - Top-rated numbered rankings (Netflix "Top 10" style).
+    // Replaces the 3 section tiles: the home is now a discovery destination — the
+    // highest-m3u-rated movies + series as big-number ranked rails.
+    private var topMovies: [Movie] { Array(vm.movies.sorted { $0.ratingDouble > $1.ratingDouble }.prefix(10)) }
+    private var topSeries: [Series] {
+        Array(vm.series.sorted { (Double($0.rating ?? "") ?? 0) > (Double($1.rating ?? "") ?? 0) }.prefix(10))
     }
 
-    private func quickNavCard(_ title: String, icon: String, sub: String, color: Color, tab: AppTab) -> some View {
-        Button(action: { AppRouter.shared.tab = tab }) {
-            // Editorial tile: rounded-square icon badge top-left, heavy title + count
-            // below, left-aligned. Distinct from the reference's centered circle card.
-            VStack(alignment: .leading, spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
-                        .fill(color.opacity(0.16))
-                        .frame(width: 44, height: 44)
-                        .overlay(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
-                            .strokeBorder(color.opacity(0.30), lineWidth: 1))
-                    Image(systemName: icon)
-                        .font(.system(size: 19, weight: .bold))
-                        .foregroundColor(color)
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(S8KFont.subhead.weight(.heavy)).foregroundColor(.s8kTextPrimary)
-                    Text(sub).font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
+    private var quickNav: some View {
+        VStack(spacing: 0) {
+            if !topMovies.isEmpty {
+                rankRail(title: L("home.top_movies"),
+                         cells: topMovies.enumerated().map { ($0.offset + 1, $0.element.id, $0.element.posterURL) }) { id in
+                    if let m = topMovies.first(where: { $0.id == id }) { cover = .movie(m) }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(S8KSpace.md)
-            .s8kGlass(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous)
-                .strokeBorder(Color.s8kBorder, lineWidth: 1))
+            if !topSeries.isEmpty {
+                rankRail(title: L("home.top_series"),
+                         cells: topSeries.enumerated().map { ($0.offset + 1, $0.element.id, $0.element.coverURL) }) { id in
+                    if let s = topSeries.first(where: { $0.id == id }) { cover = .series(s) }
+                }
+                .padding(.bottom, S8KSpace.md)
+            }
         }
-        .buttonStyle(S8KButtonStyle())
+    }
+
+    private func rankRail(title: String, cells: [(rank: Int, id: String, poster: String?)],
+                          onTap: @escaping (String) -> Void) -> some View {
+        VStack(spacing: 0) {
+            SectionHeader(title: title)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .bottom, spacing: 6) {
+                    ForEach(cells, id: \.id) { c in
+                        Button(action: { onTap(c.id) }) {
+                            HStack(alignment: .bottom, spacing: 0) {
+                                Text("\(c.rank)")
+                                    .font(.system(size: 84, weight: .black, design: .rounded))
+                                    .foregroundStyle(S8KGradient.goldFlat)
+                                    .shadow(color: .black.opacity(0.55), radius: 4)
+                                    .frame(minWidth: 44)
+                                Color.clear.frame(width: 98, height: 142)
+                                    .overlay { S8KImage(url: c.poster, placeholder: "film") }
+                                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
+                                    .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+                                        .strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
+                            }
+                        }
+                        .buttonStyle(S8KButtonStyle())
+                    }
+                }
+                .padding(.horizontal, S8KSpace.xl)
+                .padding(.top, S8KSpace.sm)
+            }
+        }
+        .padding(.bottom, S8KSpace.lg)
     }
 
     // MARK: - Continue Watching
