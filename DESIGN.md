@@ -135,3 +135,52 @@ Profile card (DONE) + lime section headers (DONE) + grouped glass cards.
 | Content nav | Big title + 4 fixed chips + grid | Stage + Shelves, filter sheet, no chip strip |
 | Player | Gold circle-symbol | Lime play-disc + square chips, chrome-less |
 | Concept | Generic player | "Cinematic Canvas" content-first |
+
+---
+
+## 8. Deep-research addendum (2026-07-13) — concrete techniques
+Sources: Fora Soft streaming-UX best practices; cinema-app UI collections; IPTV app reviews.
+
+**Proven techniques (achievable with our existing engine/data — UI-only):**
+- **Personalized carousels, not lists** (Netflix): content in horizontal shelves, limited
+  visible chrome → less decision fatigue. → our Shelves.
+- **Distinct "collection" sections** (Disney+ brand universes): present categories as *named,
+  visually-branded collections* users jump into — not a flat chip strip. → BLANK TV "Collections".
+- **Content-first onboarding** (HBO Max simplified an overwhelming first UI): discovery before
+  settings; minimal launch chrome. → our multi-subscription gate + immersive home.
+- **Progressive/instant thumbnails** (already: tuned Coil/S8KImage cache + prefetch).
+- **Predictive/global search** across live+movies+series (already: SearchView scopes).
+- **Bottom-tab, thumb-friendly nav** (Plex moved off hamburger): keep our floating glass bar.
+- **Motion as polish:** smooth list→detail cross-fades, sliding lime indicator, gentle parallax
+  on the stage backdrop.
+
+**How top apps DIFFERENTIATE without cloning (the 4.3 lesson, concrete):**
+- Vodeo stood out via **theater-inspired design + a proprietary angle (pay-per-view)**, NOT by
+  copying subscription rivals. → BLANK TV differentiates via a **coherent cinematic-canvas
+  theme + a signature look**, not by copying Strong 8K.
+
+**OUT of scope (backend/ML — do NOT promise):** AI recommendation engine, multi-user profiles,
+dynamic thumbnail A/B testing, adaptive-bitrate changes. We reorganize/curate the *existing*
+Xtream/M3U data into shelves/collections; we do not invent new backend intelligence.
+
+## 9. BLANK TV signature elements (the "unique identity", refined)
+1. **"Collections" metaphor** — categories rendered as bold named collection cards/shelves
+   (not a 4-chip tab strip). This is our distinct organizing idea.
+2. **The Stage** — one immersive full-bleed featured backdrop per section (parallax), the
+   recurring cinematic signature.
+3. **Low-chrome player + on-demand controls**, lime play-disc, square chips (done).
+4. **Lime "spotlight" accent language** — the lime underline/indicator as a recurring beam
+   motif tying every screen together.
+5. **Multi-subscription card gate** — a genuinely different entry (done).
+6. **EPG-forward Live** — the loved "real-TV" feature, front-and-center.
+
+## 10. Readiness checklist (engineer + design lead + reviewer)
+- [x] Full codebase map (screens/VMs/services/engine/nav) documented.
+- [x] Design system + green identity in hand.
+- [x] 2026 research (loved/hated features, top-app patterns, concrete techniques) recorded here.
+- [x] Creative concept + per-screen blueprint + signature elements defined.
+- [x] Technical guardrails recorded (safeAreaInset top bars; no glass-on-glass; grid perf).
+- [x] Verification method (chk.py + agent compile-review before every commit).
+- [ ] Owner approval of concept + Movies template → then execute per §6 roadmap.
+- Known limitation: I design blind (no local preview) → mitigated by compile-review + owner
+  device builds + screenshots. Plan approved BEFORE building to minimize reject cycles.
