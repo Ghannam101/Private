@@ -1280,27 +1280,72 @@ struct MoviesView: View {
         }
     }
 
+    // BLANK TV "Stage + Collections" library (see DESIGN.md). No oversized title
+    // bar, no 4-chip strip: a FIXED working top bar (safe-area inset) + an immersive
+    // Stage + category "Collections" rails.
     @ViewBuilder
     private var browser: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
-                ContentTitleBar(title: L("title.movies"), subtitle: "\(vm.movies.count) \(L("count.movie"))",
-                                trailingIcon: "line.3.horizontal.decrease.circle",
-                                onTrailing: { showCategories = true },
-                                reorderAction: { showReorder = true })
-                SearchField(text: $vm.search, placeholder: L("search.movies"))
-                    .padding(.horizontal, S8KSpace.xl).padding(.bottom, S8KSpace.lg)
-
                 if !vm.search.isEmpty {
+                    Color.clear.frame(height: 8)
                     PosterGrid(movies: vm.searchResults, empty: L("empty.no_results")) { selected = $0 }
                 } else {
-                    featuredBanner
-                    ContentTabBar(selected: $tab)
-                    tabContent
+                    if tab == .all { featuredBanner }      // the Stage
+                    tabContent                             // Collections (category rails) / filter grids
                 }
                 Color.clear.frame(height: 110)
             }
         }
+        // The top bar is a safe-area INSET, NEVER a ScrollView child — scroll-child
+        // buttons go dead in this codebase. This keeps search/filter always tappable.
+        .safeAreaInset(edge: .top, spacing: 0) { moviesTopBar }
+    }
+
+    private var moviesTopBar: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 12) {
+                Text(L("title.movies"))
+                    .font(.system(size: 21, weight: .black)).foregroundColor(.s8kTextPrimary)
+                RoundedRectangle(cornerRadius: 1.5).fill(S8KGradient.goldFlat).frame(width: 24, height: 3)
+                Spacer()
+                Menu {
+                    Picker("", selection: $tab) {
+                        ForEach(ContentTab.allCases) { t in Label(t.title, systemImage: t.icon).tag(t) }
+                    }
+                    Button { showReorder = true } label: {
+                        Label(L("reorder.button"), systemImage: "arrow.up.arrow.down")
+                    }
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 16, weight: .bold)).foregroundColor(.s8kGoldHigh)
+                        .frame(width: 42, height: 42)
+                        .background(Color.s8kSurface, in: RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+                            .strokeBorder(Color.s8kBorder, lineWidth: 1))
+                }
+                .buttonStyle(S8KButtonStyle())
+            }
+            HStack(spacing: 8) {
+                SearchField(text: $vm.search, placeholder: L("search.movies"))
+                if tab != .all {
+                    Button { withAnimation { tab = .all } } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: tab.icon).font(.system(size: 11, weight: .bold))
+                            Image(systemName: "xmark").font(.system(size: 9, weight: .bold))
+                        }
+                        .foregroundColor(.s8kBlack)
+                        .padding(.horizontal, 12).frame(height: 44)
+                        .background(S8KGradient.goldFlat)
+                        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
+                    }
+                    .buttonStyle(S8KButtonStyle())
+                }
+            }
+        }
+        .padding(.horizontal, S8KSpace.xl)
+        .padding(.top, 60).padding(.bottom, 12)
+        .background(Color.s8kBlack)
     }
 
     // Featured spotlight banner at the top of the Movies browse (2026 VOD pattern:
