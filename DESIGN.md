@@ -209,3 +209,34 @@ chrome, large imagery, circular hero buttons, bottom-sheet detail.
 **Build order to match Funflix:** (1) Home hero → circular ＋/▶ buttons + metadata line;
 (2) Home → Continue rail + "Top Trending" 2-col grid; (3) Detail → confirm Watch now/Trailer
 pills; (4) apply the cinematic card/hero spirit to Movies/Series/Live.
+
+## 12. Research addendum #2 (2026-07-14) — remaining screens + polish
+### Live TV / EPG (the loved "real-TV" feature — users with EPG watch ~40% more live)
+Mobile-friendly (not a dense TV grid): a channel LIST (logo + name + **NOW/NEXT** with a
+progress bar) → tap → a top **mini player** stage + **now/next** panel. Browse by category,
+search. Xtream `get_short_epg` feeds NOW/NEXT (m3u has none → hide gracefully). We already
+have InlineLivePlayer + EPGNowNext + a 3-pane iPad split — elevate that: NOW badge, red ● live,
+current-program progress bar, next-at time. Keep it clean (IBO-clean, not TiviMate-dense).
+
+### Micro-interactions & motion (what makes it feel PREMIUM in 2026)
+- **Animate the favorite heart** (Spotify-style pop) on toggle.
+- **Haptics:** light `UIImpactFeedbackGenerator` on play, favorite, tab switch, hero swipe.
+  (VLCPlayer already uses haptics — extend the pattern.)
+- **Easing 200–500ms**, natural spring/cubic-bezier; no robotic linear.
+- **Parallax on the hero backdrop** (foreground text/buttons move slightly vs the image).
+- **Purposeful only** — every animation must communicate (feedback/continuity), not decorate.
+
+### Detail screen (refine what we have)
+Cinematic backdrop (done) + bottom info card + Watch now/Trailer pills + cast row +
+(series) season selector + episode list with **watch-progress** bars + resume. Keep engine.
+
+### Applying Funflix spirit to Movies/Series/Live (after Home is approved)
+Each section = a **Stage** (immersive featured, circular ＋/▶ buttons, ★ rating) + curated
+shelves/collections; poster cards rounded with a rating badge; working `.safeAreaInset` top bar
+(search + filter). Consistent lime accent. This unifies the app under one cinematic language.
+
+### Performance lessons (recorded)
+- Carousel/scroll jank = **uncached image decode** (fix: `S8KImageCache.prefetch`) + **needless
+  re-computation on render** (fix: sort/derive ONCE in the VM, store; never sort a big catalog
+  inside a SwiftUI body). Applied to the hero + Top-rated rails.
+- Top/nav bars = `.safeAreaInset(edge:.top)`, never a ScrollView child.
