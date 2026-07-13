@@ -838,7 +838,8 @@ struct ChannelChip: View {
 
 // MARK: - Tab Bar
 enum AppTab: String, CaseIterable, Identifiable {
-    case home, live, movies, series, settings
+    // Order places `home` in the CENTER of the 5 tabs (prominent raised button).
+    case live, movies, home, series, settings
     var id: String { rawValue }
 
     var title: String {
@@ -883,39 +884,66 @@ struct AppTabBar: View {
         // a tuned material fallback on iOS 17–25. A sliding lime top-line marks the
         // active tab; labels stay visible. `.contentShape` keeps every touch on the
         // bar so taps never fall through.
-        HStack(spacing: 0) {
+        HStack(alignment: .bottom, spacing: 0) {
             ForEach(AppTab.allCases) { tab in
                 let isOn = selected == tab
-                Button(action: {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) { selected = tab }
-                }) {
-                    VStack(spacing: 5) {
-                        ZStack {
-                            Capsule().fill(Color.clear).frame(height: 3)
-                            if isOn {
-                                Capsule()
-                                    .fill(S8KGradient.goldFlat)
-                                    .frame(width: 26, height: 3)
-                                    .shadow(color: .s8kGoldHigh.opacity(0.7), radius: 5)
-                                    .matchedGeometryEffect(id: "tabIndicator", in: indicatorNS)
+                if tab == .home {
+                    // Prominent RAISED center button — a lime disc that pops above the bar.
+                    Button(action: {
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) { selected = tab }
+                    }) {
+                        VStack(spacing: 4) {
+                            ZStack {
+                                Circle().fill(S8KGradient.goldFlat)
+                                    .frame(width: 54, height: 54)
+                                    .shadow(color: .s8kGoldHigh.opacity(0.55), radius: 12, y: 4)
+                                    .overlay(Circle().strokeBorder(Color.s8kBlack.opacity(0.12), lineWidth: 2))
+                                Image(systemName: "house.fill")
+                                    .font(.system(size: 22, weight: .black))
+                                    .foregroundColor(.s8kBlack)
                             }
+                            Text(tab.title)
+                                .font(S8KFont.caption3)
+                                .foregroundColor(isOn ? .s8kTextPrimary : .s8kTextTertiary)
                         }
-                        Image(systemName: isOn ? tab.activeIcon : tab.icon)
-                            .font(.system(size: 20, weight: isOn ? .bold : .regular))
-                            .foregroundColor(isOn ? .s8kGoldHigh : .s8kTextSecondary)
-                            .frame(height: 23)
-                            .scaleEffect(isOn ? 1.05 : 1.0)
-
-                        Text(tab.title)
-                            .font(S8KFont.caption3)
-                            .foregroundColor(isOn ? .s8kTextPrimary : .s8kTextTertiary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.bottom, 8)
+                        .offset(y: -14)
+                        .contentShape(Rectangle())
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 9)
-                    .padding(.bottom, 8)
-                    .contentShape(Rectangle())
+                    .buttonStyle(S8KButtonStyle())
+                } else {
+                    Button(action: {
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) { selected = tab }
+                    }) {
+                        VStack(spacing: 5) {
+                            ZStack {
+                                Capsule().fill(Color.clear).frame(height: 3)
+                                if isOn {
+                                    Capsule()
+                                        .fill(S8KGradient.goldFlat)
+                                        .frame(width: 26, height: 3)
+                                        .shadow(color: .s8kGoldHigh.opacity(0.7), radius: 5)
+                                        .matchedGeometryEffect(id: "tabIndicator", in: indicatorNS)
+                                }
+                            }
+                            Image(systemName: isOn ? tab.activeIcon : tab.icon)
+                                .font(.system(size: 20, weight: isOn ? .bold : .regular))
+                                .foregroundColor(isOn ? .s8kGoldHigh : .s8kTextSecondary)
+                                .frame(height: 23)
+                                .scaleEffect(isOn ? 1.05 : 1.0)
+
+                            Text(tab.title)
+                                .font(S8KFont.caption3)
+                                .foregroundColor(isOn ? .s8kTextPrimary : .s8kTextTertiary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 9)
+                        .padding(.bottom, 8)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(S8KButtonStyle())
                 }
-                .buttonStyle(S8KButtonStyle())
             }
         }
         .padding(.horizontal, 4)

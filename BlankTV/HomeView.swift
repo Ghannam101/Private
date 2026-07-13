@@ -445,6 +445,14 @@ struct HomeView: View {
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .frame(height: 440)
+            // Pause the auto-rotation the moment the user touches the hero, and
+            // resume (with a fresh interval) when they lift — so manual swiping is
+            // never fought by the timer (removes the residual stutter).
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in vm.stopHeroTimer() }
+                    .onEnded   { _ in vm.startHeroTimer() }
+            )
         }
     }
 
@@ -480,7 +488,7 @@ struct HomeView: View {
                     .frame(width: 52, height: 4)
                     .shadow(color: .s8kGoldHigh.opacity(0.6), radius: 5)
                 HStack(spacing: 8) {
-                    if let r = item.rating, let rv = Double(r), rv > 0 {
+                    if let r = item.rating, let rv = Double(r), rv > 0, rv <= 10 {
                         HStack(spacing: 3) {
                             Image(systemName: "star.fill").font(.system(size: 10)).foregroundColor(.s8kGoldHigh)
                             Text(String(format: "%.1f", rv)).font(S8KFont.caption1.weight(.bold)).foregroundColor(.s8kGoldHigh)
@@ -576,13 +584,13 @@ struct HomeView: View {
         VStack(spacing: 0) {
             if !vm.topMovies.isEmpty {
                 rankRail(title: L("home.top_movies"),
-                         cells: vm.topMovies.enumerated().map { ($0.offset + 1, $0.element.id, $0.element.posterURL, $0.element.rating) }) { id in
+                         cells: vm.topMovies.enumerated().map { ($0.offset + 1, $0.element.id, $0.element.posterURL, $0.element.rating, $0.element.year) }) { id in
                     if let m = vm.topMovies.first(where: { $0.id == id }) { cover = .movie(m) }
                 }
             }
             if !vm.topSeries.isEmpty {
                 rankRail(title: L("home.top_series"),
-                         cells: vm.topSeries.enumerated().map { ($0.offset + 1, $0.element.id, $0.element.coverURL, $0.element.rating) }) { id in
+                         cells: vm.topSeries.enumerated().map { ($0.offset + 1, $0.element.id, $0.element.coverURL, $0.element.rating, $0.element.year) }) { id in
                     if let s = vm.topSeries.first(where: { $0.id == id }) { cover = .series(s) }
                 }
                 .padding(.bottom, S8KSpace.md)
@@ -590,15 +598,27 @@ struct HomeView: View {
         }
     }
 
-    private func rankRail(title: String, cells: [(rank: Int, id: String, poster: String?, rating: String?)],
+    private func rankRail(title: String, cells: [(rank: Int, id: String, poster: String?, rating: String?, year: String?)],
                           onTap: @escaping (String) -> Void) -> some View {
         VStack(spacing: 0) {
-            SectionHeader(title: title)
+            // Elegant ranking header: bold title + a trophy glyph + a short lime bar.
+            VStack(alignment: .trailing, spacing: 7) {
+                HStack(spacing: 8) {
+                    Spacer(minLength: 0)
+                    Text(title).font(.system(size: 20, weight: .heavy)).foregroundColor(.s8kTextPrimary)
+                    Image(systemName: "trophy.fill").font(.system(size: 13)).foregroundColor(.s8kGoldHigh)
+                }
+                RoundedRectangle(cornerRadius: 1.5).fill(S8KGradient.goldFlat).frame(width: 34, height: 3)
+                    .shadow(color: .s8kGoldHigh.opacity(0.5), radius: 4)
+            }
+            .padding(.horizontal, S8KSpace.xl)
+            .padding(.bottom, S8KSpace.sm)
+
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .bottom, spacing: 10) {
                     ForEach(cells, id: \.id) { c in
                         Button(action: { onTap(c.id) }) {
-                            rankCell(rank: c.rank, poster: c.poster, rating: c.rating)
+                            rankCell(rank: c.rank, poster: c.poster, rating: c.rating, year: c.year)
                         }
                         .buttonStyle(S8KButtonStyle())
                     }
@@ -612,16 +632,30 @@ struct HomeView: View {
 
     // A big HOLLOW (outlined) rank number with the poster overlapping its right
     // side, and the global rating (★ 8.3) badged on the poster.
-    private func rankCell(rank: Int, poster: String?, rating: String?) -> some View {
-        HStack(alignment: .bottom, spacing: -32) {
+    private func rankCell(rank: Int, poster: String?, rating: String?, year: String?) -> some View {
+        // Smaller overlap so the big number stays readable (owner: numbers were too
+        // hidden behind the poster).
+        HStack(alignment: .bottom, spacing: -14) {
             outlinedNumber(rank)
-            Color.clear.frame(width: 104, height: 152)
+            Color.clear.frame(width: 106, height: 154)
                 .overlay { S8KImage(url: poster, placeholder: "film") }
                 .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
                     .strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
+                // Production YEAR — small badge, top of the poster (short + useful).
+                .overlay(alignment: .topTrailing) {
+                    if let y = year, !y.trimmingCharacters(in: .whitespaces).isEmpty {
+                        Text(y)
+                            .font(.system(size: 9, weight: .bold)).foregroundColor(.white)
+                            .padding(.horizontal, 5).padding(.vertical, 2)
+                            .background(Color.black.opacity(0.72)).clipShape(Capsule())
+                            .padding(5)
+                    }
+                }
+                // Global RATING — only when it's a valid 0–10 score (filters the
+                // m3u garbage where the "rating" field was actually a year).
                 .overlay(alignment: .bottomTrailing) {
-                    if let r = rating, let rv = Double(r), rv > 0 {
+                    if let r = rating, let rv = Double(r), rv > 0, rv <= 10 {
                         HStack(spacing: 2) {
                             Image(systemName: "star.fill").font(.system(size: 8)).foregroundColor(.s8kGoldHigh)
                             Text(String(format: "%.1f", rv)).font(.system(size: 10, weight: .black)).foregroundColor(.white)
