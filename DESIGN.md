@@ -240,3 +240,15 @@ shelves/collections; poster cards rounded with a rating badge; working `.safeAre
   re-computation on render** (fix: sort/derive ONCE in the VM, store; never sort a big catalog
   inside a SwiftUI body). Applied to the hero + Top-rated rails.
 - Top/nav bars = `.safeAreaInset(edge:.top)`, never a ScrollView child.
+
+### ⭐ DEVICE SYNC — every design must work on iPhone + iPad + Mac (owner rule)
+The app is universal (iPhone + iPad + Mac via Designed-for-iPad). Rules:
+- **Device-SHARED views** (Home, Tab bar, Details, Settings, Player, the gate) automatically
+  adapt — use `@Environment(\.horizontalSizeClass)` (`.regular` = iPad/Mac) to cap width /
+  add columns, NOT device checks. Cap content on iPad (Home ≤900, tab pill ≤480) so it isn't a
+  blown-up phone. These are already synced.
+- **Content screens have TWO layouts:** iPhone `browser` + iPad `padBrowser` (3-pane split w/
+  `CategorySidebar`). **When redesigning Movies/Series/Live, update BOTH** so iPhone and iPad
+  stay in sync — never fix the phone and leave the iPad on the old look (owner rule 2026-07-14).
+- Test the immersive hero / grids at `.regular` size class (bigger poster columns already:
+  iPad 168 vs iPhone 116). Verify the raised center tab + glass bar look right on iPad too.
