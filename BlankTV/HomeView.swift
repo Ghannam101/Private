@@ -21,6 +21,11 @@ final class HomeVM: ObservableObject {
     @Published var heroItems:     [HeroItem]      = []   // mixed swipeable hero (movies + series)
     @Published var topMovies:     [Movie]         = []   // top-rated (Netflix Top 10 rail) — sorted ONCE
     @Published var topSeries:     [Series]        = []   // top-rated series rail — sorted ONCE
+    @Published var rails:         [HomeRail]      = []   // curated themed rails (network + genre) — built ONCE
+
+    // Provider categories (names) — needed to classify content into themed rails.
+    private var movieCats:  [Category] = []
+    private var seriesCats: [Category] = []
 
     // A hero carousel item can be a movie OR a series.
     struct HeroItem: Identifiable {
@@ -87,6 +92,7 @@ final class HomeVM: ObservableObject {
         }
         loaded = true
         rebuildHero()
+        rebuildRails()
         isLoading = false
     }
 
@@ -94,6 +100,7 @@ final class HomeVM: ObservableObject {
         loaded = false; liveChannels = []; movies = []; series = []
         history = []; heroIndex = 0; isLoading = true; error = nil
         doneChannels = false; doneMovies = false; doneSeries = false
+        rails = []; movieCats = []; seriesCats = []
     }
 
     /// Parallel boot load for the dedicated loading screen: live + movies +
@@ -109,6 +116,7 @@ final class HomeVM: ObservableObject {
         history = Array(hist.items.prefix(8))
         loaded = true
         rebuildHero()
+        rebuildRails()
         isLoading = false
     }
 
@@ -118,14 +126,35 @@ final class HomeVM: ObservableObject {
         doneChannels = true
     }
     private func loadMovies() async {
+        // Fetch the category list CONCURRENTLY with the movies (both feed the rail
+        // engine); a category-list failure must never fail the movie load.
+        async let cats = ContentService.vodCategories()
         do { movies = try await ContentService.movies() }
         catch { print("movies: \(error)"); noteError(error) }
+        movieCats = (try? await cats) ?? []
         doneMovies = true
     }
     private func loadSeries() async {
+        async let cats = ContentService.seriesCategories()
         do { series = try await ContentService.series() }
         catch { print("series: \(error)"); noteError(error) }
+        seriesCats = (try? await cats) ?? []
         doneSeries = true
+    }
+
+    /// Build the curated themed rails ONCE (network + genre), off the loaded
+    /// catalog + category names. Prefetch the first rows' posters so the feed
+    /// paints smoothly on first scroll.
+    func rebuildRails() {
+        rails = RailEngine.build(movies: movies, movieCats: movieCats,
+                                 series: series, seriesCats: seriesCats)
+        let firstPosters: [String] = rails.prefix(3).flatMap { rail -> [String] in
+            switch rail.kind {
+            case .movie(let a):  return a.prefix(6).compactMap { $0.posterURL }
+            case .series(let a): return a.prefix(6).compactMap { $0.coverURL }
+            }
+        }
+        S8KImageCache.shared.prefetch(firstPosters, maxPixel: 400)
     }
     /// Remember a content-load failure so the home can show a clear banner
     /// (e.g. the provider line expired mid-session) instead of an empty screen.
@@ -199,7 +228,7 @@ struct HomeView: View {
             // A refresh/retry that already has content reloads in place instead of
             // blanking the whole screen.
             if vm.isLoading && vm.liveChannels.isEmpty && vm.movies.isEmpty && vm.series.isEmpty {
-                LoadingView(message: L("loading.updating"))
+                homeSkeleton
             } else {
                 mainScroll
             }
@@ -253,13 +282,19 @@ struct HomeView: View {
                 if contentFailed { contentErrorBanner }
                 announcementBar
                 bannerSection
-                // Immersive full-bleed spotlight leads the home, then the quick tiles.
+                // Immersive full-bleed spotlight leads, then "resume" (highest
+                // engagement), the Top-10 rankings, and the curated themed feed.
                 heroSection
-                quickNav
                 continueWatching
+                quickNav
+                railsSection
                 liveSection
-                moviesSection
-                seriesSection
+                // Fallback ONLY when the provider's categories can't form real rails
+                // (single junk category, etc.) — otherwise the themed rails cover it.
+                if vm.rails.isEmpty {
+                    moviesSection
+                    seriesSection
+                }
                 supportButtons
                 Color.clear.frame(height: 100)
             }
@@ -284,6 +319,48 @@ struct HomeView: View {
             }
             .background(Color.s8kBlack)
         }
+    }
+
+    // MARK: - Loading skeleton (first, empty load)
+    // A home-shaped shimmer (hero block + rail rows) instead of a bare spinner —
+    // the premium "streaming service is loading" cue (matches the reference).
+    private var homeSkeleton: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 0) {
+                SkeletonBlock(cornerRadius: 0).frame(height: 440)
+                ForEach(0..<3, id: \.self) { _ in skeletonRail }
+                Color.clear.frame(height: 60)
+            }
+            .frame(maxWidth: hSize == .regular ? 900 : .infinity)
+            .frame(maxWidth: .infinity)
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            VStack(spacing: 0) {
+                TrialBanner()
+                navBar
+            }
+            .background(Color.s8kBlack)
+        }
+    }
+
+    private var skeletonRail: some View {
+        VStack(alignment: .trailing, spacing: S8KSpace.sm) {
+            SkeletonBlock(cornerRadius: 4)
+                .frame(width: 150, height: 18)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.horizontal, S8KSpace.xl)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(0..<5, id: \.self) { _ in
+                        SkeletonBlock(cornerRadius: S8KRadius.md)
+                            .frame(width: 118, height: 166)
+                    }
+                }
+                .padding(.horizontal, S8KSpace.xl)
+            }
+        }
+        .padding(.top, S8KSpace.lg)
+        .padding(.bottom, S8KSpace.xxl)
     }
 
     // MARK: - Content-load error banner
@@ -681,6 +758,75 @@ struct HomeView: View {
             base.foregroundColor(.s8kBlack)
         }
         .shadow(color: .black.opacity(0.5), radius: 3)
+    }
+
+    // MARK: - Curated themed rails (Smart Rail Engine)
+    // A streaming-service-style editorial feed built from the user's OWN provider
+    // categories (network rails like NETFLIX/OSN + genre rails like Anime/Action).
+    // Each rail is lazy: its posters decode only when the row scrolls into view.
+    @ViewBuilder
+    private var railsSection: some View {
+        if !vm.rails.isEmpty {
+            LazyVStack(spacing: 0) {
+                ForEach(vm.rails) { rail in
+                    railRow(rail)
+                }
+            }
+        }
+    }
+
+    private func railRow(_ rail: HomeRail) -> some View {
+        VStack(spacing: 0) {
+            railHeader(rail)
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 12) {
+                    switch rail.kind {
+                    case .movie(let items):
+                        ForEach(items) { m in
+                            ContentCard(title: m.name, subtitle: m.year,
+                                        imageURL: m.posterURL) { cover = .movie(m) }
+                        }
+                    case .series(let items):
+                        ForEach(items) { s in
+                            ContentCard(title: s.name, subtitle: s.year,
+                                        imageURL: s.coverURL) { cover = .series(s) }
+                        }
+                    }
+                }
+                .padding(.horizontal, S8KSpace.xl)
+            }
+        }
+        .padding(.bottom, S8KSpace.xxl)
+    }
+
+    // Right-aligned (Arabic) rail header: optional brand chip + heavy title + lime
+    // underline. Network rails carry a small lime brand chip so they read as
+    // premium "provider" rows; genre rails show the title alone.
+    private func railHeader(_ rail: HomeRail) -> some View {
+        VStack(alignment: .trailing, spacing: 7) {
+            HStack(spacing: 8) {
+                Spacer(minLength: 0)
+                if let tag = rail.networkTag {
+                    Text(tag)
+                        .font(.system(size: 10, weight: .black))
+                        .foregroundColor(.s8kGoldHigh)
+                        .padding(.horizontal, 7).padding(.vertical, 3)
+                        .background(Color.s8kGoldMid.opacity(0.14))
+                        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.xs, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: S8KRadius.xs, style: .continuous)
+                            .strokeBorder(Color.s8kBorderGold, lineWidth: 0.5))
+                }
+                Text(rail.title)
+                    .font(.system(size: 19, weight: .heavy))
+                    .foregroundColor(.s8kTextPrimary)
+                    .lineLimit(1)
+            }
+            RoundedRectangle(cornerRadius: 1.5).fill(S8KGradient.goldFlat)
+                .frame(width: 30, height: 3)
+                .shadow(color: .s8kGoldHigh.opacity(0.5), radius: 4)
+        }
+        .padding(.horizontal, S8KSpace.xl)
+        .padding(.bottom, S8KSpace.sm)
     }
 
     // MARK: - Continue Watching

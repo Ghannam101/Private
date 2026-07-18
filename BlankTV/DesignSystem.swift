@@ -636,6 +636,46 @@ struct S8KImage: View {
     }
 }
 
+// MARK: - Skeleton shimmer (loading placeholders)
+// A sweeping highlight for skeleton cards while content loads — the premium
+// "the app is working, not frozen" cue. Reusable via `.s8kShimmer()`.
+struct S8KShimmer: ViewModifier {
+    @State private var animate = false
+    func body(content: Content) -> some View {
+        content
+            .overlay(
+                GeometryReader { geo in
+                    LinearGradient(
+                        colors: [.clear, Color.white.opacity(0.09), .clear],
+                        startPoint: .leading, endPoint: .trailing)
+                        .frame(width: geo.size.width * 0.6)
+                        .offset(x: animate ? geo.size.width * 1.1 : -geo.size.width * 0.7)
+                }
+                .allowsHitTesting(false)
+            )
+            .clipped()
+            .onAppear {
+                withAnimation(.linear(duration: 1.15).repeatForever(autoreverses: false)) {
+                    animate = true
+                }
+            }
+    }
+}
+extension View {
+    /// Apply a looping shimmer sweep — use on skeleton placeholder blocks.
+    func s8kShimmer() -> some View { modifier(S8KShimmer()) }
+}
+
+/// A single skeleton placeholder block (elevated fill + shimmer). Sized by caller.
+struct SkeletonBlock: View {
+    var cornerRadius: CGFloat = S8KRadius.md
+    var body: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(Color.s8kElevated)
+            .s8kShimmer()
+    }
+}
+
 // MARK: - Watermark (white-label aware)
 // Uses the reseller's logo + name when a brand is active, otherwise the bundled
 // BLANK TV mark — so a branded device shows the RESELLER's watermark on video.
