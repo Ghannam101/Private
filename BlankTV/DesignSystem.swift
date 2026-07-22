@@ -1034,10 +1034,12 @@ final class BarVisibility: ObservableObject {
         withAnimation(.snappy(duration: 0.3, extraBounce: 0.05)) { minimized = value }
     }
 
-    /// Re-expand (tap / scroll-to-top / tab switch) and reset the offset anchor.
+    /// Re-expand (tap the corner puck / scroll-to-top / tab switch). Does NOT reset
+    /// the offset anchor, so a manual expand while scrolled-down stays open until the
+    /// user scrolls DOWN again (resetting to 0 would make the next scroll event read a
+    /// huge delta and immediately re-collapse).
     func expand() {
-        lastOffset = 0
-        if minimized { withAnimation(.snappy(duration: 0.3)) { minimized = false } }
+        if minimized { withAnimation(.snappy(duration: 0.35, extraBounce: 0.05)) { minimized = false } }
     }
 }
 
@@ -1056,135 +1058,52 @@ extension View {
     }
 }
 
+// BLANK TV — FLOATING CORNER MENU (Filmm-style). A compact circular glass puck is
+// pinned to the PHYSICAL bottom-RIGHT corner; it EXPANDS LEFTWARD into a right-anchored
+// pill of nav circles (5 sections + contextual Search) with a staggered spring reveal,
+// and collapses back to the puck. Collapses automatically on scroll-DOWN, expands on
+// scroll-UP or a tap of the puck. Physical-right anchoring is enforced with a forced
+// `.leftToRight` layout so the puck never flips under Arabic RTL (research-backed).
 struct AppTabBar: View {
     @Binding var selected: AppTab
-    @StateObject private var loc = LocalizationManager.shared
     @ObservedObject private var vis = BarVisibility.shared
     @Environment(\.horizontalSizeClass) private var hSize
-    @Namespace private var indicatorNS
     private let haptic = UISelectionFeedbackGenerator()
 
     var body: some View {
-        // BLANK TV — FLOATING Liquid-Glass tab bar. COLLAPSES to a compact capsule
-        // (showing the current tab's icon = the persistent marker) when the content
-        // scrolls DOWN, and EXPANDS to the full bar on scroll-UP or a TAP. Full bar =
-        // 5 section tabs + a contextual SEARCH button (scope defaults to the current
-        // section). iOS 26 Liquid Glass with an iOS 17–25 material fallback.
         Group {
             if vis.minimized {
-                minimizedCapsule
+                collapsedPuck
             } else {
-                fullBar
+                ExpandedNavBar(selected: $selected)
             }
         }
-        .frame(maxWidth: hSize == .regular ? 480 : .infinity)
-        .padding(.horizontal, S8KSpace.lg)
-        .padding(.bottom, 8)
+        // Anchor to the physical RIGHT edge (content hugs trailing); the pill grows left.
+        .frame(maxWidth: hSize == .regular ? 560 : .infinity, alignment: .trailing)
+        .padding(.trailing, 16)
+        .padding(.bottom, 10)
+        .environment(\.layoutDirection, .leftToRight)
     }
 
-    // Full bar — 5 tabs + search.
-    private var fullBar: some View {
-        HStack(spacing: 2) {
-            ForEach(AppTab.allCases) { tab in tabButton(tab) }
-            searchButton
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 8)
-        .s8kGlass(RoundedRectangle(cornerRadius: S8KRadius.xxl, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: S8KRadius.xxl, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
-                .allowsHitTesting(false)
-        )
-        .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
-    }
-
-    // Minimized — a small glass capsule with the current tab's icon; tap to expand.
-    private var minimizedCapsule: some View {
+    // Collapsed — a lime glass puck in the corner showing the current section's icon
+    // (the persistent marker). Tap to expand the menu.
+    private var collapsedPuck: some View {
         Button {
             haptic.selectionChanged()
             vis.expand()
         } label: {
             Image(systemName: selected.activeIcon)
-                .font(.system(size: 20, weight: .bold))
-                .foregroundColor(.s8kGoldHigh)
-                .frame(width: 56, height: 40)
-                .s8kGlass(Capsule(style: .continuous))
-                .overlay(
-                    Capsule(style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
-                        .allowsHitTesting(false)
-                )
-                .shadow(color: .black.opacity(0.35), radius: 14, y: 6)
+                .font(.system(size: 23, weight: .bold))
+                .foregroundColor(.s8kBlack)
+                .frame(width: 58, height: 58)
+                .background(Circle().fill(S8KGradient.goldFlat))
+                .overlay(Circle().strokeBorder(Color.s8kBlack.opacity(0.12), lineWidth: 2))
+                .shadow(color: .s8kGoldHigh.opacity(0.45), radius: 12, y: 5)
         }
         .buttonStyle(S8KButtonStyle())
-        .frame(maxWidth: .infinity, alignment: .center)
-        .transition(.scale(scale: 0.55).combined(with: .opacity))
+        .transition(.scale(scale: 0.6, anchor: .bottomTrailing).combined(with: .opacity))
         .accessibilityLabel(selected.title)
-    }
-
-    private func tabButton(_ tab: AppTab) -> some View {
-        let isOn = selected == tab
-        return Button {
-            guard selected != tab else { return }
-            haptic.selectionChanged()
-            withAnimation(.snappy(duration: 0.3)) { selected = tab }
-            vis.expand()   // a fresh tab always starts with the bar visible
-        } label: {
-            VStack(spacing: 3) {
-                ZStack {
-                    if isOn {
-                        Capsule(style: .continuous)
-                            .fill(S8KGradient.goldFlat)
-                            .frame(width: 34, height: 30)
-                            .shadow(color: .s8kGoldHigh.opacity(0.4), radius: 6, y: 2)
-                            .matchedGeometryEffect(id: "tabSel", in: indicatorNS)
-                    }
-                    Image(systemName: isOn ? tab.activeIcon : tab.icon)
-                        .font(.system(size: 18, weight: isOn ? .bold : .regular))
-                        .symbolEffect(.bounce, value: isOn)
-                        .foregroundColor(isOn ? .s8kBlack : .s8kTextSecondary)
-                }
-                .frame(height: 32)
-                Text(tab.title)
-                    .font(.system(size: 10, weight: isOn ? .bold : .medium))
-                    .foregroundColor(isOn ? .s8kTextPrimary : .s8kTextTertiary)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 3)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(S8KButtonStyle())
-        .accessibilityLabel(tab.title)
-        .accessibilityAddTraits(isOn ? [.isSelected] : [])
-    }
-
-    // Contextual search — opens the App-Store-style search cover with the scope
-    // seeded to the section the user is currently in (Live → channels, etc.).
-    private var searchButton: some View {
-        Button {
-            haptic.selectionChanged()
-            AppRouter.shared.searchScope = Self.scope(for: selected)
-            AppRouter.shared.homeSheet = .search
-        } label: {
-            VStack(spacing: 3) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 18, weight: .regular))
-                    .foregroundColor(.s8kTextSecondary)
-                    .frame(height: 32)
-                Text(L("search.title"))
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.s8kTextTertiary)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 3)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(S8KButtonStyle())
-        .accessibilityLabel(L("search.title"))
+        .accessibilityHint(L("search.title"))
     }
 
     /// Map the active section → the default search scope.
@@ -1194,6 +1113,74 @@ struct AppTabBar: View {
         case .series: return .series
         default:      return .movies   // home / movies / settings → movies
         }
+    }
+}
+
+// The expanded, right-anchored pill: nav circles that reveal with a staggered spring
+// from the corner (rightmost first) toward the left. A separate view so its `appeared`
+// state drives the per-item stagger on insertion.
+private struct ExpandedNavBar: View {
+    @Binding var selected: AppTab
+    @State private var appeared = false
+    private let haptic = UISelectionFeedbackGenerator()
+
+    private var tabs: [AppTab] { AppTab.allCases }        // live, movies, home, series, settings
+
+    var body: some View {
+        HStack(spacing: 7) {
+            ForEach(Array(tabs.enumerated()), id: \.element) { idx, tab in
+                // stagger index counts from the RIGHT (near the corner) → search first.
+                navCircle(icon: selected == tab ? tab.activeIcon : tab.icon,
+                          active: selected == tab,
+                          staggerFromRight: tabs.count - idx,
+                          label: tab.title) {
+                    guard selected != tab else { return }
+                    haptic.selectionChanged()
+                    withAnimation(.snappy(duration: 0.3)) { selected = tab }
+                }
+            }
+            navCircle(icon: "magnifyingglass", active: false,
+                      staggerFromRight: 0, label: L("search.title")) {
+                haptic.selectionChanged()
+                AppRouter.shared.searchScope = AppTabBar.scope(for: selected)
+                AppRouter.shared.homeSheet = .search
+            }
+        }
+        .padding(7)
+        .s8kGlass(Capsule(style: .continuous))
+        .overlay(
+            Capsule(style: .continuous)
+                .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+                .allowsHitTesting(false)
+        )
+        .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
+        .transition(.scale(scale: 0.5, anchor: .bottomTrailing).combined(with: .opacity))
+        .onAppear { appeared = true }
+        .onDisappear { appeared = false }
+    }
+
+    private func navCircle(icon: String, active: Bool, staggerFromRight: Int,
+                           label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: active ? .bold : .medium))
+                .foregroundColor(active ? .s8kBlack : .s8kTextSecondary)
+                .frame(width: 44, height: 44)
+                .background(
+                    Circle().fill(active ? AnyShapeStyle(S8KGradient.goldFlat)
+                                         : AnyShapeStyle(Color.white.opacity(0.08)))
+                )
+        }
+        .buttonStyle(S8KButtonStyle())
+        // Staggered reveal: each circle slides out of the corner, delayed by its
+        // distance from the right edge.
+        .opacity(appeared ? 1 : 0)
+        .scaleEffect(appeared ? 1 : 0.5, anchor: .trailing)
+        .offset(x: appeared ? 0 : 22)
+        .animation(.spring(response: 0.38, dampingFraction: 0.72)
+                    .delay(Double(staggerFromRight) * 0.045), value: appeared)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(active ? [.isSelected] : [])
     }
 }
 
