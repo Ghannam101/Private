@@ -1007,79 +1007,27 @@ struct AppTabBar: View {
     @Binding var selected: AppTab
     @StateObject private var loc = LocalizationManager.shared
     @Environment(\.horizontalSizeClass) private var hSize
-    @Namespace private var indicatorNS
+    @Namespace private var pillNS
+
+    // One spring drives the pill slide + label reveal + icon bounce, so the whole
+    // bar animates as a single premium motion (tuned per RESEARCH.md §3 spring table).
+    private let motion = Animation.spring(response: 0.38, dampingFraction: 0.74)
 
     var body: some View {
-        // BLANK TV — FLOATING Liquid-Glass tab bar (iOS 26 style). A rounded glass
-        // pill floats above the content; real `glassEffect` on iOS 26 lets the
-        // content flow behind it (no solid fill — per Apple's glass guidance), with
-        // a tuned material fallback on iOS 17–25. A sliding lime top-line marks the
-        // active tab; labels stay visible. `.contentShape` keeps every touch on the
-        // bar so taps never fall through.
-        HStack(alignment: .bottom, spacing: 0) {
+        // BLANK TV — FLOATING Liquid-Glass tab bar (iOS 26 style, "expanding pill").
+        // Inactive tabs are ICON-ONLY; the ACTIVE tab expands into a lime capsule
+        // that shows icon + label and SLIDES between tabs (matchedGeometry), pushing
+        // neighbors outward. Real `glassEffect` on iOS 26 lets content flow behind it
+        // (no solid fill — Apple's glass guidance), with a tuned material fallback on
+        // iOS 17–25. Selection fires a light haptic (`.sensoryFeedback`) and the icon
+        // bounces (`.symbolEffect`). `.contentShape` keeps every touch on the bar.
+        HStack(spacing: 4) {
             ForEach(AppTab.allCases) { tab in
-                let isOn = selected == tab
-                if tab == .home {
-                    // Prominent RAISED center button — a lime disc that pops above the bar.
-                    Button(action: {
-                        withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) { selected = tab }
-                    }) {
-                        VStack(spacing: 4) {
-                            ZStack {
-                                Circle().fill(S8KGradient.goldFlat)
-                                    .frame(width: 54, height: 54)
-                                    .shadow(color: .s8kGoldHigh.opacity(0.55), radius: 12, y: 4)
-                                    .overlay(Circle().strokeBorder(Color.s8kBlack.opacity(0.12), lineWidth: 2))
-                                Image(systemName: "house.fill")
-                                    .font(.system(size: 22, weight: .black))
-                                    .foregroundColor(.s8kBlack)
-                            }
-                            Text(tab.title)
-                                .font(S8KFont.caption3)
-                                .foregroundColor(isOn ? .s8kTextPrimary : .s8kTextTertiary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.bottom, 8)
-                        .offset(y: -14)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(S8KButtonStyle())
-                } else {
-                    Button(action: {
-                        withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) { selected = tab }
-                    }) {
-                        VStack(spacing: 5) {
-                            ZStack {
-                                Capsule().fill(Color.clear).frame(height: 3)
-                                if isOn {
-                                    Capsule()
-                                        .fill(S8KGradient.goldFlat)
-                                        .frame(width: 26, height: 3)
-                                        .shadow(color: .s8kGoldHigh.opacity(0.7), radius: 5)
-                                        .matchedGeometryEffect(id: "tabIndicator", in: indicatorNS)
-                                }
-                            }
-                            Image(systemName: isOn ? tab.activeIcon : tab.icon)
-                                .font(.system(size: 20, weight: isOn ? .bold : .regular))
-                                .foregroundColor(isOn ? .s8kGoldHigh : .s8kTextSecondary)
-                                .frame(height: 23)
-                                .scaleEffect(isOn ? 1.05 : 1.0)
-
-                            Text(tab.title)
-                                .font(S8KFont.caption3)
-                                .foregroundColor(isOn ? .s8kTextPrimary : .s8kTextTertiary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 9)
-                        .padding(.bottom, 8)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(S8KButtonStyle())
-                }
+                tabItem(tab)
             }
         }
-        .padding(.horizontal, 4)
-        // Cap + center the floating pill on iPad so 5 tabs aren't stretched.
+        .padding(.horizontal, 6)
+        .padding(.vertical, 7)
         .frame(maxWidth: hSize == .regular ? 480 : .infinity)
         // Real Liquid Glass (iOS 26) with graceful fallback — no solid fill behind.
         .s8kGlass(RoundedRectangle(cornerRadius: S8KRadius.xxl, style: .continuous))
@@ -1092,6 +1040,53 @@ struct AppTabBar: View {
         .padding(.horizontal, S8KSpace.lg)
         .padding(.bottom, 8)
         .contentShape(Rectangle())
+        // Light haptic on every tab change (prepared internally by SwiftUI).
+        .sensoryFeedback(.selection, trigger: selected)
+    }
+
+    @ViewBuilder
+    private func tabItem(_ tab: AppTab) -> some View {
+        let isOn = selected == tab
+        Button(action: {
+            guard selected != tab else { return }
+            withAnimation(motion) { selected = tab }
+        }) {
+            HStack(spacing: 7) {
+                Image(systemName: isOn ? tab.activeIcon : tab.icon)
+                    .font(.system(size: 19, weight: isOn ? .bold : .regular))
+                    .symbolEffect(.bounce, value: isOn)   // bounce when a tab becomes active
+                    .foregroundColor(isOn ? .s8kBlack : .s8kTextSecondary)
+                    .frame(height: 22)
+
+                if isOn {
+                    Text(tab.title)
+                        .font(.system(size: 14, weight: .bold))
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .minimumScaleFactor(0.85)
+                        .foregroundColor(.s8kBlack)
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .scale(scale: 0.6, anchor: .leading)),
+                            removal:   .opacity))
+                }
+            }
+            .padding(.horizontal, isOn ? 16 : 12)
+            .padding(.vertical, 10)
+            .background(
+                ZStack {
+                    if isOn {
+                        Capsule(style: .continuous)
+                            .fill(S8KGradient.goldFlat)
+                            .shadow(color: .s8kGoldHigh.opacity(0.45), radius: 8, y: 3)
+                            .matchedGeometryEffect(id: "tabPill", in: pillNS)
+                    }
+                }
+            )
+            .contentShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(S8KButtonStyle())
+        .accessibilityLabel(tab.title)
+        .accessibilityAddTraits(isOn ? [.isSelected] : [])
     }
 }
 
