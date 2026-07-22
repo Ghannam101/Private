@@ -1,27 +1,28 @@
 // ============================================================
 // BLANK TV — ActivationService.swift
-// Talks to the activation backend (device gating + credits)
+// INDEPENDENCE (M0a, 2026-07-22): BLANK TV is a fully independent, pure IPTV
+// player. ALL dependency on the external management / control-panel server
+// (strong8k.app: /v2/device/check + /v2/device/resolve) has been SEVERED.
+//
+// This service is now a LOCAL, always-allowed stub: it keeps the exact public
+// @Published surface every screen consumes (gate, maintenance, notifications,
+// brand, subscription fields…) so the app compiles and behaves normally, but it
+// NEVER contacts any server. The device is always `.allowed` — the app opens
+// straight to the subscription gate. Remote app-control (kill-switch, forced
+// update, maintenance, push announcements) and server-driven reseller white-label
+// are intentionally gone. The LOCAL BrandTheme mechanism (AppTheme.applyBrandTheme)
+// is kept dormant so a future build-time white-label stays trivial.
+// Subscription status/expiry now come from the user's Xtream `user_info` (Profile,
+// milestone M6), not from an activation server.
 // ============================================================
 
 import Foundation
 import SwiftUI
 import UIKit
 
-// MARK: - Config
-enum ActivationConfig {
-    /// Activation server over HTTPS via the domain (TLS by Let's Encrypt).
-    /// Requires DNS A-record strong8k.app -> server IP + certbot done first.
-    static let baseURL = "https://strong8k.app"
-    /// Must match APP_KEY in the server's .env-vars.
-    static let appKey  = "s8k_1ba20e7bead5716bb9e9b871fb71f3f304919f125dd62e91"
-    /// Short — the check runs in the background (optimistic gate), and offline
-    /// grace covers a slow/failed network, so we never make the user wait long.
-    static let timeout: TimeInterval = 8
-    /// How long an offline device may keep working on its last "allowed" check.
-    static let offlineGrace: TimeInterval = 7 * 86400
-}
-
-// MARK: - Server response
+// MARK: - Notification model (kept: consumed by the bell / AlertsView).
+// No longer server-delivered — the list stays empty until/unless a future LOCAL
+// source populates it. Kept so all consumers compile unchanged.
 struct AppNotification: Codable, Identifiable {
     let id:        Int
     let title:     String
@@ -35,98 +36,45 @@ struct AppNotification: Codable, Identifiable {
     }
 }
 
-struct ActivationResponse: Codable {
-    let deviceID:       String
-    let status:         String   // trial | active | expired | blocked
-    let activationType: String
-    let expiresAt:      Double?
-    let daysLeft:       Int?
-    let mode:           String
-    let announcement:   String?
-    let supportURL:     String?
-    let brand:          Brand?
-    // Optional + defaulted on apply: a 200 response that omits these (or a future
-    // server change) must NOT throw a decode error and drop a first-time user to
-    // the offline screen. Defaults are applied in apply().
-    let minVersion:     String?
-    let message:        String?
-    let notifications:  [AppNotification]?
-
-    // Remote app-control (App Control panel) — all optional / backward-compatible.
-    let maintenance:        Bool?
-    let maintenanceMessage: String?
-    let latestVersion:      String?
-    let updateURL:          String?
-    let forceUpdate:        Bool?
-
-    struct Brand: Codable { let name: String?; let logo: String?; let color: String? }
-
-    enum CodingKeys: String, CodingKey {
-        case deviceID = "device_id"
-        case status
-        case activationType = "activation_type"
-        case expiresAt = "expires_at"
-        case daysLeft  = "days_left"
-        case mode
-        case announcement
-        case supportURL = "support_url"
-        case brand
-        case minVersion = "min_version"
-        case message
-        case notifications
-        case maintenance
-        case maintenanceMessage = "maintenance_message"
-        case latestVersion      = "latest_version"
-        case updateURL          = "update_url"
-        case forceUpdate        = "force_update"
-    }
-}
-
-/// Server response for resolving a reseller code.
-struct CodeResolveResponse: Codable {
-    let ok: Bool
-    let code: String?
-    let brand: ActivationResponse.Brand?
-    let hosts: [Host]?
-    struct Host: Codable { let label: String?; let url: String?; let type: String? }
-}
-
-// MARK: - Service
+// MARK: - Service (local, always-allowed — no server)
 @MainActor
 final class ActivationService: ObservableObject {
     static let shared = ActivationService()
-    private init() { loadCache() }
+    private init() {
+        // Independent app: allowed from the first frame, no round-trip, no gate wait.
+        gate = .allowed
+    }
 
     enum Gate: Equatable { case checking, allowed, denied, offline }
 
-    @Published var gate:         Gate    = .checking
-    @Published var status:       String  = ""
-    @Published var activationType: String = ""
-    @Published var daysLeft:     Int?    = nil
-    @Published var expiresAt:    Double? = nil
-    @Published var message:      String  = ""
-    @Published var announcement: String? = nil
-    @Published var supportURL:   String? = nil
-    @Published var notifications: [AppNotification] = []
-    @Published var lastError:    String? = nil
+    // Always `.allowed` — an independent player is never gated by a server.
+    @Published var gate:           Gate    = .allowed
+    // Subscription fields — now sourced from Xtream `user_info` (Profile, M6),
+    // empty here so nothing displays a stale server value.
+    @Published var status:         String  = ""
+    @Published var activationType: String  = ""
+    @Published var daysLeft:       Int?    = nil
+    @Published var expiresAt:      Double? = nil
+    @Published var message:        String  = ""
+    @Published var announcement:   String? = nil
+    @Published var supportURL:     String? = nil
+    @Published var notifications:  [AppNotification] = []
+    @Published var lastError:      String? = nil
 
-    // Remote app-control (read from /v2/device/check). Fail-safe: all default to
-    // "off", and are only ever turned ON by a LIVE successful check — so a parse
-    // failure, offline launch, or missing field can never lock the user out.
-    @Published var maintenance:        Bool   = false
+    // Remote app-control — permanently OFF (no control panel). Kept so the
+    // Maintenance / Update / gate views still compile; they simply never trigger.
+    @Published var maintenance:        Bool    = false
     @Published var maintenanceMessage: String? = nil
-    @Published var minVersion:         String = "1.0.0"
+    @Published var minVersion:         String  = "1.0.0"
     @Published var latestVersion:      String? = nil
     @Published var updateURL:          String? = nil
-    @Published var forceUpdate:        Bool   = false
+    @Published var forceUpdate:        Bool    = false
 
-    /// True only when the server forces an update AND the running build is older
-    /// than min_version (real semantic-version comparison, not string compare).
-    var updateRequired: Bool {
-        forceUpdate && Self.versionLessThan(Bundle.main.appVersion, minVersion)
-    }
+    /// No server force-update path anymore → never required.
+    var updateRequired: Bool { false }
 
-    /// Compare dotted numeric versions: returns true if `a` < `b` (e.g. 1.9 < 1.10).
+    /// Compare dotted numeric versions: true if `a` < `b` (e.g. 1.9 < 1.10).
+    /// Retained as a local utility (used by About / version checks elsewhere).
     static func versionLessThan(_ a: String, _ b: String) -> Bool {
         let pa = a.split(separator: ".").map { Int($0) ?? 0 }
         let pb = b.split(separator: ".").map { Int($0) ?? 0 }
@@ -138,7 +86,8 @@ final class ActivationService: ObservableObject {
         return false
     }
 
-    // Reseller branding (from the entered code) — drives remote re-skin
+    // Reseller branding — LOCAL only now (kept dormant for a future build-time
+    // white-label). Server-driven reseller resolution has been removed.
     @Published var brandName:  String? = Store.shared.brandName
     @Published var brandColor: String? = Store.shared.brandColor
     @Published var brandLogo:  String? = Store.shared.brandLogo
@@ -158,149 +107,31 @@ final class ActivationService: ObservableObject {
 
     let deviceID = DeviceIdentity.current
 
-    var isAllowed: Bool { status == "active" || status == "trial" }
-    var isTrial:   Bool { status == "trial" }
+    var isAllowed: Bool { true }   // independent — always entitled to run
+    var isTrial:   Bool { false }
 
-    // MARK: - Check with backend
+    // MARK: - Check (no-op — no server)
+    /// Kept so existing call sites (app foreground, gate .task) compile. It simply
+    /// guarantees the device stays allowed; it performs NO network request.
     func check() async {
         lastError = nil
-        if gate == .denied || gate == .offline { gate = .checking }
-
-        guard let url = URL(string: "\(ActivationConfig.baseURL)/v2/device/check") else {
-            gate = .denied; message = "إعداد غير صالح"; return
-        }
-
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.timeoutInterval = ActivationConfig.timeout
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue(ActivationConfig.appKey, forHTTPHeaderField: "X-App-Key")
-        var body: [String: String] = [
-            "device_id":   deviceID,
-            "model":       UIDevice.current.modelName,
-            "app_version": Bundle.main.appVersion
-        ]
-        if let code = Store.shared.resellerCode, !code.isEmpty { body["code"] = code }
-        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
-
-        do {
-            let (data, response) = try await URLSession.shared.data(for: req)
-            guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
-            guard http.statusCode == 200 else {
-                // 403 wrong key, 400 bad id, etc.
-                throw NSError(domain: "activation", code: http.statusCode)
-            }
-            let result = try JSONDecoder().decode(ActivationResponse.self, from: data)
-            apply(result)
-        } catch {
-            handleOffline(error)
-        }
+        gate = .allowed
     }
 
-    /// Resolve a reseller code → store code + host + brand. Then call check()
-    /// again so the device becomes auto-activated under that reseller.
-    func resolveCode(_ code: String) async -> Bool {
-        let c = code.trimmingCharacters(in: .whitespaces)
-        guard !c.isEmpty,
-              let enc = c.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "\(ActivationConfig.baseURL)/v2/device/resolve?code=\(enc)")
-        else { return false }
-        var req = URLRequest(url: url)
-        req.timeoutInterval = ActivationConfig.timeout
-        req.setValue(ActivationConfig.appKey, forHTTPHeaderField: "X-App-Key")
-        do {
-            let (data, resp) = try await URLSession.shared.data(for: req)
-            guard (resp as? HTTPURLResponse)?.statusCode == 200 else { return false }
-            let r = try JSONDecoder().decode(CodeResolveResponse.self, from: data)
-            guard r.ok else { return false }
-            Store.shared.resellerCode = r.code ?? c
-            Store.shared.resellerHost = r.hosts?.first?.url
-            Store.shared.brandName = r.brand?.name
-            Store.shared.brandColor = r.brand?.color
-            Store.shared.brandLogo = r.brand?.logo
-            brandName = r.brand?.name; brandColor = r.brand?.color; brandLogo = r.brand?.logo
-            AppTheme.shared.applyBrandTheme(hex: r.brand?.color)   // re-skin to the reseller
-            await check()                      // becomes activated under the reseller
-            // Report success on the ACTUAL entitlement, not merely that the code
-            // resolved — otherwise the UI says "activated" while the gate stays
-            // denied (e.g. the code is valid but the device isn't entitled yet).
-            return gate == .allowed
-        } catch { return false }
-    }
+    /// Reseller-code resolution used to call the server (/v2/device/resolve).
+    /// Removed for independence — always fails cleanly (no server to resolve against).
+    /// White-label, if reintroduced, will be a build-time/local config (owner decision).
+    func resolveCode(_ code: String) async -> Bool { false }
 
-    /// Clear reseller mode (revert to independent / BLANK TV branding).
+    /// Clear reseller mode (revert to the official BLANK TV identity). LOCAL only.
     func clearReseller() {
         Store.shared.clearReseller()
         brandName = nil; brandColor = nil; brandLogo = nil
-        AppTheme.shared.applyBrandTheme(hex: nil)   // back to the official BLANK TV identity
-    }
-
-    private func apply(_ r: ActivationResponse) {
-        status         = r.status
-        activationType = r.activationType
-        daysLeft       = r.daysLeft
-        expiresAt      = r.expiresAt
-        message        = r.message ?? ""
-        announcement   = r.announcement
-        supportURL     = r.supportURL
-        notifications  = r.notifications ?? []
-        // Remote app-control (only ever set from this LIVE response)
-        maintenance        = r.maintenance ?? false
-        maintenanceMessage = r.maintenanceMessage
-        minVersion         = (r.minVersion?.isEmpty == false) ? r.minVersion! : "1.0.0"
-        latestVersion      = (r.latestVersion?.isEmpty == false) ? r.latestVersion : nil
-        updateURL          = r.updateURL
-        forceUpdate        = r.forceUpdate ?? false
-        if let b = r.brand {
-            Store.shared.brandName = b.name; Store.shared.brandColor = b.color; Store.shared.brandLogo = b.logo
-            brandName = b.name; brandColor = b.color; brandLogo = b.logo
-            AppTheme.shared.applyBrandTheme(hex: b.color)          // keep the app re-skinned
-        }
-        gate           = isAllowed ? .allowed : .denied
-        cache(r)
-    }
-
-    /// If the network is unavailable but the device was recently allowed,
-    /// keep it working (grace window) instead of locking the user out.
-    private func handleOffline(_ error: Error) {
-        lastError = error.localizedDescription
-        if let cached = cachedAllowed(), cached {
-            gate = .allowed
-        } else if status.isEmpty {
-            gate = .offline
-            message = "تعذّر الاتصال بخادم التفعيل — تحقق من اتصالك"
-        } else {
-            gate = isAllowed ? .allowed : .denied
-        }
-    }
-
-    // MARK: - Cache (offline grace)
-    private func cache(_ r: ActivationResponse) {
-        let ud = UserDefaults.standard
-        ud.set(r.status, forKey: "s8k.act.status")
-        ud.set(Date().timeIntervalSince1970, forKey: "s8k.act.ts")
-    }
-    private func loadCache() {
-        status = UserDefaults.standard.string(forKey: "s8k.act.status") ?? ""
-        // OPTIMISTIC GATE: if the device was recently allowed (within the offline
-        // grace window), ENTER INSTANTLY and verify in the background instead of
-        // making the user wait on the /check round-trip at every launch. Fail-safe:
-        // this can only let a VALID user in faster — check() still downgrades to
-        // .denied on a definitive server "not allowed", and handleOffline keeps the
-        // 7-day grace. It never locks a paying user out.
-        if cachedAllowed() == true { gate = .allowed }
-    }
-    private func cachedAllowed() -> Bool? {
-        let ud = UserDefaults.standard
-        let s  = ud.string(forKey: "s8k.act.status") ?? ""
-        let ts = ud.double(forKey: "s8k.act.ts")
-        guard ts > 0 else { return nil }
-        let fresh = Date().timeIntervalSince1970 - ts < ActivationConfig.offlineGrace
-        return fresh && (s == "active" || s == "trial")
+        AppTheme.shared.applyBrandTheme(hex: nil)
     }
 }
 
-// MARK: - Small helpers
+// MARK: - Small helpers (local utilities, kept)
 extension UIDevice {
     /// Marketing-ish model identifier (e.g. "iPhone15,3").
     var modelName: String {

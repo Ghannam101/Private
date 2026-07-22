@@ -2047,62 +2047,55 @@ actor PlaylistService {
 // CONTENT SERVICE — Unified facade (Xtream OR M3U)
 // ════════════════════════════════════════════
 enum ContentService {
-    static var mode: LoginMode { Store.shared.loginMode }
     static var isDemo: Bool { Store.shared.demoMode }
 
+    // INDEPENDENCE (M0b-1, 2026-07-22): DIRECT-ONLY. Every content path now goes to
+    // the user's OWN provider via PlaylistService (raw M3U or Xtream-direct), or to
+    // DemoContent. The old `XtreamService` proxy fallback (→ strong8k.app) has been
+    // removed structurally, so no content request can ever reach the backend —
+    // regardless of `mode`. BLANK TV is a pure, independent player.
     static func liveCategories() async throws -> [Category] {
         if isDemo { return DemoContent.liveCategories }
-        if mode == .m3u { return try await PlaylistService.shared.load().liveCategories }
-        return try await XtreamService.shared.fetchLiveCategories()
+        return try await PlaylistService.shared.load().liveCategories
     }
     static func liveStreams() async throws -> [Channel] {
         if isDemo { return DemoContent.channels }
-        if mode == .m3u { return try await PlaylistService.shared.load().channels }
-        return try await XtreamService.shared.fetchLiveStreams()
+        return try await PlaylistService.shared.load().channels
     }
     static func vodCategories() async throws -> [Category] {
         if isDemo { return DemoContent.movieCategories }
-        if mode == .m3u { return try await PlaylistService.shared.load().movieCategories }
-        return try await XtreamService.shared.fetchVODCategories()
+        return try await PlaylistService.shared.load().movieCategories
     }
     static func movies() async throws -> [Movie] {
         if isDemo { return DemoContent.movies }
-        if mode == .m3u { return try await PlaylistService.shared.load().movies }
-        return try await XtreamService.shared.fetchMovies()
+        return try await PlaylistService.shared.load().movies
     }
     static func seriesCategories() async throws -> [Category] {
         if isDemo { return DemoContent.seriesCategories }
-        if mode == .m3u { return try await PlaylistService.shared.load().seriesCategories }
-        return try await XtreamService.shared.fetchSeriesCategories()
+        return try await PlaylistService.shared.load().seriesCategories
     }
     static func series() async throws -> [Series] {
         if isDemo { return DemoContent.series }
-        if mode == .m3u { return try await PlaylistService.shared.load().series }
-        return try await XtreamService.shared.fetchSeries()
+        return try await PlaylistService.shared.load().series
     }
     /// Full movie metadata for the detail screen (cast/crew/year/plot).
     static func movieDetail(_ movie: Movie) async throws -> Movie {
         if isDemo { return movie }
-        if mode == .m3u { return try await PlaylistService.shared.movieInfo(movie) }
-        return try await XtreamService.shared.fetchMovieDetail(id: movie.id)
+        return try await PlaylistService.shared.movieInfo(movie)
     }
 
     static func seasons(of series: Series) async throws -> [Season] {
         if isDemo { return series.seasons }
-        if mode == .m3u {
-            // Raw M3U playlists embed seasons; Xtream-direct fetches them lazily
-            if !series.seasons.isEmpty { return series.seasons }
-            return try await PlaylistService.shared.seasons(seriesID: series.id)
-        }
-        return try await XtreamService.shared.fetchSeriesDetail(id: series.id).sortedSeasons
+        // Raw M3U playlists embed seasons; Xtream-direct fetches them lazily.
+        if !series.seasons.isEmpty { return series.seasons }
+        return try await PlaylistService.shared.seasons(seriesID: series.id)
     }
 
     /// Now/next program guide for a live channel. Empty when unavailable (raw
     /// M3U, demo, or no EPG on the provider) — the UI hides the guide then.
     static func epg(for channel: Channel) async -> [EPGProgram] {
         if isDemo { return [] }
-        if mode == .m3u { return await PlaylistService.shared.shortEPG(streamID: channel.id) }
-        return (try? await XtreamService.shared.fetchEPG(channelID: channel.id)) ?? []
+        return await PlaylistService.shared.shortEPG(streamID: channel.id)
     }
 }
 
