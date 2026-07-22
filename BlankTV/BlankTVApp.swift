@@ -25,6 +25,9 @@ final class AppRouter: ObservableObject {
     /// mode), so the cover silently failed to present. Router state survives all
     /// re-renders and is identical in demo and real mode.
     @Published var homeSheet: HomeSheet? = nil
+    /// Scope the contextual search opens with (seeded from the current section by
+    /// the tab bar's search button before it presents the search cover).
+    @Published var searchScope: SearchVM.SearchScope = .movies
     enum HomeSheet: Identifiable {
         case search, alerts, downloads
         var id: String {

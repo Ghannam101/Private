@@ -304,6 +304,8 @@ struct HomeView: View {
             .frame(maxWidth: .infinity)
         }
         .refreshable { await vm.load() }
+        // Drive the floating tab bar: collapse on scroll-down, expand on scroll-up.
+        .reportsScrollToTabBar()
         // The top bar is a real top safe-area INSET, NOT a child of the
         // ScrollView. When it lived inside the scroll, the scroll's content
         // container (taller than the viewport once content exceeded one screen)

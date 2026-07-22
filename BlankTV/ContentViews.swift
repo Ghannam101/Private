@@ -2451,6 +2451,9 @@ struct SearchView: View {
         .fullScreenCover(item: $playerItem) { PlayerView(item: $0) }
         .fullScreenCover(item: $showMovie)  { MovieDetailView(movie: $0) }
         .fullScreenCover(item: $showSeries) { SeriesDetailView(series: $0) }
+        // Contextual search: open on the section the user came from (set by the
+        // tab bar's search button). Applied once on present.
+        .onAppear { vm.setScope(AppRouter.shared.searchScope) }
     }
 
     // MARK: Header (title + close, search field, scope chips)

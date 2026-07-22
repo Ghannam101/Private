@@ -1003,33 +1003,93 @@ enum AppTab: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Floating tab-bar visibility (collapse on scroll-down / expand on scroll-up|tap)
+// A tiny shared model the bar OBSERVES and the scroll views WRITE to. Because our
+// AppTabBar is a CUSTOM overlay (the system TabView bar is hidden), iOS 26's native
+// `.tabBarMinimizeBehavior` does not apply — so we reproduce it: a coarse scroll-
+// direction signal flips one Bool, rate-limited with hysteresis so it never strobes.
+// Only AppTabBar reads `minimized`, so a flip re-renders the bar alone (not content).
+@MainActor
+final class BarVisibility: ObservableObject {
+    static let shared = BarVisibility()
+    private init() {}
+
+    @Published var minimized = false
+    private var lastFlip = Date.distantPast
+    private var lastOffset: CGFloat = 0
+
+    /// Feed the current vertical content offset; derives direction + debounces.
+    func report(offsetY newY: CGFloat) {
+        let delta = newY - lastOffset
+        lastOffset = newY
+        if newY <= 2 { setMinimized(false); return }   // at/near the top → always expanded
+        guard abs(delta) > 6 else { return }           // ignore micro-scroll jitter
+        setMinimized(delta > 0)                         // scrolling down → minimize; up → expand
+    }
+
+    func setMinimized(_ value: Bool) {
+        guard value != minimized,
+              Date().timeIntervalSince(lastFlip) > 0.12 else { return }   // rate-limit flips
+        lastFlip = Date()
+        withAnimation(.snappy(duration: 0.3, extraBounce: 0.05)) { minimized = value }
+    }
+
+    /// Re-expand (tap / scroll-to-top / tab switch) and reset the offset anchor.
+    func expand() {
+        lastOffset = 0
+        if minimized { withAnimation(.snappy(duration: 0.3)) { minimized = false } }
+    }
+}
+
+extension View {
+    /// Report a scroll view's vertical offset to the floating tab bar so it
+    /// collapses on scroll-down and expands on scroll-up. iOS 18+ (a graceful
+    /// no-op on iOS 17 — the bar simply stays expanded there).
+    @ViewBuilder
+    func reportsScrollToTabBar() -> some View {
+        if #available(iOS 18.0, *) {
+            self.onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y }
+                action: { _, newY in BarVisibility.shared.report(offsetY: newY) }
+        } else {
+            self
+        }
+    }
+}
+
 struct AppTabBar: View {
     @Binding var selected: AppTab
     @StateObject private var loc = LocalizationManager.shared
+    @ObservedObject private var vis = BarVisibility.shared
     @Environment(\.horizontalSizeClass) private var hSize
-    @Namespace private var pillNS
-
-    // One spring drives the pill slide + label reveal + icon bounce, so the whole
-    // bar animates as a single premium motion (tuned per RESEARCH.md §3 spring table).
-    private let motion = Animation.spring(response: 0.38, dampingFraction: 0.74)
+    @Namespace private var indicatorNS
+    private let haptic = UISelectionFeedbackGenerator()
 
     var body: some View {
-        // BLANK TV — FLOATING Liquid-Glass tab bar (iOS 26 style, "expanding pill").
-        // Inactive tabs are ICON-ONLY; the ACTIVE tab expands into a lime capsule
-        // that shows icon + label and SLIDES between tabs (matchedGeometry), pushing
-        // neighbors outward. Real `glassEffect` on iOS 26 lets content flow behind it
-        // (no solid fill — Apple's glass guidance), with a tuned material fallback on
-        // iOS 17–25. Selection fires a light haptic (`.sensoryFeedback`) and the icon
-        // bounces (`.symbolEffect`). `.contentShape` keeps every touch on the bar.
-        HStack(spacing: 4) {
-            ForEach(AppTab.allCases) { tab in
-                tabItem(tab)
+        // BLANK TV — FLOATING Liquid-Glass tab bar. COLLAPSES to a compact capsule
+        // (showing the current tab's icon = the persistent marker) when the content
+        // scrolls DOWN, and EXPANDS to the full bar on scroll-UP or a TAP. Full bar =
+        // 5 section tabs + a contextual SEARCH button (scope defaults to the current
+        // section). iOS 26 Liquid Glass with an iOS 17–25 material fallback.
+        Group {
+            if vis.minimized {
+                minimizedCapsule
+            } else {
+                fullBar
             }
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 7)
         .frame(maxWidth: hSize == .regular ? 480 : .infinity)
-        // Real Liquid Glass (iOS 26) with graceful fallback — no solid fill behind.
+        .padding(.horizontal, S8KSpace.lg)
+        .padding(.bottom, 8)
+    }
+
+    // Full bar — 5 tabs + search.
+    private var fullBar: some View {
+        HStack(spacing: 2) {
+            ForEach(AppTab.allCases) { tab in tabButton(tab) }
+            searchButton
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
         .s8kGlass(RoundedRectangle(cornerRadius: S8KRadius.xxl, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: S8KRadius.xxl, style: .continuous)
@@ -1037,56 +1097,103 @@ struct AppTabBar: View {
                 .allowsHitTesting(false)
         )
         .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
-        .padding(.horizontal, S8KSpace.lg)
-        .padding(.bottom, 8)
-        .contentShape(Rectangle())
-        // Light haptic on every tab change (prepared internally by SwiftUI).
-        .sensoryFeedback(.selection, trigger: selected)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
-    @ViewBuilder
-    private func tabItem(_ tab: AppTab) -> some View {
-        let isOn = selected == tab
-        Button(action: {
-            guard selected != tab else { return }
-            withAnimation(motion) { selected = tab }
-        }) {
-            HStack(spacing: 7) {
-                Image(systemName: isOn ? tab.activeIcon : tab.icon)
-                    .font(.system(size: 19, weight: isOn ? .bold : .regular))
-                    .symbolEffect(.bounce, value: isOn)   // bounce when a tab becomes active
-                    .foregroundColor(isOn ? .s8kBlack : .s8kTextSecondary)
-                    .frame(height: 22)
+    // Minimized — a small glass capsule with the current tab's icon; tap to expand.
+    private var minimizedCapsule: some View {
+        Button {
+            haptic.selectionChanged()
+            vis.expand()
+        } label: {
+            Image(systemName: selected.activeIcon)
+                .font(.system(size: 20, weight: .bold))
+                .foregroundColor(.s8kGoldHigh)
+                .frame(width: 56, height: 40)
+                .s8kGlass(Capsule(style: .continuous))
+                .overlay(
+                    Capsule(style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+                        .allowsHitTesting(false)
+                )
+                .shadow(color: .black.opacity(0.35), radius: 14, y: 6)
+        }
+        .buttonStyle(S8KButtonStyle())
+        .frame(maxWidth: .infinity, alignment: .center)
+        .transition(.scale(scale: 0.55).combined(with: .opacity))
+        .accessibilityLabel(selected.title)
+    }
 
-                if isOn {
-                    Text(tab.title)
-                        .font(.system(size: 14, weight: .bold))
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
-                        .minimumScaleFactor(0.85)
-                        .foregroundColor(.s8kBlack)
-                        .transition(.asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 0.6, anchor: .leading)),
-                            removal:   .opacity))
-                }
-            }
-            .padding(.horizontal, isOn ? 16 : 12)
-            .padding(.vertical, 10)
-            .background(
+    private func tabButton(_ tab: AppTab) -> some View {
+        let isOn = selected == tab
+        return Button {
+            guard selected != tab else { return }
+            haptic.selectionChanged()
+            withAnimation(.snappy(duration: 0.3)) { selected = tab }
+            vis.expand()   // a fresh tab always starts with the bar visible
+        } label: {
+            VStack(spacing: 3) {
                 ZStack {
                     if isOn {
                         Capsule(style: .continuous)
                             .fill(S8KGradient.goldFlat)
-                            .shadow(color: .s8kGoldHigh.opacity(0.45), radius: 8, y: 3)
-                            .matchedGeometryEffect(id: "tabPill", in: pillNS)
+                            .frame(width: 34, height: 30)
+                            .shadow(color: .s8kGoldHigh.opacity(0.4), radius: 6, y: 2)
+                            .matchedGeometryEffect(id: "tabSel", in: indicatorNS)
                     }
+                    Image(systemName: isOn ? tab.activeIcon : tab.icon)
+                        .font(.system(size: 18, weight: isOn ? .bold : .regular))
+                        .symbolEffect(.bounce, value: isOn)
+                        .foregroundColor(isOn ? .s8kBlack : .s8kTextSecondary)
                 }
-            )
-            .contentShape(Capsule(style: .continuous))
+                .frame(height: 32)
+                Text(tab.title)
+                    .font(.system(size: 10, weight: isOn ? .bold : .medium))
+                    .foregroundColor(isOn ? .s8kTextPrimary : .s8kTextTertiary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 3)
+            .contentShape(Rectangle())
         }
         .buttonStyle(S8KButtonStyle())
         .accessibilityLabel(tab.title)
         .accessibilityAddTraits(isOn ? [.isSelected] : [])
+    }
+
+    // Contextual search — opens the App-Store-style search cover with the scope
+    // seeded to the section the user is currently in (Live → channels, etc.).
+    private var searchButton: some View {
+        Button {
+            haptic.selectionChanged()
+            AppRouter.shared.searchScope = Self.scope(for: selected)
+            AppRouter.shared.homeSheet = .search
+        } label: {
+            VStack(spacing: 3) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 18, weight: .regular))
+                    .foregroundColor(.s8kTextSecondary)
+                    .frame(height: 32)
+                Text(L("search.title"))
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.s8kTextTertiary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 3)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(S8KButtonStyle())
+        .accessibilityLabel(L("search.title"))
+    }
+
+    /// Map the active section → the default search scope.
+    static func scope(for tab: AppTab) -> SearchVM.SearchScope {
+        switch tab {
+        case .live:   return .live
+        case .series: return .series
+        default:      return .movies   // home / movies / settings → movies
+        }
     }
 }
 
