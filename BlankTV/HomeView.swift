@@ -21,7 +21,10 @@ final class HomeVM: ObservableObject {
     @Published var heroItems:     [HeroItem]      = []   // mixed swipeable hero (movies + series)
     @Published var topMovies:     [Movie]         = []   // top-rated (Netflix Top 10 rail) — sorted ONCE
     @Published var topSeries:     [Series]        = []   // top-rated series rail — sorted ONCE
+    @Published var newMovies:     [Movie]         = []   // recently added (id desc) — sorted ONCE
+    @Published var newSeries:     [Series]        = []   // recently added (id desc) — sorted ONCE
     @Published var rails:         [HomeRail]      = []   // curated themed rails (network + genre) — built ONCE
+    private var heroDir = 1                              // hero ping-pong direction (ذهاب/عودة)
 
     // Provider categories (names) — needed to classify content into themed rails.
     private var movieCats:  [Category] = []
@@ -55,20 +58,24 @@ final class HomeVM: ObservableObject {
     func rebuildHero() {
         // Sort ONCE here (not on every SwiftUI render) — re-sorting a large catalog
         // on each body eval was a major source of home jank.
-        let sortedM = movies.sorted { $0.ratingDouble > $1.ratingDouble }
-        let sortedS = series.sorted { (Double($0.rating ?? "") ?? 0) > (Double($1.rating ?? "") ?? 0) }
-        topMovies = Array(sortedM.prefix(10))
-        topSeries = Array(sortedS.prefix(10))
+        topMovies = Array(movies.sorted { $0.ratingDouble > $1.ratingDouble }.prefix(10))
+        topSeries = Array(series.sorted { (Double($0.rating ?? "") ?? 0) > (Double($1.rating ?? "") ?? 0) }.prefix(10))
+        // "Recently added" ≈ highest Xtream id (ids auto-increment, so newest last).
+        newMovies = Array(movies.sorted { (Int($0.id) ?? 0) > (Int($1.id) ?? 0) }.prefix(20))
+        newSeries = Array(series.sorted { (Int($0.id) ?? 0) > (Int($1.id) ?? 0) }.prefix(20))
 
-        let topM = sortedM.prefix(4).map { HeroItem(kind: .movie($0)) }
-        let topS = sortedS.prefix(4).map { HeroItem(kind: .series($0)) }
+        // Hero features the NEWEST content (movies + series interleaved) — it refreshes
+        // as fresh titles arrive on reload. (Owner: hero tracks new movies/series.)
+        let hM = newMovies.prefix(4).map { HeroItem(kind: .movie($0)) }
+        let hS = newSeries.prefix(4).map { HeroItem(kind: .series($0)) }
         var out: [HeroItem] = []
-        for i in 0..<max(topM.count, topS.count) {
-            if i < topM.count { out.append(topM[i]) }
-            if i < topS.count { out.append(topS[i]) }
+        for i in 0..<max(hM.count, hS.count) {
+            if i < hM.count { out.append(hM[i]) }
+            if i < hS.count { out.append(hS[i]) }
         }
         heroItems = Array(out.prefix(8))
         if heroIndex >= heroItems.count { heroIndex = 0 }
+        heroDir = 1
 
         // Prefetch hero backdrops so swiping is smooth (image decode was the jank).
         S8KImageCache.shared.prefetch(heroItems.compactMap { $0.backdropURL }, maxPixel: 1400)
@@ -166,9 +173,13 @@ final class HomeVM: ObservableObject {
             // Capture weak INSIDE the Task (not a strong rebind outside) so the
             // concurrent closure never captures a strong self — Swift-6-safe.
             Task { @MainActor [weak self] in
-                guard let self else { return }
+                guard let self, self.heroItems.count > 1 else { return }
+                // Ping-pong (ذهاب/عودة): reverse at the ends instead of a jarring
+                // wrap from the last card back to the first.
+                if self.heroIndex >= self.heroItems.count - 1 { self.heroDir = -1 }
+                else if self.heroIndex <= 0 { self.heroDir = 1 }
                 withAnimation(.easeInOut(duration: 0.6)) {
-                    self.heroIndex = (self.heroIndex + 1) % max(1, self.heroItems.count)
+                    self.heroIndex += self.heroDir
                 }
             }
         }
@@ -285,21 +296,15 @@ struct HomeView: View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
                 if contentFailed { contentErrorBanner }
-                announcementBar
-                bannerSection
-                // Immersive full-bleed spotlight leads, then "resume" (highest
-                // engagement), the Top-10 rankings, and the curated themed feed.
+                // Home section order (owner spec): immersive hero → Continue Watching →
+                // a) Top-rated Movies + b) Top-rated Series (quickNav) → c) Recently
+                // added Movies → d) Recently added Series → e) Live / يبث الآن.
                 heroSection
                 continueWatching
                 quickNav
-                railsSection
-                liveSection
-                // Fallback ONLY when the provider's categories can't form real rails
-                // (single junk category, etc.) — otherwise the themed rails cover it.
-                if vm.rails.isEmpty {
-                    moviesSection
-                    seriesSection
-                }
+                moviesSection       // c) recently added movies
+                seriesSection       // d) recently added series
+                liveSection         // e) live channels
                 supportButtons
                 Color.clear.frame(height: 100)
             }
@@ -322,7 +327,7 @@ struct HomeView: View {
     private var homeSkeleton: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
-                SkeletonBlock(cornerRadius: 0).frame(height: 440)
+                SkeletonBlock(cornerRadius: 0).frame(height: 500)
                 ForEach(0..<3, id: \.self) { _ in skeletonRail }
                 Color.clear.frame(height: 60)
             }
@@ -460,12 +465,12 @@ struct HomeView: View {
     // poster; frosts to glass — keeping logo + profile clear — once scrolled.
     private var homeTopBar: some View {
         HStack {
-            profileButton
-            Spacer(minLength: 8)
             HStack(spacing: 9) {
                 BrandLogo(size: 30).shadow(color: .s8kGoldHigh.opacity(0.25), radius: 6)
                 S8KWordmark(size: 17)
             }
+            Spacer(minLength: 8)
+            profileButton
         }
         .padding(.horizontal, S8KSpace.xl)
         .padding(.bottom, 10)
@@ -492,11 +497,11 @@ struct HomeView: View {
             AppRouter.shared.tab = .settings
         } label: {
             Image(systemName: "person.fill")
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 19, weight: .semibold))
                 .foregroundColor(.s8kGoldHigh)
-                .frame(width: 42, height: 42)
+                .frame(width: 48, height: 48)
                 .background(.ultraThinMaterial, in: Circle())
-                .overlay(Circle().strokeBorder(Color.white.opacity(0.15), lineWidth: 1))
+                .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
                 .contentShape(Circle())
         }
         .buttonStyle(S8KButtonStyle())
@@ -561,7 +566,7 @@ struct HomeView: View {
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
-            .frame(height: 440)
+            .frame(height: 500)
             // Pause the auto-rotation the moment the user touches the hero, and
             // resume (with a fresh interval) when they lift — so manual swiping is
             // never fought by the timer (removes the residual stutter).
@@ -577,7 +582,7 @@ struct HomeView: View {
         ZStack(alignment: .bottom) {
             Color.clear
                 .frame(maxWidth: .infinity)
-                .frame(height: 440)
+                .frame(height: 500)
                 .overlay { S8KImage(url: item.backdropURL, placeholder: "film") }
                 .clipped()
             LinearGradient(
@@ -588,7 +593,7 @@ struct HomeView: View {
                     .init(color: .s8kBlack.opacity(0.5), location: 1.0)
                 ],
                 startPoint: .bottom, endPoint: .top)
-                .frame(height: 440)
+                .frame(height: 500)
                 .allowsHitTesting(false)
 
             VStack(alignment: .trailing, spacing: 11) {
@@ -618,23 +623,27 @@ struct HomeView: View {
                 .frame(maxWidth: .infinity, alignment: .trailing)
 
                 HStack(spacing: 14) {
-                    Button(action: { toggleHeroFav(item) }) {
+                    Button(action: {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        toggleHeroFav(item)
+                    }) {
                         let isFav = heroIsFav(item)
                         Image(systemName: isFav ? "heart.fill" : "heart").font(.system(size: 18, weight: .bold))
                             .foregroundColor(isFav ? .s8kRed : .s8kTextPrimary)
-                            .frame(width: 50, height: 50)
+                            .symbolEffect(.bounce, value: isFav)   // interactive pop on toggle
+                            .frame(width: 48, height: 48)
                             .background(Color.white.opacity(0.14))
                             .clipShape(Circle())
                             .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
                     }
                     .buttonStyle(S8KButtonStyle())
                     Button(action: { openHero(item) }) {
-                        Image(systemName: "play.fill").font(.system(size: 22, weight: .black))
+                        Image(systemName: "play.fill").font(.system(size: 20, weight: .black))
                             .foregroundColor(.s8kBlack)
-                            .frame(width: 58, height: 58)
+                            .frame(width: 52, height: 52)
                             .background(S8KGradient.goldFlat)
                             .clipShape(Circle())
-                            .shadow(color: .s8kGoldHigh.opacity(0.5), radius: 14, y: 3)
+                            .shadow(color: .s8kGoldHigh.opacity(0.5), radius: 12, y: 3)
                     }
                     .buttonStyle(S8KButtonStyle())
                 }
@@ -656,7 +665,7 @@ struct HomeView: View {
             .padding(.bottom, S8KSpace.xl)
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .frame(height: 440)
+        .frame(height: 500)
     }
 
     private func heroIsFav(_ item: HomeVM.HeroItem) -> Bool {
@@ -750,9 +759,9 @@ struct HomeView: View {
     // A big HOLLOW (outlined) rank number with the poster overlapping its right
     // side, and the global rating (★ 8.3) badged on the poster.
     private func rankCell(rank: Int, poster: String?, rating: String?, year: String?) -> some View {
-        // Smaller overlap so the big number stays readable (owner: numbers were too
-        // hidden behind the poster).
-        HStack(alignment: .bottom, spacing: -14) {
+        // Poster overlaps the number's right edge by a small amount (Netflix Top-10
+        // look) — the number stays legible, the poster "owns" part of it.
+        HStack(alignment: .bottom, spacing: -18) {
             outlinedNumber(rank)
             Color.clear.frame(width: 106, height: 154)
                 .overlay { S8KImage(url: poster, placeholder: "film") }
@@ -788,9 +797,9 @@ struct HomeView: View {
     // Outlined/hollow number: fill = deep-green (invisible on the dark bg) + a lime
     // outline built from offset copies (SwiftUI has no native text stroke).
     private func outlinedNumber(_ n: Int) -> some View {
-        let base = Text("\(n)").font(.system(size: 116, weight: .black, design: .rounded))
-        let offs: [(CGFloat, CGFloat)] = [(-2.4, 0), (2.4, 0), (0, -2.4), (0, 2.4),
-                                          (-1.7, -1.7), (1.7, 1.7), (-1.7, 1.7), (1.7, -1.7)]
+        let base = Text("\(n)").font(.system(size: 94, weight: .black, design: .rounded))
+        let offs: [(CGFloat, CGFloat)] = [(-2, 0), (2, 0), (0, -2), (0, 2),
+                                          (-1.4, -1.4), (1.4, 1.4), (-1.4, 1.4), (1.4, -1.4)]
         return ZStack {
             ForEach(Array(offs.enumerated()), id: \.offset) { _, o in
                 base.foregroundColor(.s8kGoldHigh).offset(x: o.0, y: o.1)
@@ -1041,13 +1050,14 @@ struct HomeView: View {
 
     // MARK: - Movies
     @ViewBuilder
+    // c) Recently Added Movies (newest first, by Xtream id).
     private var moviesSection: some View {
-        if !vm.movies.isEmpty {
+        if !vm.newMovies.isEmpty {
             VStack(spacing: 0) {
-                SectionHeader(title: L("home.new_movies"), count: vm.movies.count) { AppRouter.shared.tab = .movies }
+                SectionHeader(title: L("home.new_movies")) { AppRouter.shared.tab = .movies }
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: 12) {
-                        ForEach(vm.movies.prefix(20)) { m in
+                        ForEach(vm.newMovies) { m in
                             ContentCard(title: m.name, subtitle: m.year,
                                         imageURL: m.posterURL) { cover = .movie(m) }
                         }
@@ -1061,13 +1071,14 @@ struct HomeView: View {
 
     // MARK: - Series
     @ViewBuilder
+    // d) Recently Added Series (newest first, by Xtream id).
     private var seriesSection: some View {
-        if !vm.series.isEmpty {
+        if !vm.newSeries.isEmpty {
             VStack(spacing: 0) {
-                SectionHeader(title: L("home.new_series"), count: vm.series.count) { AppRouter.shared.tab = .series }
+                SectionHeader(title: L("home.new_series")) { AppRouter.shared.tab = .series }
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: 12) {
-                        ForEach(vm.series.prefix(20)) { s in
+                        ForEach(vm.newSeries) { s in
                             ContentCard(title: s.name, subtitle: s.year,
                                         imageURL: s.coverURL) { cover = .series(s) }
                         }

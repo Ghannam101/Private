@@ -1067,26 +1067,30 @@ extension View {
 struct AppTabBar: View {
     @Binding var selected: AppTab
     @ObservedObject private var vis = BarVisibility.shared
+    @ObservedObject private var alerts = ActivationService.shared   // notification badge
     @Environment(\.horizontalSizeClass) private var hSize
     private let haptic = UISelectionFeedbackGenerator()
 
     var body: some View {
         Group {
             if vis.minimized {
+                // Collapsed: the HOME puck hugs the bottom-RIGHT corner.
                 collapsedPuck
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.trailing, 16)
             } else {
+                // Expanded: a FULL-WIDTH glass bar across the bottom (owner spec).
                 ExpandedNavBar(selected: $selected)
+                    .padding(.horizontal, S8KSpace.lg)
             }
         }
-        // Anchor to the physical RIGHT edge (content hugs trailing); the pill grows left.
-        .frame(maxWidth: hSize == .regular ? 560 : .infinity, alignment: .trailing)
-        .padding(.trailing, 16)
+        .frame(maxWidth: hSize == .regular ? 560 : .infinity)   // cap the bar on iPad
         .padding(.bottom, 10)
         .environment(\.layoutDirection, .leftToRight)
     }
 
     // Collapsed — the lime HOME puck in the corner (the persistent marker). Tap to
-    // open the menu leftward. (Settings lives on the top-left profile button now.)
+    // open the menu. A red (n) badge appears when there are unread notifications.
     private var collapsedPuck: some View {
         Button {
             haptic.selectionChanged()
@@ -1099,6 +1103,9 @@ struct AppTabBar: View {
                 .background(Circle().fill(S8KGradient.goldFlat))
                 .overlay(Circle().strokeBorder(Color.s8kBlack.opacity(0.12), lineWidth: 2))
                 .shadow(color: .s8kGoldHigh.opacity(0.45), radius: 12, y: 5)
+                .overlay(alignment: .topTrailing) {
+                    if alerts.unreadCount > 0 { notifBadge(alerts.unreadCount) }
+                }
         }
         .buttonStyle(S8KButtonStyle())
         .transition(.scale(scale: 0.6, anchor: .bottomTrailing).combined(with: .opacity))
@@ -1113,6 +1120,17 @@ struct AppTabBar: View {
         default:      return .movies   // home / movies / settings → movies
         }
     }
+
+    // Small red (n) notification badge — shown on the home puck when unread > 0.
+    private func notifBadge(_ n: Int) -> some View {
+        Text("\(min(n, 9))")
+            .font(.system(size: 10, weight: .black)).foregroundColor(.white)
+            .frame(minWidth: 18, minHeight: 18)
+            .background(Color.s8kRed).clipShape(Circle())
+            .overlay(Circle().strokeBorder(Color.s8kBlack, lineWidth: 1.5))
+            .offset(x: 3, y: -3)
+            .allowsHitTesting(false)
+    }
 }
 
 // The expanded, right-anchored pill: nav circles that reveal with a staggered spring
@@ -1120,28 +1138,40 @@ struct AppTabBar: View {
 // state drives the per-item stagger on insertion.
 private struct ExpandedNavBar: View {
     @Binding var selected: AppTab
+    @ObservedObject private var alerts = ActivationService.shared   // notifications
     @State private var appeared = false
     private let haptic = UISelectionFeedbackGenerator()
 
     // Menu sections (Settings removed → it lives on the top-left profile button).
-    // Row left→right: Movies · Series · Live · Search · Home(rightmost, by the corner).
+    // FULL-WIDTH row, left→right: Movies · Series · Live · Search · [Bell] · Home.
     private let sections: [AppTab] = [.movies, .series, .live]
 
     var body: some View {
-        HStack(spacing: 7) {
+        HStack(spacing: 4) {
             ForEach(Array(sections.enumerated()), id: \.element) { idx, tab in
                 // stagger counts from the RIGHT (near the corner): home first, movies last.
                 navCircle(icon: selected == tab ? tab.activeIcon : tab.icon,
                           active: selected == tab,
-                          staggerFromRight: (sections.count - idx) + 1,
+                          staggerFromRight: (sections.count - idx) + 2,
                           label: tab.title) { select(tab) }
             }
             navCircle(icon: "magnifyingglass", active: false,
-                      staggerFromRight: 1, label: L("search.title")) {
+                      staggerFromRight: 2, label: L("search.title")) {
                 haptic.selectionChanged()
                 AppRouter.shared.searchScope = AppTabBar.scope(for: selected)
                 AppRouter.shared.homeSheet = .search
                 BarVisibility.shared.collapse()
+            }
+            // Notifications — only appears when there are unread; opens the list,
+            // marks them read (so it vanishes), and closes the menu.
+            if alerts.unreadCount > 0 {
+                navCircle(icon: "bell.fill", active: false, staggerFromRight: 1,
+                          label: "التنبيهات") {
+                    haptic.selectionChanged()
+                    AppRouter.shared.homeSheet = .alerts
+                    ActivationService.shared.markNotificationsRead()
+                    BarVisibility.shared.collapse()
+                }
             }
             navCircle(icon: "house.fill", active: selected == .home,
                       staggerFromRight: 0, label: L("tab.home")) { select(.home) }
@@ -1179,6 +1209,7 @@ private struct ExpandedNavBar: View {
                 )
         }
         .buttonStyle(S8KButtonStyle())
+        .frame(maxWidth: .infinity)   // distribute evenly across the full-width bar
         // Staggered reveal: each circle slides out of the corner, delayed by its
         // distance from the right edge.
         .opacity(appeared ? 1 : 0)
