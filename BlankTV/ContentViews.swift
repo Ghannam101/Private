@@ -597,6 +597,9 @@ final class MoviesVM: ObservableObject {
     @Published var isLoading:  Bool       = true
     @Published var error:      AppError?  = nil
     @Published var sortBy:     Sort       = .newest
+    // Editorial feed (Home-style, movies-only) — built once after load.
+    @Published var heroItems:  [HomeVM.HeroItem] = []   // swipeable hero: newest movies
+    @Published var topRanked:  [Movie]    = []          // Top-10 by rating
     private var loaded = false
 
     // Precomputed once after load: movies grouped by categoryID + non-empty folders.
@@ -605,6 +608,15 @@ final class MoviesVM: ObservableObject {
     private func rebuildGroups() {
         grouped = Dictionary(grouping: movies, by: { $0.categoryID })
         folderList = categories.filter { $0.id != "all" && !(grouped[$0.id]?.isEmpty ?? true) }
+    }
+
+    // Editorial rows: Top-10 by rating (Movie has a ratingDouble helper) + a
+    // newest-movies hero.
+    private func rebuildEditorial() {
+        topRanked = Array(movies.sorted { $0.ratingDouble > $1.ratingDouble }.prefix(10))
+        let newest = movies.sorted { (Int($0.id) ?? 0) > (Int($1.id) ?? 0) }
+        heroItems = newest.prefix(6).map { HomeVM.HeroItem(kind: .movie($0)) }
+        S8KImageCache.shared.prefetch(heroItems.compactMap { $0.backdropURL }, maxPixel: 1200)
     }
 
     enum Sort: String, CaseIterable { case newest = "الأحدث"; case rating = "التقييم"; case az = "أ-ي" }
@@ -616,7 +628,8 @@ final class MoviesVM: ObservableObject {
             async let cats = ContentService.vodCategories()
             async let movs = ContentService.movies()
             let (c, m) = try await (cats, movs)
-            categories = [.all] + c; movies = m; rebuildGroups(); applyFilter(); loaded = true
+            categories = [.all] + c; movies = m
+            rebuildGroups(); applyFilter(); rebuildEditorial(); loaded = true
         } catch let e as AppError { error = e }
           catch { self.error = .network(error) }
         isLoading = false
@@ -635,7 +648,7 @@ final class MoviesVM: ObservableObject {
     }
     func reset() {
         loaded = false; movies = []; categories = [.all]; isLoading = true; error = nil
-        grouped = [:]; folderList = []
+        grouped = [:]; folderList = []; heroItems = []; topRanked = []
     }
 }
 
@@ -1207,6 +1220,14 @@ struct MoviesView: View {
     // Split only with real room (full-screen iPad); narrow Split View → phone layout.
     private func useSplit(_ width: CGFloat) -> Bool { isPad && width >= 720 }
 
+    // Editorial hero height (mirrors Home, a touch shorter so the Top-10 peeks).
+    private var heroHeight: CGFloat {
+        hSize == .regular ? 520 : min(max(UIScreen.main.bounds.height * 0.58, 460), 600)
+    }
+    private func openHero(_ item: HomeVM.HeroItem) {
+        if case .movie(let m) = item.kind { selected = m }
+    }
+
     var body: some View {
         NavigationStack(path: $path) {
             GeometryReader { geo in
@@ -1285,7 +1306,8 @@ struct MoviesView: View {
                     Color.clear.frame(height: 8)
                     PosterGrid(movies: vm.searchResults, empty: L("empty.no_results")) { selected = $0 }
                 } else {
-                    if tab == .all { featuredBanner }      // the Stage
+                    // The hero now leads the "All" editorial feed (in tabContent);
+                    // the old single-shot featuredBanner Stage is retired.
                     tabContent                             // Collections (category rails) / filter grids
                 }
                 Color.clear.frame(height: 110)
@@ -1384,10 +1406,24 @@ struct MoviesView: View {
     private var tabContent: some View {
         switch tab {
         case .all:
-            if vm.folders.isEmpty {
-                PosterGrid(movies: vm.movies, empty: L("movies.empty")) { selected = $0 }
-            } else {
-                LazyVStack(spacing: 0) {
+            // Editorial feed (Home-style, movies-only): swipeable hero → Top-10 →
+            // the user's own category shelves. Search/filter/reorder stay in the
+            // top bar (per owner: "feed + categories button").
+            LazyVStack(spacing: 0) {
+                if !vm.heroItems.isEmpty {
+                    HeroCarouselView(items: vm.heroItems, height: heroHeight,
+                                     paused: selected != nil, onOpen: openHero)
+                        .padding(.bottom, S8KSpace.lg)
+                }
+                if !vm.topRanked.isEmpty {
+                    RankRail(title: L("home.top_movies"),
+                             cells: vm.topRanked.enumerated().map { ($0.offset + 1, $0.element.id, $0.element.posterURL, $0.element.rating, $0.element.year) }) { id in
+                        if let m = vm.topRanked.first(where: { $0.id == id }) { selected = m }
+                    }
+                }
+                if vm.folders.isEmpty {
+                    PosterGrid(movies: vm.movies, empty: L("movies.empty")) { selected = $0 }
+                } else {
                     ForEach(vm.folders) { cat in
                         CategoryRow(category: cat, count: vm.list(in: cat).count,
                                     locked: parental.isLockedCategory(.movie, cat.id),
