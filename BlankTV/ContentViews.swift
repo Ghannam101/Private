@@ -1549,6 +1549,9 @@ final class SeriesVM: ObservableObject {
     @Published var search:     String     = ""
     @Published var isLoading:  Bool       = true
     @Published var error:      AppError?  = nil
+    // Editorial feed (Home-style, series-only) — built once after load.
+    @Published var heroItems:  [HomeVM.HeroItem] = []   // swipeable hero: newest series
+    @Published var topRanked:  [Series]   = []          // Top-10 by rating
     private var loaded = false
 
     // Precomputed once after load: series grouped by categoryID + non-empty folders.
@@ -1559,6 +1562,15 @@ final class SeriesVM: ObservableObject {
         folderList = categories.filter { $0.id != "all" && !(grouped[$0.id]?.isEmpty ?? true) }
     }
 
+    // Build the editorial rows (Top-10 by rating + a newest-series hero). Series
+    // has no `ratingDouble` helper, so parse the String rating inline (as Home does).
+    private func rebuildEditorial() {
+        topRanked = Array(series.sorted { (Double($0.rating ?? "") ?? 0) > (Double($1.rating ?? "") ?? 0) }.prefix(10))
+        let newest = series.sorted { (Int($0.id) ?? 0) > (Int($1.id) ?? 0) }
+        heroItems = newest.prefix(6).map { HomeVM.HeroItem(kind: .series($0)) }
+        S8KImageCache.shared.prefetch(heroItems.compactMap { $0.backdropURL }, maxPixel: 1200)
+    }
+
     func load(force: Bool = false) async {
         if loaded && !force { return }
         isLoading = true; error = nil
@@ -1566,7 +1578,8 @@ final class SeriesVM: ObservableObject {
             async let cats = ContentService.seriesCategories()
             async let sers = ContentService.series()
             let (c, s) = try await (cats, sers)
-            categories = [.all] + c; series = s; rebuildGroups(); applyFilter(); loaded = true
+            categories = [.all] + c; series = s
+            rebuildGroups(); applyFilter(); rebuildEditorial(); loaded = true
         } catch let e as AppError { error = e }
           catch { self.error = .network(error) }
         isLoading = false
@@ -1580,7 +1593,7 @@ final class SeriesVM: ObservableObject {
     }
     func reset() {
         loaded = false; series = []; categories = [.all]; isLoading = true; error = nil
-        grouped = [:]; folderList = []
+        grouped = [:]; folderList = []; heroItems = []; topRanked = []
     }
 }
 
@@ -1613,6 +1626,14 @@ struct SeriesListView: View {
     private var isPad: Bool { hSize == .regular && UIDevice.current.userInterfaceIdiom == .pad }
     // Split only with real room (full-screen iPad); narrow Split View → phone layout.
     private func useSplit(_ width: CGFloat) -> Bool { isPad && width >= 720 }
+
+    // Editorial hero height (mirrors Home, a touch shorter so the Top-10 peeks).
+    private var heroHeight: CGFloat {
+        hSize == .regular ? 520 : min(max(UIScreen.main.bounds.height * 0.58, 460), 600)
+    }
+    private func openHero(_ item: HomeVM.HeroItem) {
+        if case .series(let s) = item.kind { selected = s }
+    }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -1694,7 +1715,8 @@ struct SeriesListView: View {
                 if !vm.search.isEmpty {
                     SeriesGrid(series: vm.searchResults, empty: L("empty.no_results")) { selected = $0 }
                 } else {
-                    featuredBanner
+                    // The hero now leads the "All" editorial feed (in tabContent);
+                    // the old single-shot featuredBanner is retired.
                     ContentTabBar(selected: $tab)
                     tabContent
                 }
@@ -1744,10 +1766,24 @@ struct SeriesListView: View {
     private var tabContent: some View {
         switch tab {
         case .all:
-            if vm.folders.isEmpty {
-                SeriesGrid(series: vm.series, empty: L("series.empty")) { selected = $0 }
-            } else {
-                LazyVStack(spacing: 0) {
+            // Editorial feed (Home-style, series-only): swipeable hero → Top-10 →
+            // the user's own category shelves. Categories/search/reorder stay
+            // reachable from the title bar (per owner: "feed + categories button").
+            LazyVStack(spacing: 0) {
+                if !vm.heroItems.isEmpty {
+                    HeroCarouselView(items: vm.heroItems, height: heroHeight,
+                                     paused: selected != nil, onOpen: openHero)
+                        .padding(.bottom, S8KSpace.lg)
+                }
+                if !vm.topRanked.isEmpty {
+                    RankRail(title: L("home.top_series"),
+                             cells: vm.topRanked.enumerated().map { ($0.offset + 1, $0.element.id, $0.element.coverURL, $0.element.rating, $0.element.year) }) { id in
+                        if let s = vm.topRanked.first(where: { $0.id == id }) { selected = s }
+                    }
+                }
+                if vm.folders.isEmpty {
+                    SeriesGrid(series: vm.series, empty: L("series.empty")) { selected = $0 }
+                } else {
                     ForEach(vm.folders) { cat in
                         CategoryRow(category: cat, count: vm.list(in: cat).count,
                                     locked: parental.isLockedCategory(.series, cat.id),
