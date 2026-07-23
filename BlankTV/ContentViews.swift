@@ -294,6 +294,7 @@ struct LiveTVView: View {
                     Color.clear.frame(height: 110)
                 }
             }
+            .reportsScrollToTabBar()   // collapse the corner puck on scroll (owner #4)
         }
     }
 
@@ -1383,6 +1384,7 @@ struct MoviesView: View {
                 Color.clear.frame(height: 110)
             }
         }
+        .reportsScrollToTabBar()   // collapse the corner puck on scroll (owner #4)
         // The top bar is a safe-area INSET, NEVER a ScrollView child — scroll-child
         // buttons go dead in this codebase. This keeps search/filter always tappable.
         .safeAreaInset(edge: .top, spacing: 0) { moviesTopBar }
@@ -1829,6 +1831,7 @@ struct SeriesListView: View {
                 Color.clear.frame(height: 110)
             }
         }
+        .reportsScrollToTabBar()   // collapse the corner puck on scroll (owner #4)
     }
 
     // Featured spotlight banner atop the Series browse (mirrors Movies).

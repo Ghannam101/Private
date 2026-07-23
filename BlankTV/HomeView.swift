@@ -214,32 +214,44 @@ struct HeroCarouselView: View {
     let onOpen: (HomeVM.HeroItem) -> Void
 
     @ObservedObject private var favs = FavoritesService.shared
-    @State private var index = 0
-    @State private var dir = 1            // ping-pong direction (ذهاب/عودة)
-    @State private var dragPaused = false // paused while the user is touching the hero
+    @State private var currentID: String?   // the visible page's item id (drives dots + auto-rotate)
+    @State private var dir = 1               // ping-pong direction (ذهاب/عودة)
     private let ticker = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
+    // A paging horizontal ScrollView (NOT TabView.page): a `.page` TabView nested
+    // in a vertical ScrollView swallows vertical drags, so the user could only
+    // swipe posters and never scroll the Movies/Series feed (owner #1). The iOS 17
+    // paging scroll composes orthogonally with the parent vertical scroll — a
+    // horizontal swipe pages the hero, a vertical swipe scrolls the page.
     var body: some View {
-        TabView(selection: $index) {
-            ForEach(Array(items.enumerated()), id: \.element.id) { idx, item in
-                heroCard(item).tag(idx)
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: 0) {
+                ForEach(items) { item in
+                    heroCard(item)
+                        .containerRelativeFrame(.horizontal)   // one page = container width
+                        .id(item.id)
+                }
             }
+            .scrollTargetLayout()
         }
-        .tabViewStyle(.page(indexDisplayMode: .never))
+        .scrollTargetBehavior(.paging)
+        .scrollPosition(id: $currentID)
         .frame(height: height)
-        // Pause auto-rotation the moment the user touches the hero; resume on lift
-        // so a manual swipe is never fought by the timer.
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in dragPaused = true }
-                .onEnded   { _ in dragPaused = false }
-        )
-        .onReceive(ticker) { _ in
-            guard !paused, !dragPaused, items.count > 1 else { return }
-            if index >= items.count - 1 { dir = -1 } else if index <= 0 { dir = 1 }
-            withAnimation(.easeInOut(duration: 0.6)) { index += dir }
+        .onReceive(ticker) { _ in advance() }
+        .onAppear { if currentID == nil { currentID = items.first?.id } }
+        .onChange(of: items.map(\.id)) { _, ids in
+            if currentID == nil || !ids.contains(currentID!) { currentID = ids.first }
         }
-        .onChange(of: items.count) { _, n in if index >= n { index = 0 } }
+    }
+
+    // Auto-rotate: ping-pong to the neighbouring page. Skipped while a cover is
+    // open. Manual scrolling updates `currentID` natively via `scrollPosition`.
+    private func advance() {
+        guard !paused, items.count > 1,
+              let cur = currentID, let idx = items.firstIndex(where: { $0.id == cur }) else { return }
+        if idx >= items.count - 1 { dir = -1 } else if idx <= 0 { dir = 1 }
+        let next = max(0, min(items.count - 1, idx + dir))
+        withAnimation(.easeInOut(duration: 0.6)) { currentID = items[next].id }
     }
 
     private func heroCard(_ item: HomeVM.HeroItem) -> some View {
@@ -314,16 +326,17 @@ struct HeroCarouselView: View {
                 .frame(maxWidth: .infinity, alignment: .trailing)
 
                 HStack(spacing: 5) {
-                    ForEach(0..<items.count, id: \.self) { i in
+                    ForEach(items) { it in
+                        let on = it.id == currentID
                         Capsule()
-                            .fill(i == index ? AnyShapeStyle(S8KGradient.goldFlat)
-                                             : AnyShapeStyle(Color.white.opacity(0.3)))
-                            .frame(width: i == index ? 22 : 6, height: 6)
+                            .fill(on ? AnyShapeStyle(S8KGradient.goldFlat)
+                                     : AnyShapeStyle(Color.white.opacity(0.3)))
+                            .frame(width: on ? 22 : 6, height: 6)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .padding(.top, 4)
-                .animation(.spring(response: 0.3), value: index)
+                .animation(.spring(response: 0.3), value: currentID)
             }
             .padding(.horizontal, S8KSpace.xl)
             .padding(.bottom, S8KSpace.xl)
@@ -739,12 +752,12 @@ struct HomeView: View {
         .frame(maxWidth: .infinity)
         .background {
             if bars.scrolled {
-                // A near-opaque solid instead of `.ultraThinMaterial`: a real blur
-                // material composited over the full-bleed hero image that is
-                // scrolling underneath must re-sample every frame — a classic
-                // scroll-jank source. The solid reads the same at a glance and is
-                // effectively free.
-                Color.s8kBlack.opacity(0.9)
+                // Elegant frosted glass (owner: the "ثلجي" look). The earlier solid
+                // `s8kBlack.opacity` read GREEN because s8kBlack is the deep-green
+                // brand base — a material stays neutral. It's only the small top-bar
+                // strip (not a full-bleed layer), so the blur cost is negligible.
+                Rectangle().fill(.ultraThinMaterial)
+                    .overlay(Color.black.opacity(0.18))
                     .overlay(GoldDivider(), alignment: .bottom)
                     .ignoresSafeArea(edges: .top)
             } else {
