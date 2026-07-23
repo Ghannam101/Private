@@ -642,6 +642,31 @@ struct S8KImage: View {
     }
 }
 
+// MARK: - Progress bar (geometry-free)
+// A leading-anchored `scaleEffect` fills the track WITHOUT a GeometryReader.
+// The old GeometryReader-per-cell forced an extra layout pass on every visible
+// Continue-Watching / history / episode / EPG cell — real cost when dozens are
+// on screen. A transform is far cheaper than a measurement pass; the rounded
+// ends come from a Capsule clip. `fraction` is clamped to 0…1.
+struct S8KProgressBar<F: BinaryFloatingPoint>: View {
+    var fraction: F                                  // accepts CGFloat / Double / Float
+    var track: Color = Color.white.opacity(0.12)
+    var height: CGFloat = 3
+
+    var body: some View {
+        let f = CGFloat(min(1, max(0, Double(fraction))))
+        Capsule()
+            .fill(track)
+            .overlay(alignment: .leading) {
+                Rectangle()
+                    .fill(S8KGradient.goldFlat)
+                    .scaleEffect(x: f, anchor: .leading)
+            }
+            .clipShape(Capsule())
+            .frame(height: height)
+    }
+}
+
 // MARK: - Skeleton shimmer (loading placeholders)
 // A sweeping highlight for skeleton cards while content loads — the premium
 // "the app is working, not frozen" cue. Reusable via `.s8kShimmer()`.
@@ -898,14 +923,7 @@ struct ContentCard: View {
                     if let p = progress, p > 0 {
                         VStack {
                             Spacer()
-                            GeometryReader { g in
-                                ZStack(alignment: .leading) {
-                                    Color.white.opacity(0.12)
-                                    S8KGradient.goldFlat
-                                        .frame(width: g.size.width * min(1, max(0, p)))
-                                }
-                            }
-                            .frame(height: 3)
+                            S8KProgressBar(fraction: p, track: Color.white.opacity(0.12))
                         }
                         .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md))
                     }

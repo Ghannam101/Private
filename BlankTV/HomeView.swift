@@ -1044,16 +1044,7 @@ struct HomeView: View {
                     .overlay(Circle().strokeBorder(Color.white.opacity(0.2), lineWidth: 1))
 
                 // Progress
-                GeometryReader { g in
-                    ZStack(alignment: .leading) {
-                        Color.white.opacity(0.15)
-                        S8KGradient.goldFlat
-                            .frame(width: g.size.width * min(1, max(0, item.progress)))
-                            .shadow(color: .s8kGoldHigh.opacity(0.4), radius: 2)
-                    }
-                }
-                .frame(height: 3)
-                .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md))
+                S8KProgressBar(fraction: item.progress, track: Color.white.opacity(0.15))
             }
             .frame(width: 220, height: 124)
 
@@ -1418,13 +1409,7 @@ struct AllHistoryView: View {
                         .frame(maxWidth: .infinity).frame(height: 96)
                         .overlay { S8KImage(url: h.posterURL, placeholder: "play.fill") }
                         .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm))
-                    GeometryReader { g in
-                        ZStack(alignment: .leading) {
-                            Color.white.opacity(0.15)
-                            S8KGradient.goldFlat.frame(width: g.size.width * min(1, max(0, h.progress)))
-                        }
-                    }
-                    .frame(height: 3).clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm))
+                    S8KProgressBar(fraction: h.progress, track: Color.white.opacity(0.15))
                 }
                 .frame(height: 96)
                 Text(h.contentName).font(S8KFont.caption2.weight(.semibold))

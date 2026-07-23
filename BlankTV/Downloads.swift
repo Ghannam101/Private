@@ -730,12 +730,7 @@ struct DownloadsView: View {
                 Text(d.title).font(S8KFont.subhead).foregroundColor(.s8kTextPrimary)
                     .lineLimit(2).frame(maxWidth: .infinity, alignment: .trailing)
                 if d.state == .downloading || d.state == .paused {
-                    GeometryReader { g in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Color.white.opacity(0.08))
-                            Capsule().fill(S8KGradient.goldFlat).frame(width: g.size.width * CGFloat(d.progress))
-                        }
-                    }.frame(height: 4)
+                    S8KProgressBar(fraction: d.progress, track: Color.white.opacity(0.08), height: 4)
                     Text(d.state == .paused ? "\(L("downloads.paused")) · \(Int(d.progress * 100))%"
                                             : "\(Int(d.progress * 100))%")
                         .font(S8KFont.caption2)

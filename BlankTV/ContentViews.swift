@@ -527,13 +527,7 @@ struct EPGNowNext: View {
                         Text(timeRange(c)).font(S8KFont.caption2)
                             .foregroundColor(.s8kTextTertiary).monospacedDigit()
                     }
-                    GeometryReader { g in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Color.white.opacity(0.10))
-                            Capsule().fill(S8KGradient.goldFlat).frame(width: g.size.width * CGFloat(progress(c)))
-                        }
-                    }
-                    .frame(height: 3)
+                    S8KProgressBar(fraction: progress(c), track: Color.white.opacity(0.10))
                     if !compact, let n = upNext {
                         Text("\(L("epg.next")): \(n.title)").font(S8KFont.caption2)
                             .foregroundColor(.s8kTextTertiary).lineLimit(1)
@@ -1439,13 +1433,7 @@ struct HistoryGrid: View {
                                     .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm))
                                     .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm)
                                         .strokeBorder(Color.s8kBorder, lineWidth: 1))
-                                GeometryReader { g in
-                                    ZStack(alignment: .leading) {
-                                        Color.white.opacity(0.15)
-                                        S8KGradient.goldFlat.frame(width: g.size.width * min(1, max(0, h.progress)))
-                                    }
-                                }
-                                .frame(height: 3).clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm))
+                                S8KProgressBar(fraction: h.progress, track: Color.white.opacity(0.15))
                             }
                             .frame(height: 150)
                             Text(h.contentName).font(S8KFont.caption2.weight(.semibold))
@@ -2266,13 +2254,7 @@ struct SeriesDetailView: View {
 
                             // Simple resume bar underneath — shows where you stopped (#1)
                             if progress > 0.02 {
-                                GeometryReader { g in
-                                    ZStack(alignment: .leading) {
-                                        Color.white.opacity(0.08)
-                                        S8KGradient.goldFlat.frame(width: g.size.width * min(1, progress))
-                                    }
-                                }
-                                .frame(height: 3)
+                                S8KProgressBar(fraction: progress, track: Color.white.opacity(0.08))
                             }
                         }
                         .background(Color.s8kSurface)
