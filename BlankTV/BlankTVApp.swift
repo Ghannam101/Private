@@ -207,6 +207,7 @@ struct BlankTVApp: App {
             // …but the floating glass bar itself RESPECTS the safe area, so it sits
             // a comfortable margin above the home indicator (not glued to the edge).
             AppTabBar(selected: $router.tab)
+                .zIndex(1)   // always above content so its taps never fall through
         }
         // Top-bar presentations live HERE (stable host) so they present
         // identically in demo and real playlist mode and can never be lost

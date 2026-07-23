@@ -327,7 +327,7 @@ struct HomeView: View {
     private var homeSkeleton: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
-                SkeletonBlock(cornerRadius: 0).frame(height: 500)
+                SkeletonBlock(cornerRadius: 0).frame(height: heroHeight)
                 ForEach(0..<3, id: \.self) { _ in skeletonRail }
                 Color.clear.frame(height: 60)
             }
@@ -555,6 +555,12 @@ struct HomeView: View {
         }
     }
 
+    // Responsive hero height — enlarged DOWNWARD so the full poster shows on all
+    // phones (full-bleed under the notch/Dynamic Island; the top bar overlays a scrim).
+    private var heroHeight: CGFloat {
+        hSize == .regular ? 560 : min(max(UIScreen.main.bounds.height * 0.62, 520), 660)
+    }
+
     // MARK: - Hero Section — SWIPEABLE cinematic carousel mixing top-rated movies +
     // series (auto-rotates every 5s via the VM timer; the customer can also swipe).
     @ViewBuilder
@@ -566,7 +572,7 @@ struct HomeView: View {
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
-            .frame(height: 500)
+            .frame(height: heroHeight)
             // Pause the auto-rotation the moment the user touches the hero, and
             // resume (with a fresh interval) when they lift — so manual swiping is
             // never fought by the timer (removes the residual stutter).
@@ -582,7 +588,7 @@ struct HomeView: View {
         ZStack(alignment: .bottom) {
             Color.clear
                 .frame(maxWidth: .infinity)
-                .frame(height: 500)
+                .frame(height: heroHeight)
                 .overlay { S8KImage(url: item.backdropURL, placeholder: "film") }
                 .clipped()
             LinearGradient(
@@ -593,7 +599,7 @@ struct HomeView: View {
                     .init(color: .s8kBlack.opacity(0.5), location: 1.0)
                 ],
                 startPoint: .bottom, endPoint: .top)
-                .frame(height: 500)
+                .frame(height: heroHeight)
                 .allowsHitTesting(false)
 
             VStack(alignment: .trailing, spacing: 11) {
@@ -665,7 +671,7 @@ struct HomeView: View {
             .padding(.bottom, S8KSpace.xl)
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .frame(height: 500)
+        .frame(height: heroHeight)
     }
 
     private func heroIsFav(_ item: HomeVM.HeroItem) -> Bool {

@@ -1106,6 +1106,7 @@ struct AppTabBar: View {
                 .overlay(alignment: .topTrailing) {
                     if alerts.unreadCount > 0 { notifBadge(alerts.unreadCount) }
                 }
+                .contentShape(Circle())   // solid hit target — taps never fall through
         }
         .buttonStyle(S8KButtonStyle())
         .transition(.scale(scale: 0.6, anchor: .bottomTrailing).combined(with: .opacity))
@@ -1184,16 +1185,22 @@ private struct ExpandedNavBar: View {
                 .allowsHitTesting(false)
         )
         .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
+        .contentShape(Capsule(style: .continuous))   // the whole pill blocks taps to content behind
         .transition(.scale(scale: 0.5, anchor: .bottomTrailing).combined(with: .opacity))
         .onAppear { appeared = true }
         .onDisappear { appeared = false }
     }
 
-    /// Navigate to a section and close the menu back to the corner puck.
+    /// Navigate to a section — the menu STAYS OPEN (owner spec) so the user can hop
+    /// between sections; it auto-collapses when they scroll. Tapping the CURRENT
+    /// section closes the menu (a manual collapse available on every page).
     private func select(_ tab: AppTab) {
         haptic.selectionChanged()
-        if selected != tab { withAnimation(.snappy(duration: 0.3)) { selected = tab } }
-        BarVisibility.shared.collapse()
+        if selected == tab {
+            BarVisibility.shared.collapse()
+        } else {
+            withAnimation(.snappy(duration: 0.3)) { selected = tab }
+        }
     }
 
     private func navCircle(icon: String, active: Bool, staggerFromRight: Int,
@@ -1210,6 +1217,7 @@ private struct ExpandedNavBar: View {
         }
         .buttonStyle(S8KButtonStyle())
         .frame(maxWidth: .infinity)   // distribute evenly across the full-width bar
+        .contentShape(Rectangle())    // whole cell is tappable — no dead gaps
         // Staggered reveal: each circle slides out of the corner, delayed by its
         // distance from the right edge.
         .opacity(appeared ? 1 : 0)
