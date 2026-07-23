@@ -187,6 +187,7 @@ struct HomeView: View {
     @StateObject private var auth   = AuthService.shared
     @StateObject private var activation = ActivationService.shared
     @StateObject private var favs   = FavoritesService.shared
+    @ObservedObject private var bars = BarVisibility.shared   // drives the top bar's glass on scroll
     @Environment(\.horizontalSizeClass) private var hSize
 
     // Single enum-driven presentation each — SwiftUI only honors one
@@ -233,6 +234,10 @@ struct HomeView: View {
                 mainScroll
             }
         }
+        // Floating top bar (profile · logo) over the hero — transparent at the top,
+        // frosted glass once scrolled. Overlaid (NOT a scroll child) so its taps are
+        // always live and the hero image runs full-bleed underneath it.
+        .overlay(alignment: .top) { homeTopBar }
         .task { await vm.load() }
         .onAppear { vm.startHeroTimer() }
         .onDisappear { vm.stopHeroTimer() }
@@ -304,23 +309,11 @@ struct HomeView: View {
             .frame(maxWidth: .infinity)
         }
         .refreshable { await vm.load() }
-        // Drive the floating tab bar: collapse on scroll-down, expand on scroll-up.
+        // Drive the floating menu (collapse on scroll) + the top bar glass (frost on scroll).
         .reportsScrollToTabBar()
-        // The top bar is a real top safe-area INSET, NOT a child of the
-        // ScrollView. When it lived inside the scroll, the scroll's content
-        // container (taller than the viewport once content exceeded one screen)
-        // spanned up over the buttons and captured their taps in real (tall)
-        // playlists while working in Demo (short content). As an inset, the bar
-        // reserves its own space above the scrollable content (no overlap) and
-        // is hit-tested independently, on top — so the buttons always receive
-        // their taps. Do NOT move it back inside the ScrollView.
-        .safeAreaInset(edge: .top, spacing: 0) {
-            VStack(spacing: 0) {
-                TrialBanner()
-                navBar
-            }
-            .background(Color.s8kBlack)
-        }
+        // Hero runs full-bleed UNDER the status bar; the top bar is a top OVERLAY
+        // (see `body`), hit-tested independently so its taps are always live.
+        .ignoresSafeArea(edges: .top)
     }
 
     // MARK: - Loading skeleton (first, empty load)
@@ -336,13 +329,9 @@ struct HomeView: View {
             .frame(maxWidth: hSize == .regular ? 900 : .infinity)
             .frame(maxWidth: .infinity)
         }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            VStack(spacing: 0) {
-                TrialBanner()
-                navBar
-            }
-            .background(Color.s8kBlack)
-        }
+        // The top bar is the shared overlay in `body`; the skeleton just runs
+        // full-bleed under it (matches the loaded layout).
+        .ignoresSafeArea(edges: .top)
     }
 
     private var skeletonRail: some View {
@@ -463,6 +452,55 @@ struct HomeView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(S8KButtonStyle())
+    }
+
+    // MARK: - Home Top Bar (profile · logo) — Filmm-style
+    // Floats over the hero: profile (المجسم) on the LEFT opens Settings, the logo on
+    // the RIGHT. Transparent (with a soft scrim) at the top so it blends into the
+    // poster; frosts to glass — keeping logo + profile clear — once scrolled.
+    private var homeTopBar: some View {
+        HStack {
+            profileButton
+            Spacer(minLength: 8)
+            HStack(spacing: 9) {
+                BrandLogo(size: 30).shadow(color: .s8kGoldHigh.opacity(0.25), radius: 6)
+                S8KWordmark(size: 17)
+            }
+        }
+        .padding(.horizontal, S8KSpace.xl)
+        .padding(.bottom, 10)
+        .frame(maxWidth: .infinity)
+        .background {
+            if bars.scrolled {
+                Rectangle().fill(.ultraThinMaterial)
+                    .overlay(Color.s8kBlack.opacity(0.22))
+                    .overlay(GoldDivider(), alignment: .bottom)
+                    .ignoresSafeArea(edges: .top)
+            } else {
+                LinearGradient(colors: [.black.opacity(0.55), .clear],
+                               startPoint: .top, endPoint: .bottom)
+                    .ignoresSafeArea(edges: .top)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
+    // The "المجسم" profile avatar — top-left. Opens Settings (the full profile page
+    // is milestone M6). A material circle so its tap is never swallowed.
+    private var profileButton: some View {
+        Button {
+            AppRouter.shared.tab = .settings
+        } label: {
+            Image(systemName: "person.fill")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(.s8kGoldHigh)
+                .frame(width: 42, height: 42)
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay(Circle().strokeBorder(Color.white.opacity(0.15), lineWidth: 1))
+                .contentShape(Circle())
+        }
+        .buttonStyle(S8KButtonStyle())
+        .accessibilityLabel(L("tab.settings"))
     }
 
     // MARK: - Announcement

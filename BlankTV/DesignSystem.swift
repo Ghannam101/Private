@@ -1014,32 +1014,32 @@ final class BarVisibility: ObservableObject {
     static let shared = BarVisibility()
     private init() {}
 
-    @Published var minimized = false
-    private var lastFlip = Date.distantPast
+    /// The corner menu is COLLAPSED by default (a home puck); it opens ONLY on a tap
+    /// of the puck and closes on scroll / item-select. (Owner spec.)
+    @Published var minimized = true
+    /// True once the page is scrolled past the top — drives the Home top bar's
+    /// transparent→glass transition (logo + profile stay clear on the glass).
+    @Published var scrolled = false
     private var lastOffset: CGFloat = 0
 
-    /// Feed the current vertical content offset; derives direction + debounces.
+    /// Feed the current vertical content offset.
     func report(offsetY newY: CGFloat) {
+        // Top bar glass once scrolled past a small threshold.
+        let s = newY > 30
+        if s != scrolled { withAnimation(.easeInOut(duration: 0.25)) { scrolled = s } }
+        // Any real scroll closes the menu (it only opens on a puck tap).
         let delta = newY - lastOffset
         lastOffset = newY
-        if newY <= 2 { setMinimized(false); return }   // at/near the top → always expanded
-        guard abs(delta) > 6 else { return }           // ignore micro-scroll jitter
-        setMinimized(delta > 0)                         // scrolling down → minimize; up → expand
+        if abs(delta) > 6 { collapse() }
     }
 
-    func setMinimized(_ value: Bool) {
-        guard value != minimized,
-              Date().timeIntervalSince(lastFlip) > 0.12 else { return }   // rate-limit flips
-        lastFlip = Date()
-        withAnimation(.snappy(duration: 0.3, extraBounce: 0.05)) { minimized = value }
-    }
-
-    /// Re-expand (tap the corner puck / scroll-to-top / tab switch). Does NOT reset
-    /// the offset anchor, so a manual expand while scrolled-down stays open until the
-    /// user scrolls DOWN again (resetting to 0 would make the next scroll event read a
-    /// huge delta and immediately re-collapse).
+    /// Tap the corner puck → open the menu leftward.
     func expand() {
-        if minimized { withAnimation(.snappy(duration: 0.35, extraBounce: 0.05)) { minimized = false } }
+        if minimized { withAnimation(.snappy(duration: 0.35, extraBounce: 0.06)) { minimized = false } }
+    }
+    /// Close back to the corner puck (scroll / select an item).
+    func collapse() {
+        if !minimized { withAnimation(.snappy(duration: 0.3)) { minimized = true } }
     }
 }
 
@@ -1085,14 +1085,14 @@ struct AppTabBar: View {
         .environment(\.layoutDirection, .leftToRight)
     }
 
-    // Collapsed — a lime glass puck in the corner showing the current section's icon
-    // (the persistent marker). Tap to expand the menu.
+    // Collapsed — the lime HOME puck in the corner (the persistent marker). Tap to
+    // open the menu leftward. (Settings lives on the top-left profile button now.)
     private var collapsedPuck: some View {
         Button {
             haptic.selectionChanged()
             vis.expand()
         } label: {
-            Image(systemName: selected.activeIcon)
+            Image(systemName: "house.fill")
                 .font(.system(size: 23, weight: .bold))
                 .foregroundColor(.s8kBlack)
                 .frame(width: 58, height: 58)
@@ -1102,8 +1102,7 @@ struct AppTabBar: View {
         }
         .buttonStyle(S8KButtonStyle())
         .transition(.scale(scale: 0.6, anchor: .bottomTrailing).combined(with: .opacity))
-        .accessibilityLabel(selected.title)
-        .accessibilityHint(L("search.title"))
+        .accessibilityLabel(L("tab.home"))
     }
 
     /// Map the active section → the default search scope.
@@ -1124,27 +1123,28 @@ private struct ExpandedNavBar: View {
     @State private var appeared = false
     private let haptic = UISelectionFeedbackGenerator()
 
-    private var tabs: [AppTab] { AppTab.allCases }        // live, movies, home, series, settings
+    // Menu sections (Settings removed → it lives on the top-left profile button).
+    // Row left→right: Movies · Series · Live · Search · Home(rightmost, by the corner).
+    private let sections: [AppTab] = [.movies, .series, .live]
 
     var body: some View {
         HStack(spacing: 7) {
-            ForEach(Array(tabs.enumerated()), id: \.element) { idx, tab in
-                // stagger index counts from the RIGHT (near the corner) → search first.
+            ForEach(Array(sections.enumerated()), id: \.element) { idx, tab in
+                // stagger counts from the RIGHT (near the corner): home first, movies last.
                 navCircle(icon: selected == tab ? tab.activeIcon : tab.icon,
                           active: selected == tab,
-                          staggerFromRight: tabs.count - idx,
-                          label: tab.title) {
-                    guard selected != tab else { return }
-                    haptic.selectionChanged()
-                    withAnimation(.snappy(duration: 0.3)) { selected = tab }
-                }
+                          staggerFromRight: (sections.count - idx) + 1,
+                          label: tab.title) { select(tab) }
             }
             navCircle(icon: "magnifyingglass", active: false,
-                      staggerFromRight: 0, label: L("search.title")) {
+                      staggerFromRight: 1, label: L("search.title")) {
                 haptic.selectionChanged()
                 AppRouter.shared.searchScope = AppTabBar.scope(for: selected)
                 AppRouter.shared.homeSheet = .search
+                BarVisibility.shared.collapse()
             }
+            navCircle(icon: "house.fill", active: selected == .home,
+                      staggerFromRight: 0, label: L("tab.home")) { select(.home) }
         }
         .padding(7)
         .s8kGlass(Capsule(style: .continuous))
@@ -1157,6 +1157,13 @@ private struct ExpandedNavBar: View {
         .transition(.scale(scale: 0.5, anchor: .bottomTrailing).combined(with: .opacity))
         .onAppear { appeared = true }
         .onDisappear { appeared = false }
+    }
+
+    /// Navigate to a section and close the menu back to the corner puck.
+    private func select(_ tab: AppTab) {
+        haptic.selectionChanged()
+        if selected != tab { withAnimation(.snappy(duration: 0.3)) { selected = tab } }
+        BarVisibility.shared.collapse()
     }
 
     private func navCircle(icon: String, active: Bool, staggerFromRight: Int,
