@@ -204,7 +204,8 @@ final class HomeVM: ObservableObject {
 // source of the reported scroll/animation jank. This view owns its own page
 // index + timer; the favorites service it observes is likewise local, so a
 // heart toggle no longer re-renders the whole feed either.
-private struct HeroCarouselView: View {
+// Shared app-wide (Home + Movies + Series) — a self-contained editorial hero.
+struct HeroCarouselView: View {
     let items: [HomeVM.HeroItem]
     let height: CGFloat
     /// True while a detail/player cover is open above Home — pause the rotation
@@ -359,6 +360,102 @@ private struct HeroCarouselView: View {
             .clipShape(RoundedRectangle(cornerRadius: S8KRadius.xs))
             .overlay(RoundedRectangle(cornerRadius: S8KRadius.xs)
                 .strokeBorder(color?.opacity(0.35) ?? Color.clear, lineWidth: 0.5))
+    }
+}
+
+// MARK: - Rank rail (shared editorial "Top-10")
+// Netflix-style numbered ranking row — a hollow lime numeral with the poster
+// overlapping it, plus year + ★rating badges. Extracted from Home so the Movies
+// and Series pages reuse the exact same component. `cells` is content-agnostic
+// (rank / id / poster / rating / year); `onTap` receives the tapped id.
+struct RankRail: View {
+    let title: String
+    let cells: [(rank: Int, id: String, poster: String?, rating: String?, year: String?)]
+    let onTap: (String) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Elegant ranking header: bold title + a trophy glyph + a short lime bar.
+            VStack(alignment: .trailing, spacing: 7) {
+                HStack(spacing: 8) {
+                    Spacer(minLength: 0)
+                    Text(title).font(.system(size: 20, weight: .heavy)).foregroundColor(.s8kTextPrimary)
+                    Image(systemName: "trophy.fill").font(.system(size: 13)).foregroundColor(.s8kGoldHigh)
+                }
+                RoundedRectangle(cornerRadius: 1.5).fill(S8KGradient.goldFlat).frame(width: 34, height: 3)
+                    .shadow(color: .s8kGoldHigh.opacity(0.5), radius: 4)
+            }
+            .padding(.horizontal, S8KSpace.xl)
+            .padding(.bottom, S8KSpace.sm)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(alignment: .bottom, spacing: 10) {
+                    ForEach(cells, id: \.id) { c in
+                        Button(action: { onTap(c.id) }) {
+                            rankCell(rank: c.rank, poster: c.poster, rating: c.rating, year: c.year)
+                        }
+                        .buttonStyle(S8KButtonStyle())
+                    }
+                }
+                .padding(.horizontal, S8KSpace.xl)
+                .padding(.top, S8KSpace.sm)
+            }
+        }
+        .padding(.bottom, S8KSpace.lg)
+    }
+
+    // A big HOLLOW (outlined) rank number with the poster overlapping its right
+    // side, and the global rating (★ 8.3) badged on the poster.
+    private func rankCell(rank: Int, poster: String?, rating: String?, year: String?) -> some View {
+        HStack(alignment: .bottom, spacing: -18) {
+            outlinedNumber(rank)
+            Color.clear.frame(width: 106, height: 154)
+                .overlay { S8KImage(url: poster, placeholder: "film", maxPixel: 420) }
+                .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
+                // Production YEAR — small badge, top of the poster (short + useful).
+                .overlay(alignment: .topTrailing) {
+                    if let y = year, !y.trimmingCharacters(in: .whitespaces).isEmpty {
+                        Text(y)
+                            .font(.system(size: 9, weight: .bold)).foregroundColor(.white)
+                            .padding(.horizontal, 5).padding(.vertical, 2)
+                            .background(Color.black.opacity(0.72)).clipShape(Capsule())
+                            .padding(5)
+                    }
+                }
+                // Global RATING — only when it's a valid 0–10 score (filters the
+                // m3u garbage where the "rating" field was actually a year).
+                .overlay(alignment: .bottomTrailing) {
+                    if let r = rating, let rv = Double(r), rv > 0, rv <= 10 {
+                        HStack(spacing: 2) {
+                            Image(systemName: "star.fill").font(.system(size: 8)).foregroundColor(.s8kGoldHigh)
+                            Text(String(format: "%.1f", rv)).font(.system(size: 10, weight: .black)).foregroundColor(.white)
+                        }
+                        .padding(.horizontal, 5).padding(.vertical, 2)
+                        .background(Color.black.opacity(0.78)).clipShape(Capsule())
+                        .padding(5)
+                    }
+                }
+        }
+    }
+
+    // Outlined/hollow number: fill = deep-green (invisible on the dark bg) + a lime
+    // outline built from offset copies (SwiftUI has no native text stroke).
+    private func outlinedNumber(_ n: Int) -> some View {
+        let base = Text("\(n)").font(.system(size: 94, weight: .black, design: .rounded))
+        let offs: [(CGFloat, CGFloat)] = [(-2, 0), (2, 0), (0, -2), (0, 2),
+                                          (-1.4, -1.4), (1.4, 1.4), (-1.4, 1.4), (1.4, -1.4)]
+        return ZStack {
+            ForEach(Array(offs.enumerated()), id: \.offset) { _, o in
+                base.foregroundColor(.s8kGoldHigh).offset(x: o.0, y: o.1)
+            }
+            base.foregroundColor(.s8kBlack)
+        }
+        .shadow(color: .black.opacity(0.5), radius: 3)
+        // Flatten the 9 stacked 94pt glyph layers into a single GPU texture so a
+        // horizontal fling of the Top-10 rail composites one layer per cell, not 9.
+        .drawingGroup()
     }
 }
 
@@ -754,107 +851,19 @@ struct HomeView: View {
     private var quickNav: some View {
         VStack(spacing: 0) {
             if !vm.topMovies.isEmpty {
-                rankRail(title: L("home.top_movies"),
+                RankRail(title: L("home.top_movies"),
                          cells: vm.topMovies.enumerated().map { ($0.offset + 1, $0.element.id, $0.element.posterURL, $0.element.rating, $0.element.year) }) { id in
                     if let m = vm.topMovies.first(where: { $0.id == id }) { cover = .movie(m) }
                 }
             }
             if !vm.topSeries.isEmpty {
-                rankRail(title: L("home.top_series"),
+                RankRail(title: L("home.top_series"),
                          cells: vm.topSeries.enumerated().map { ($0.offset + 1, $0.element.id, $0.element.coverURL, $0.element.rating, $0.element.year) }) { id in
                     if let s = vm.topSeries.first(where: { $0.id == id }) { cover = .series(s) }
                 }
                 .padding(.bottom, S8KSpace.md)
             }
         }
-    }
-
-    private func rankRail(title: String, cells: [(rank: Int, id: String, poster: String?, rating: String?, year: String?)],
-                          onTap: @escaping (String) -> Void) -> some View {
-        VStack(spacing: 0) {
-            // Elegant ranking header: bold title + a trophy glyph + a short lime bar.
-            VStack(alignment: .trailing, spacing: 7) {
-                HStack(spacing: 8) {
-                    Spacer(minLength: 0)
-                    Text(title).font(.system(size: 20, weight: .heavy)).foregroundColor(.s8kTextPrimary)
-                    Image(systemName: "trophy.fill").font(.system(size: 13)).foregroundColor(.s8kGoldHigh)
-                }
-                RoundedRectangle(cornerRadius: 1.5).fill(S8KGradient.goldFlat).frame(width: 34, height: 3)
-                    .shadow(color: .s8kGoldHigh.opacity(0.5), radius: 4)
-            }
-            .padding(.horizontal, S8KSpace.xl)
-            .padding(.bottom, S8KSpace.sm)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(alignment: .bottom, spacing: 10) {
-                    ForEach(cells, id: \.id) { c in
-                        Button(action: { onTap(c.id) }) {
-                            rankCell(rank: c.rank, poster: c.poster, rating: c.rating, year: c.year)
-                        }
-                        .buttonStyle(S8KButtonStyle())
-                    }
-                }
-                .padding(.horizontal, S8KSpace.xl)
-                .padding(.top, S8KSpace.sm)
-            }
-        }
-        .padding(.bottom, S8KSpace.lg)
-    }
-
-    // A big HOLLOW (outlined) rank number with the poster overlapping its right
-    // side, and the global rating (★ 8.3) badged on the poster.
-    private func rankCell(rank: Int, poster: String?, rating: String?, year: String?) -> some View {
-        // Poster overlaps the number's right edge by a small amount (Netflix Top-10
-        // look) — the number stays legible, the poster "owns" part of it.
-        HStack(alignment: .bottom, spacing: -18) {
-            outlinedNumber(rank)
-            Color.clear.frame(width: 106, height: 154)
-                .overlay { S8KImage(url: poster, placeholder: "film", maxPixel: 420) }
-                .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
-                // Production YEAR — small badge, top of the poster (short + useful).
-                .overlay(alignment: .topTrailing) {
-                    if let y = year, !y.trimmingCharacters(in: .whitespaces).isEmpty {
-                        Text(y)
-                            .font(.system(size: 9, weight: .bold)).foregroundColor(.white)
-                            .padding(.horizontal, 5).padding(.vertical, 2)
-                            .background(Color.black.opacity(0.72)).clipShape(Capsule())
-                            .padding(5)
-                    }
-                }
-                // Global RATING — only when it's a valid 0–10 score (filters the
-                // m3u garbage where the "rating" field was actually a year).
-                .overlay(alignment: .bottomTrailing) {
-                    if let r = rating, let rv = Double(r), rv > 0, rv <= 10 {
-                        HStack(spacing: 2) {
-                            Image(systemName: "star.fill").font(.system(size: 8)).foregroundColor(.s8kGoldHigh)
-                            Text(String(format: "%.1f", rv)).font(.system(size: 10, weight: .black)).foregroundColor(.white)
-                        }
-                        .padding(.horizontal, 5).padding(.vertical, 2)
-                        .background(Color.black.opacity(0.78)).clipShape(Capsule())
-                        .padding(5)
-                    }
-                }
-        }
-    }
-
-    // Outlined/hollow number: fill = deep-green (invisible on the dark bg) + a lime
-    // outline built from offset copies (SwiftUI has no native text stroke).
-    private func outlinedNumber(_ n: Int) -> some View {
-        let base = Text("\(n)").font(.system(size: 94, weight: .black, design: .rounded))
-        let offs: [(CGFloat, CGFloat)] = [(-2, 0), (2, 0), (0, -2), (0, 2),
-                                          (-1.4, -1.4), (1.4, 1.4), (-1.4, 1.4), (1.4, -1.4)]
-        return ZStack {
-            ForEach(Array(offs.enumerated()), id: \.offset) { _, o in
-                base.foregroundColor(.s8kGoldHigh).offset(x: o.0, y: o.1)
-            }
-            base.foregroundColor(.s8kBlack)
-        }
-        .shadow(color: .black.opacity(0.5), radius: 3)
-        // Flatten the 9 stacked 94pt glyph layers into a single GPU texture so a
-        // horizontal fling of the Top-10 rail composites one layer per cell, not 9.
-        .drawingGroup()
     }
 
     // MARK: - Curated themed rails (Smart Rail Engine)
