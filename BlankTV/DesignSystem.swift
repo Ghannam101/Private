@@ -1095,7 +1095,21 @@ struct AppTabBar: View {
     @ObservedObject private var router = AppRouter.shared           // global search state
     @Environment(\.horizontalSizeClass) private var hSize
     @FocusState private var searchFocused: Bool
+    // Typing writes to a LOCAL draft (instant, no global re-render per keystroke);
+    // the global query is committed on a short debounce so the per-keystroke
+    // catalog filter can't stall the main thread and make typing lag.
+    @State private var searchDraft = ""
+    @State private var commitTask: Task<Void, Never>?
     private let haptic = UISelectionFeedbackGenerator()
+
+    private func commitSearch(_ v: String) {
+        commitTask?.cancel()
+        commitTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 220_000_000)   // debounce
+            guard !Task.isCancelled else { return }
+            router.searchText = v
+        }
+    }
 
     var body: some View {
         Group {
@@ -1148,14 +1162,16 @@ struct AppTabBar: View {
             HStack(spacing: 9) {
                 // Clear ⊗ on the LEFT, magnifier on the RIGHT (matches the Arabic
                 // App Store, where the glyph sits at the leading/right edge).
-                if !router.searchText.isEmpty {
-                    Button { router.searchText = "" } label: {
+                if !searchDraft.isEmpty {
+                    Button {
+                        searchDraft = ""; commitTask?.cancel(); router.searchText = ""
+                    } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 16)).foregroundColor(.s8kTextTertiary)
                     }
                     .buttonStyle(S8KButtonStyle())
                 }
-                TextField(searchPlaceholder, text: $router.searchText)
+                TextField(searchPlaceholder, text: $searchDraft)
                     .focused($searchFocused)
                     .foregroundColor(.s8kTextPrimary)
                     .tint(.s8kGoldMid)
@@ -1164,6 +1180,8 @@ struct AppTabBar: View {
                     .textInputAutocapitalization(.never)
                     .multilineTextAlignment(.trailing)              // Arabic reads right→left
                     .environment(\.layoutDirection, .rightToLeft)
+                    .onChange(of: searchDraft) { _, v in commitSearch(v) }
+                    .onSubmit { commitTask?.cancel(); router.searchText = searchDraft }
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 15, weight: .semibold)).foregroundColor(.s8kTextSecondary)
             }
@@ -1174,7 +1192,7 @@ struct AppTabBar: View {
         }
         .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
         .transition(.scale(scale: 0.5, anchor: .bottomTrailing).combined(with: .opacity))
-        .onAppear { searchFocused = true }
+        .onAppear { searchDraft = router.searchText; searchFocused = true }
     }
 
     // Placeholder reflects the scope: the active section, or "all content" on Home.
