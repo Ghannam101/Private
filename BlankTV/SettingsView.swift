@@ -36,6 +36,9 @@ struct SettingsView: View {
     @State private var showAbout        = false
     @State private var showPlaylists    = false
     @State private var showDownloads    = false
+    /// Which accordion sections are expanded (all collapsed on open for a clean,
+    /// compact page). Keyed by the section id passed to `section(_:)`.
+    @State private var openSections: Set<String> = []
 
     var body: some View {
         NavigationStack {
@@ -45,13 +48,22 @@ struct SettingsView: View {
                     VStack(spacing: 0) {
                         navTitle
                         profileCard
-                        playlistsGroup      // القوائم في رأس الصفحة
-                        activationCard
-                        subscriptionCard
-                        serverCard
-                        playerGroup
-                        appGroup
-                        legalGroup
+                        // Consolidated collapsible sections (accordion). The page
+                        // opens compact — just the profile header + four tidy
+                        // section rows — and the user expands only what they need.
+                        // This replaces the old long stack of separate cards +
+                        // stand-alone sub-pages, per the owner's "simple & organized".
+                        section("connection", label: L("set.connection"),
+                                icon: "dot.radiowaves.left.and.right",
+                                summary: activePlaylistName) { connectionContent }
+                        section("player", label: L("set.player"),
+                                icon: "play.rectangle.fill") { playerContent }
+                        section("app", label: L("set.app"),
+                                icon: "gearshape.fill",
+                                summary: loc.lang.display) { appContent }
+                        section("about", label: L("set.about_legal"),
+                                icon: "info.circle.fill",
+                                summary: "v\(appVersion)") { legalContent }
                         logoutBtn
                         footer
                         Color.clear.frame(height: 100)
@@ -92,19 +104,11 @@ struct SettingsView: View {
         .sheet(isPresented: $showDownloads) { DownloadsView() }
     }
 
-    // MARK: - Playlists Group (top of page — add / remove / switch M3U & Xtream)
+    // Active playlist/account name — shown in the connection row + section summary.
     private var activePlaylistName: String {
         let id = Store.shared.activePlaylistID
         if let p = Store.shared.savedPlaylists.first(where: { $0.id == id }) { return p.name }
         return auth.mode == .m3u ? L("settings.m3u_list") : "Xtream"
-    }
-    private var playlistsGroup: some View {
-        group(label: L("set.playlists")) {
-            row(icon: "list.and.film", title: activePlaylistName,
-                value: "\(Store.shared.savedPlaylists.count)", hasChevron: true) {
-                showPlaylists = true
-            }
-        }
     }
 
     // MARK: - Nav Title
@@ -164,191 +168,6 @@ struct SettingsView: View {
         .padding(.bottom, S8KSpace.lg)
     }
 
-    // MARK: - Subscription Card
-    @ViewBuilder
-    private var subscriptionCard: some View {
-        if let user = auth.user {
-            VStack(spacing: 12) {
-                HStack {
-                    Image(systemName: user.daysRemaining > 7 ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                        .foregroundColor(user.daysRemaining > 7 ? .s8kGreen : .s8kOrange)
-                    Text(user.daysRemaining > 7 ? L("sub.active") : L("sub.expiring"))
-                        .font(S8KFont.subhead).foregroundColor(.s8kTextPrimary)
-                    Spacer()
-                    Text("\(user.daysRemaining) \(L("unit.day"))")
-                        .font(.system(size: 13, weight: .bold, design: .monospaced))
-                        .foregroundColor(user.daysRemaining > 7 ? .s8kGreen : .s8kOrange)
-                }
-                GeometryReader { g in
-                    ZStack(alignment: .leading) {
-                        Color.s8kElevated.cornerRadius(2)
-                        (user.daysRemaining > 7 ? Color.s8kGreen : Color.s8kOrange)
-                            .frame(width: g.size.width * min(1, Double(user.daysRemaining) / 30))
-                            .cornerRadius(2)
-                    }
-                }
-                .frame(height: 4)
-
-                if AppCompliance.allowsExternalPurchaseLinks,
-                   user.daysRemaining <= 7, let store = config.appConfig.storeURL {
-                    Button(action: { if let u = URL(string: store) { UIApplication.shared.open(u) } }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "arrow.clockwise.circle.fill")
-                            Text(L("sub.renew_now")).font(S8KFont.headline)
-                        }
-                        .foregroundColor(.black)
-                        .frame(maxWidth: .infinity).padding(.vertical, 12)
-                        .background(S8KGradient.goldFlat)
-                        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm))
-                    }
-                    .buttonStyle(S8KButtonStyle())
-                }
-            }
-            .padding(S8KSpace.lg)
-            .background(Color.s8kSurface)
-            .clipShape(RoundedRectangle(cornerRadius: S8KRadius.lg))
-            .overlay(RoundedRectangle(cornerRadius: S8KRadius.lg)
-                .strokeBorder(Color.s8kBorder, lineWidth: 1))
-            .padding(.horizontal, S8KSpace.xl)
-            .padding(.bottom, S8KSpace.xxl)
-        }
-    }
-
-    // MARK: - Server Card
-    @ViewBuilder
-    private var serverCard: some View {
-        if auth.mode == .m3u, let url = Store.shared.m3uURL {
-            serverCardBody(host: url, badge: "M3U")
-        } else if let creds = Keychain.shared.serverCredentials() {
-            serverCardBody(host: creds.host, badge: "Xtream")
-        }
-    }
-
-    private func serverCardBody(host: String, badge: String) -> some View {
-        group(label: L("settings.active_server")) {
-            HStack(spacing: 12) {
-                Circle().fill(Color.s8kGreen)
-                    .frame(width: 9, height: 9)
-                    .shadow(color: .s8kGreen.opacity(0.5), radius: 4)
-                VStack(alignment: .trailing, spacing: 3) {
-                    Text(L("common.connected")).font(S8KFont.subhead).foregroundColor(.s8kTextPrimary)
-                    Text(host)
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundColor(.s8kTextDisabled)
-                        .lineLimit(1)
-                }
-                Spacer()
-                Text(badge)
-                    .font(S8KFont.caption3).foregroundColor(.s8kGoldMid)
-                    .padding(.horizontal, 8).padding(.vertical, 4)
-                    .background(Color.s8kGoldMid.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
-                    .overlay(RoundedRectangle(cornerRadius: 4)
-                        .strokeBorder(Color.s8kBorderGold, lineWidth: 1))
-            }
-            .padding(S8KSpace.lg)
-        }
-    }
-
-    // MARK: - Activation Card (device id + status)
-    private var activationCard: some View {
-        group(label: L("set.activation")) {
-            VStack(spacing: 12) {
-                HStack(spacing: 12) {
-                    iconBox(activationColor, icon: activationIcon)
-                    VStack(alignment: .trailing, spacing: 3) {
-                        Text(activationTitle)
-                            .font(S8KFont.subhead).foregroundColor(.s8kTextPrimary)
-                        if let days = activation.daysLeft, activation.isAllowed {
-                            Text("\(L("time.remaining")) \(days) \(L("unit.day"))")
-                                .font(S8KFont.caption1).foregroundColor(.s8kTextTertiary)
-                        }
-                    }
-                    Spacer()
-                }
-
-                Divider().background(Color.s8kBorder)
-
-                // Device ID with copy
-                HStack(spacing: 10) {
-                    Button(action: copyDeviceID) {
-                        Image(systemName: idCopied ? "checkmark.circle.fill" : "doc.on.doc")
-                            .font(.system(size: 15))
-                            .foregroundColor(.s8kGoldMid)
-                    }
-                    .buttonStyle(S8KButtonStyle())
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(L("settings.device_id"))
-                            .font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
-                        Text(activation.deviceID)
-                            .font(.system(size: 13, weight: .bold, design: .monospaced))
-                            .foregroundColor(.s8kTextPrimary)
-                            .textSelection(.enabled)
-                    }
-                }
-
-                // Subscription type + expiry (under the MAC)
-                if activation.isAllowed {
-                    Divider().background(Color.s8kBorder)
-                    HStack {
-                        Image(systemName: "calendar")
-                            .font(.system(size: 13)).foregroundColor(.s8kGoldMid)
-                        Spacer()
-                        VStack(alignment: .trailing, spacing: 2) {
-                            Text(subscriptionKindText)
-                                .font(S8KFont.caption1.weight(.semibold)).foregroundColor(.s8kTextPrimary)
-                            Text(expiryText)
-                                .font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
-                        }
-                    }
-                }
-            }
-            .padding(S8KSpace.lg)
-        }
-    }
-
-    private var subscriptionKindText: String {
-        if activation.status == "trial" { return L("act.kind_trial") }
-        return activation.expiresAt == nil ? L("act.kind_lifetime") : L("act.kind_yearly")
-    }
-    private var expiryText: String {
-        if let exp = activation.expiresAt {
-            let date = Date(timeIntervalSince1970: exp)
-            let df = DateFormatter()
-            df.locale = Locale(identifier: LocalizationManager.current.rawValue)
-            df.dateStyle = .medium
-            let days = activation.daysLeft ?? 0
-            return "\(L("act.expires_on")) \(df.string(from: date)) · \(L("time.remaining")) \(days) \(L("unit.day"))"
-        }
-        return L("act.valid_forever")
-    }
-
-    private var activationTitle: String {
-        switch activation.status {
-        case "active":  return activation.activationType == "owner" ? L("act.active_owner") : L("act.active")
-        case "trial":   return L("act.kind_trial")
-        case "expired": return L("act.expired")
-        case "blocked": return L("act.blocked")
-        default:        return L("act.not_activated")
-        }
-    }
-    private var activationColor: Color {
-        switch activation.status {
-        case "active": return .s8kGreen
-        case "trial":  return .s8kOrange
-        case "blocked", "expired": return .s8kRed
-        default: return .s8kTextDisabled
-        }
-    }
-    private var activationIcon: String {
-        switch activation.status {
-        case "active": return "checkmark.seal.fill"
-        case "trial":  return "clock.badge.checkmark"
-        case "blocked": return "lock.fill"
-        default: return "exclamationmark.shield.fill"
-        }
-    }
     private func copyDeviceID() {
         UIPasteboard.general.string = activation.deviceID
         withAnimation { idCopied = true }
@@ -357,9 +176,8 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Player Group
-    private var playerGroup: some View {
-        group(label: L("set.player")) {
+    // MARK: - Player content (rows inside the "Player" accordion section)
+    @ViewBuilder private var playerContent: some View {
             toggleRow(icon: "play.square.stack.fill",
                       title: L("player.autonext.title"),
                       desc: L("player.autonext.desc"), isOn: $autoNextOn)
@@ -414,7 +232,6 @@ struct SettingsView: View {
                 sleepMins = next
                 Store.shared.sleepTimerMins = next
             }
-        }
     }
 
     private func engineLabel(_ p: String) -> String {
@@ -425,9 +242,8 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - App Group
-    private var appGroup: some View {
-        group(label: L("set.app")) {
+    // MARK: - App content (rows inside the "App" accordion section)
+    @ViewBuilder private var appContent: some View {
             // Language picker
             Menu {
                 ForEach(AppLang.allCases) { l in
@@ -475,16 +291,14 @@ struct SettingsView: View {
             toggleRow(icon: "chart.bar.fill", color: .s8kBlue,
                       title: L("app.analytics"), desc: L("app.analytics.desc"), isOn: $analyticsOn)
                 .onChange(of: analyticsOn) { _, newValue in Store.shared.analyticsConsent = newValue }
-            divider()
-            row(icon: "info.circle.fill", color: .s8kGoldMid, title: L("set.about"),
-                value: "v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")",
-                hasChevron: true) { showAbout = true }
-        }
     }
 
-    // MARK: - Legal Group
-    private var legalGroup: some View {
-        group(label: L("set.legal")) {
+    // MARK: - About & Legal content (rows inside the "About & Legal" section)
+    @ViewBuilder private var legalContent: some View {
+            // About the app (was a separate group row / sheet — now lives here).
+            row(icon: "info.circle.fill", color: .s8kGoldMid, title: L("set.about"),
+                value: "v\(appVersion)", hasChevron: true) { showAbout = true }
+            divider()
             // Support / contact (compliant — no prices). Always findable here.
             if let support = activation.supportURL, let u = URL(string: support) {
                 row(icon: "bubble.left.and.bubble.right.fill", title: L("set.support"),
@@ -522,7 +336,6 @@ struct SettingsView: View {
                 .padding(.horizontal, S8KSpace.lg).padding(.vertical, 14)
             }
             .buttonStyle(S8KButtonStyle())
-        }
     }
 
     // MARK: - Logout Button
@@ -588,6 +401,115 @@ struct SettingsView: View {
                 .padding(.horizontal, S8KSpace.xl)
         }
         .padding(.bottom, S8KSpace.xxl)
+    }
+
+    // MARK: - Accordion section (collapsible, consolidated group)
+    // One glass card = one logical group. The header row toggles the section
+    // open/closed with a snappy spring; the chevron rotates + goes gold, and the
+    // border warms to gold while open. Collapsed sections show a one-line summary
+    // on the trailing side so the user can scan state without expanding.
+    @ViewBuilder
+    private func section<Content: View>(_ id: String, label: String, icon: String,
+                                        summary: String = "",
+                                        @ViewBuilder content: () -> Content) -> some View {
+        let isOpen = openSections.contains(id)
+        VStack(spacing: 0) {
+            Button {
+                UISelectionFeedbackGenerator().selectionChanged()
+                withAnimation(.snappy(duration: 0.32)) {
+                    if isOpen { openSections.remove(id) } else { openSections.insert(id) }
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    iconBox(.s8kTextSecondary, icon: icon)
+                    Text(label)
+                        .font(S8KFont.callout.weight(.bold))
+                        .foregroundColor(.s8kTextPrimary)
+                    Spacer(minLength: 8)
+                    if !summary.isEmpty && !isOpen {
+                        Text(summary)
+                            .font(S8KFont.caption1)
+                            .foregroundColor(.s8kTextTertiary)
+                            .lineLimit(1)
+                    }
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(isOpen ? .s8kGoldMid : .s8kTextDisabled)
+                        .rotationEffect(.degrees(isOpen ? 180 : 0))
+                }
+                .padding(.horizontal, S8KSpace.lg)
+                .padding(.vertical, 16)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(S8KButtonStyle())
+
+            if isOpen {
+                divider()
+                VStack(spacing: 0) { content() }
+                    .padding(.bottom, 4)
+            }
+        }
+        .s8kGlass(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous)
+            .strokeBorder(isOpen ? Color.s8kBorderGold : Color.s8kBorder, lineWidth: 1))
+        .padding(.horizontal, S8KSpace.xl)
+        .padding(.bottom, S8KSpace.md)
+    }
+
+    // MARK: - Connection & account content
+    private var currentServerHost: String? {
+        if auth.mode == .m3u { return Store.shared.m3uURL }
+        return Keychain.shared.serverCredentials()?.host
+    }
+
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+    }
+
+    @ViewBuilder private var connectionContent: some View {
+        // Saved playlists / accounts — opens the manager sheet.
+        row(icon: "list.and.film", title: activePlaylistName,
+            value: "\(Store.shared.savedPlaylists.count)", hasChevron: true) {
+            showPlaylists = true
+        }
+        // Active server host (read-only status).
+        if let host = currentServerHost {
+            divider()
+            HStack(spacing: 12) {
+                iconBox(.s8kTextSecondary, icon: "server.rack")
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text(L("common.connected"))
+                        .font(S8KFont.callout.weight(.semibold))
+                        .foregroundColor(.s8kTextPrimary)
+                    Text(host)
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundColor(.s8kTextDisabled)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                Circle().fill(Color.s8kGreen).frame(width: 8, height: 8)
+                    .shadow(color: .s8kGreen.opacity(0.5), radius: 4)
+            }
+            .padding(.horizontal, S8KSpace.lg).padding(.vertical, 14)
+        }
+        // Device ID — tap to copy (useful for support).
+        divider()
+        Button(action: copyDeviceID) {
+            HStack(spacing: 12) {
+                iconBox(.s8kTextSecondary, icon: idCopied ? "checkmark.circle.fill" : "doc.on.doc")
+                Text(L("settings.device_id"))
+                    .font(S8KFont.callout.weight(.semibold))
+                    .foregroundColor(.s8kTextPrimary)
+                Spacer(minLength: 8)
+                Text(activation.deviceID)
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .foregroundColor(.s8kTextTertiary)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, S8KSpace.lg).padding(.vertical, 14)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(S8KButtonStyle())
     }
 
     private func divider() -> some View {

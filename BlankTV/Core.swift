@@ -139,6 +139,9 @@ enum L10n {
         "set.delete":   [.ar: "حذف الحساب",       .en: "Delete Account", .fr: "Supprimer le compte", .tr: "Hesabı Sil", .es: "Eliminar cuenta"],
         "set.playlists_manage":[.ar: "إدارة قوائمي", .en: "My Playlists", .fr: "Mes listes", .tr: "Listelerim", .es: "Mis listas"],
         "set.support":  [.ar: "تواصل مع الدعم", .en: "Contact Support", .fr: "Contacter le support", .tr: "Destek ile İletişim", .es: "Contactar soporte"],
+        "set.connection":[.ar: "الاتصال والحساب", .en: "Connection & Account", .fr: "Connexion et compte", .tr: "Bağlantı ve Hesap", .es: "Conexión y cuenta"],
+        "set.about_legal":[.ar: "حول والدعم والقانوني", .en: "About & Legal", .fr: "À propos et mentions", .tr: "Hakkında ve Yasal", .es: "Acerca de y legal"],
+        "set.device_copied":[.ar: "تم نسخ معرّف الجهاز", .en: "Device ID copied", .fr: "Identifiant copié", .tr: "Cihaz kimliği kopyalandı", .es: "ID de dispositivo copiado"],
 
         // Detail
         "detail.story": [.ar: "القصة",     .en: "Story",   .fr: "Synopsis",.tr: "Konu",    .es: "Sinopsis"],
