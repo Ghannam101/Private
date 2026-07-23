@@ -2444,12 +2444,14 @@ final class SearchVM: ObservableObject {
     @Published var recent:  [String]       = []
     @Published var scope:   SearchScope    = .movies
 
-    /// The section the user is searching within (movies / series / live).
+    /// The section the user is searching within (all / movies / series / live).
+    /// `.all` (used on Home) searches every content type at once.
     enum SearchScope: String, CaseIterable, Identifiable {
-        case movies, series, live
+        case all, movies, series, live
         var id: String { rawValue }
         var label: String {
             switch self {
+            case .all:    return L("search.type.all")
             case .movies: return L("search.type.movie")
             case .series: return L("search.type.series")
             case .live:   return L("search.type.live")
@@ -2457,6 +2459,7 @@ final class SearchVM: ObservableObject {
         }
         var icon: String {
             switch self {
+            case .all:    return "magnifyingglass"
             case .movies: return "film"
             case .series: return "tv"
             case .live:   return "antenna.radiowaves.left.and.right"
@@ -2464,6 +2467,7 @@ final class SearchVM: ObservableObject {
         }
         var prompt: String {
             switch self {
+            case .all:    return L("search.all")
             case .movies: return L("search.movies")
             case .series: return L("search.series")
             case .live:   return L("search.live")
@@ -2518,6 +2522,22 @@ final class SearchVM: ObservableObject {
                 let low = q.lowercased()
                 var r: [SearchResult] = []
                 switch scope {
+                case .all:
+                    // Home: search movies + series + channels at once, merged.
+                    async let am = (try? await ContentService.movies()) ?? []
+                    async let asr = (try? await ContentService.series()) ?? []
+                    async let ac = (try? await ContentService.liveStreams()) ?? []
+                    let (mm, ss, cc) = await (am, asr, ac)
+                    let rm = mm.filter { $0.name.lowercased().contains(low) }.prefix(30).map {
+                        SearchResult(type: .movie($0), title: $0.name, subtitle: $0.year ?? "", imageURL: $0.posterURL)
+                    }
+                    let rs = ss.filter { $0.name.lowercased().contains(low) }.prefix(30).map {
+                        SearchResult(type: .series($0), title: $0.name, subtitle: $0.year ?? "", imageURL: $0.coverURL)
+                    }
+                    let rc = cc.filter { $0.name.lowercased().contains(low) }.prefix(30).map {
+                        SearchResult(type: .channel($0), title: $0.name, subtitle: "", imageURL: $0.logoURL)
+                    }
+                    r = Array(rm) + Array(rs) + Array(rc)
                 case .movies:
                     let m = try await ContentService.movies()
                     r = m.filter { $0.name.lowercased().contains(low) }.prefix(60).map {

@@ -1166,9 +1166,10 @@ struct AppTabBar: View {
     // Placeholder reflects the scope: the active section, or "all content" on Home.
     private var searchPlaceholder: String {
         switch router.searchScope {
+        case .all:    return L("search.all")
         case .live:   return L("search.live")
         case .series: return L("search.series")
-        case .movies: return selected == .home ? L("search.all") : L("search.movies")
+        case .movies: return L("search.movies")
         }
     }
 
@@ -1196,12 +1197,14 @@ struct AppTabBar: View {
         .accessibilityLabel(L("tab.home"))
     }
 
-    /// Map the active section → the default search scope.
+    /// Map the active section → the default search scope. Home searches ALL
+    /// content; each content tab scopes to itself (owner spec).
     static func scope(for tab: AppTab) -> SearchVM.SearchScope {
         switch tab {
         case .live:   return .live
         case .series: return .series
-        default:      return .movies   // home / movies / settings → movies
+        case .home:   return .all
+        default:      return .movies   // movies / settings → movies
         }
     }
 

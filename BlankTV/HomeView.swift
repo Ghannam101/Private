@@ -472,6 +472,74 @@ struct RankRail: View {
     }
 }
 
+// Home all-content search results — a full-cover list over the Home feed while
+// the corner-menu search is active (scope = .all). The search FIELD itself lives
+// in the tab bar above this overlay; here we just render + open the matches.
+private struct HomeSearchResults: View {
+    @ObservedObject var vm: SearchVM
+    let onMovie:   (Movie) -> Void
+    let onSeries:  (Series) -> Void
+    let onChannel: (Channel) -> Void
+
+    var body: some View {
+        ZStack {
+            Color.s8kBlack.ignoresSafeArea()
+            let q = vm.query.trimmingCharacters(in: .whitespaces)
+            if q.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "magnifyingglass").font(.system(size: 42, weight: .light))
+                        .foregroundColor(.s8kTextDisabled)
+                    Text(L("search.all")).font(S8KFont.callout).foregroundColor(.s8kTextTertiary)
+                }
+            } else if vm.loading {
+                ProgressView().tint(.s8kGoldMid).scaleEffect(1.2)
+            } else if vm.results.isEmpty {
+                EmptyState(icon: "magnifyingglass", title: L("empty.no_results"), subtitle: "")
+            } else {
+                ScrollView(showsIndicators: false) {
+                    LazyVStack(spacing: 0) {
+                        ForEach(vm.results) { r in
+                            Button { open(r) } label: { row(r) }
+                                .buttonStyle(S8KButtonStyle())
+                            Divider().background(Color.s8kBorder).padding(.leading, 74)
+                        }
+                    }
+                    .padding(.top, 66)
+                    Color.clear.frame(height: 130)
+                }
+            }
+        }
+    }
+
+    private func open(_ r: SearchVM.SearchResult) {
+        switch r.type {
+        case .movie(let m):   onMovie(m)
+        case .series(let s):  onSeries(s)
+        case .channel(let c): onChannel(c)
+        }
+    }
+
+    private func row(_ r: SearchVM.SearchResult) -> some View {
+        HStack(spacing: 12) {
+            Color.clear.frame(width: 46, height: 46)
+                .overlay { S8KImage(url: r.imageURL, placeholder: r.type.icon, maxPixel: 160) }
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .strokeBorder(Color.s8kBorder, lineWidth: 1))
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(r.title).font(S8KFont.subhead).foregroundColor(.s8kTextPrimary).lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                Text(r.type.label).font(S8KFont.caption2).foregroundColor(.s8kGoldMid)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            Image(systemName: "chevron.left").font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.s8kTextDisabled)
+        }
+        .padding(.horizontal, S8KSpace.xl).padding(.vertical, 10)
+        .contentShape(Rectangle())
+    }
+}
+
 struct HomeView: View {
     @StateObject private var vm     = HomeVM.shared
     @StateObject private var config = ConfigService.shared
@@ -479,6 +547,8 @@ struct HomeView: View {
     @StateObject private var auth   = AuthService.shared
     @StateObject private var activation = ActivationService.shared
     @ObservedObject private var bars = BarVisibility.shared   // drives the top bar's glass on scroll
+    @ObservedObject private var router = AppRouter.shared     // global in-place search (Home = all)
+    @StateObject private var searchVM = SearchVM()            // Home all-content search results
     @Environment(\.horizontalSizeClass) private var hSize
 
     // Single enum-driven presentation each — SwiftUI only honors one
@@ -564,6 +634,24 @@ struct HomeView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: showRefreshConfirm)
+        // Home = ALL-content search (owner #6). The corner-menu search field drives
+        // searchVM; while active, a results overlay covers the feed (the search
+        // field itself lives in the tab bar above this).
+        .onChange(of: router.searchActive) { _, active in
+            if active { searchVM.scope = .all }
+            else { searchVM.query = ""; searchVM.results = [] }
+        }
+        .onChange(of: router.searchText) { _, q in searchVM.query = q; searchVM.search() }
+        .overlay {
+            if router.searchActive {
+                HomeSearchResults(vm: searchVM,
+                                  onMovie:   { cover = .movie($0) },
+                                  onSeries:  { cover = .series($0) },
+                                  onChannel: { cover = .channel($0) })
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: router.searchActive)
     }
 
     // MARK: - Main Scroll

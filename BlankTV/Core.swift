@@ -506,6 +506,7 @@ enum L10n {
         "search.type.live": [.ar: "بث مباشر",           .en: "Live",            .fr: "En direct",       .tr: "Canlı",           .es: "En vivo"],
         "search.type.movie":[.ar: "فيلم",               .en: "Movie",           .fr: "Film",            .tr: "Film",            .es: "Película"],
         "search.type.series":[.ar: "مسلسل",             .en: "Series",          .fr: "Série",           .tr: "Dizi",            .es: "Serie"],
+        "search.type.all":  [.ar: "الكل",               .en: "All",             .fr: "Tout",            .tr: "Tümü",            .es: "Todo"],
         "search.failed.title":[.ar: "تعذّر البحث",       .en: "Search failed",   .fr: "Échec de la recherche", .tr: "Arama başarısız", .es: "Error en la búsqueda"],
         "search.failed.sub": [.ar: "تحقّق من اتصالك وحاول مرة أخرى", .en: "Check your connection and try again", .fr: "Vérifiez votre connexion et réessayez", .tr: "Bağlantınızı kontrol edip tekrar deneyin", .es: "Revisa tu conexión e inténtalo de nuevo"],
         "search.start.title":[.ar: "ابدأ البحث",         .en: "Start searching", .fr: "Commencer la recherche", .tr: "Aramaya başla", .es: "Empieza a buscar"],
