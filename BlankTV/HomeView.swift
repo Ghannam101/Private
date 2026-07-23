@@ -191,13 +191,178 @@ final class HomeVM: ObservableObject {
     }
 }
 
+// MARK: - Hero Carousel (isolated)
+// Extracted OUT of HomeView so the 5-second auto-rotation re-renders ONLY the
+// hero — not the entire Home feed. Previously the rotation mutated a @Published
+// `heroIndex` on the shared HomeVM that HomeView observed, so every tick
+// re-evaluated all sections (rank rails, movies, series, live) — a primary
+// source of the reported scroll/animation jank. This view owns its own page
+// index + timer; the favorites service it observes is likewise local, so a
+// heart toggle no longer re-renders the whole feed either.
+private struct HeroCarouselView: View {
+    let items: [HomeVM.HeroItem]
+    let height: CGFloat
+    /// True while a detail/player cover is open above Home — pause the rotation
+    /// so we don't animate an off-screen carousel.
+    let paused: Bool
+    let onOpen: (HomeVM.HeroItem) -> Void
+
+    @ObservedObject private var favs = FavoritesService.shared
+    @State private var index = 0
+    @State private var dir = 1            // ping-pong direction (ذهاب/عودة)
+    @State private var dragPaused = false // paused while the user is touching the hero
+    private let ticker = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        TabView(selection: $index) {
+            ForEach(Array(items.enumerated()), id: \.element.id) { idx, item in
+                heroCard(item).tag(idx)
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .frame(height: height)
+        // Pause auto-rotation the moment the user touches the hero; resume on lift
+        // so a manual swipe is never fought by the timer.
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in dragPaused = true }
+                .onEnded   { _ in dragPaused = false }
+        )
+        .onReceive(ticker) { _ in
+            guard !paused, !dragPaused, items.count > 1 else { return }
+            if index >= items.count - 1 { dir = -1 } else if index <= 0 { dir = 1 }
+            withAnimation(.easeInOut(duration: 0.6)) { index += dir }
+        }
+        .onChange(of: items.count) { _, n in if index >= n { index = 0 } }
+    }
+
+    private func heroCard(_ item: HomeVM.HeroItem) -> some View {
+        ZStack(alignment: .bottom) {
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .frame(height: height)
+                .overlay { S8KImage(url: item.backdropURL, placeholder: "film") }
+                .clipped()
+            LinearGradient(
+                stops: [
+                    .init(color: .s8kBlack,              location: 0.0),
+                    .init(color: .s8kBlack.opacity(0.6), location: 0.28),
+                    .init(color: .clear,                 location: 0.60),
+                    .init(color: .s8kBlack.opacity(0.5), location: 1.0)
+                ],
+                startPoint: .bottom, endPoint: .top)
+                .frame(height: height)
+                .allowsHitTesting(false)
+
+            VStack(alignment: .trailing, spacing: 11) {
+                HStack(spacing: 6) {
+                    tag(L("home.featured"), isGold: true)
+                    tag(L("home.new_tag"), color: .s8kBlue)
+                }
+                Text(item.name).font(.system(size: 32, weight: .black)).foregroundColor(.s8kTextPrimary)
+                    .lineLimit(2).multilineTextAlignment(.trailing)
+                    .shadow(color: .black.opacity(0.7), radius: 6)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(S8KGradient.goldFlat)
+                    .frame(width: 52, height: 4)
+                    .shadow(color: .s8kGoldHigh.opacity(0.6), radius: 5)
+                HStack(spacing: 8) {
+                    if let r = item.rating, let rv = Double(r), rv > 0, rv <= 10 {
+                        HStack(spacing: 3) {
+                            Image(systemName: "star.fill").font(.system(size: 10)).foregroundColor(.s8kGoldHigh)
+                            Text(String(format: "%.1f", rv)).font(S8KFont.caption1.weight(.bold)).foregroundColor(.s8kGoldHigh)
+                        }
+                    }
+                    if let g = item.genre {
+                        Text(g).font(S8KFont.caption1).foregroundColor(.s8kTextSecondary).lineLimit(1)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+
+                HStack(spacing: 14) {
+                    Button(action: {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        toggleHeroFav(item)
+                    }) {
+                        let isFav = heroIsFav(item)
+                        Image(systemName: isFav ? "heart.fill" : "heart").font(.system(size: 18, weight: .bold))
+                            .foregroundColor(isFav ? .s8kRed : .s8kTextPrimary)
+                            .symbolEffect(.bounce, value: isFav)   // interactive pop on toggle
+                            .frame(width: 48, height: 48)
+                            .background(Color.white.opacity(0.14))
+                            .clipShape(Circle())
+                            .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
+                    }
+                    .buttonStyle(S8KButtonStyle())
+                    Button(action: { onOpen(item) }) {
+                        Image(systemName: "play.fill").font(.system(size: 20, weight: .black))
+                            .foregroundColor(.s8kBlack)
+                            .frame(width: 52, height: 52)
+                            .background(S8KGradient.goldFlat)
+                            .clipShape(Circle())
+                            .shadow(color: .s8kGoldHigh.opacity(0.5), radius: 12, y: 3)
+                    }
+                    .buttonStyle(S8KButtonStyle())
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+
+                HStack(spacing: 5) {
+                    ForEach(0..<items.count, id: \.self) { i in
+                        Capsule()
+                            .fill(i == index ? AnyShapeStyle(S8KGradient.goldFlat)
+                                             : AnyShapeStyle(Color.white.opacity(0.3)))
+                            .frame(width: i == index ? 22 : 6, height: 6)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.top, 4)
+                .animation(.spring(response: 0.3), value: index)
+            }
+            .padding(.horizontal, S8KSpace.xl)
+            .padding(.bottom, S8KSpace.xl)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .frame(height: height)
+    }
+
+    private func heroIsFav(_ item: HomeVM.HeroItem) -> Bool {
+        switch item.kind {
+        case .movie(let m):  return favs.isMovieFav(m.id)
+        case .series(let s): return favs.isSeriesFav(s.id)
+        }
+    }
+    private func toggleHeroFav(_ item: HomeVM.HeroItem) {
+        switch item.kind {
+        case .movie(let m):  favs.toggleMovie(m.id)
+        case .series(let s): favs.toggleSeries(s.id)
+        }
+    }
+
+    private func tag(_ text: String, color: Color? = nil, isGold: Bool = false) -> some View {
+        Text(text)
+            .font(S8KFont.caption3)
+            .foregroundColor(isGold ? .black : (color ?? .s8kTextPrimary))
+            .padding(.horizontal, 7).padding(.vertical, 3)
+            .background(
+                Group {
+                    if isGold { AnyView(S8KGradient.goldFlat) }
+                    else if let c = color { AnyView(c.opacity(0.15)) }
+                    else { AnyView(Color.white.opacity(0.12)) }
+                }
+            )
+            .clipShape(RoundedRectangle(cornerRadius: S8KRadius.xs))
+            .overlay(RoundedRectangle(cornerRadius: S8KRadius.xs)
+                .strokeBorder(color?.opacity(0.35) ?? Color.clear, lineWidth: 0.5))
+    }
+}
+
 struct HomeView: View {
     @StateObject private var vm     = HomeVM.shared
     @StateObject private var config = ConfigService.shared
     @StateObject private var theme  = AppTheme.shared
     @StateObject private var auth   = AuthService.shared
     @StateObject private var activation = ActivationService.shared
-    @StateObject private var favs   = FavoritesService.shared
     @ObservedObject private var bars = BarVisibility.shared   // drives the top bar's glass on scroll
     @Environment(\.horizontalSizeClass) private var hSize
 
@@ -250,14 +415,9 @@ struct HomeView: View {
         // always live and the hero image runs full-bleed underneath it.
         .overlay(alignment: .top) { homeTopBar }
         .task { await vm.load() }
-        .onAppear { vm.startHeroTimer() }
-        .onDisappear { vm.stopHeroTimer() }
-        // A presented fullScreenCover does NOT trigger Home's onDisappear, so the
-        // hero timer would keep rotating an off-screen carousel. Pause it while any
-        // cover is open and resume on dismissal.
-        .onChange(of: cover != nil) { _, presented in
-            if presented { vm.stopHeroTimer() } else { vm.startHeroTimer() }
-        }
+        // Hero auto-rotation now lives inside HeroCarouselView (self-paced +
+        // self-paused while a cover is open), so Home no longer drives a VM timer
+        // that would re-render the whole feed every 5s.
         .fullScreenCover(item: $cover) { c in
             switch c {
             case .player(let item): PlayerView(item: item, channels: vm.liveChannels)
@@ -477,8 +637,12 @@ struct HomeView: View {
         .frame(maxWidth: .infinity)
         .background {
             if bars.scrolled {
-                Rectangle().fill(.ultraThinMaterial)
-                    .overlay(Color.s8kBlack.opacity(0.22))
+                // A near-opaque solid instead of `.ultraThinMaterial`: a real blur
+                // material composited over the full-bleed hero image that is
+                // scrolling underneath must re-sample every frame — a classic
+                // scroll-jank source. The solid reads the same at a glance and is
+                // effectively free.
+                Color.s8kBlack.opacity(0.9)
                     .overlay(GoldDivider(), alignment: .bottom)
                     .ignoresSafeArea(edges: .top)
             } else {
@@ -561,153 +725,23 @@ struct HomeView: View {
         hSize == .regular ? 560 : min(max(UIScreen.main.bounds.height * 0.62, 520), 660)
     }
 
-    // MARK: - Hero Section — SWIPEABLE cinematic carousel mixing top-rated movies +
-    // series (auto-rotates every 5s via the VM timer; the customer can also swipe).
+    // MARK: - Hero Section — isolated swipeable cinematic carousel.
+    // The carousel lives in its own `HeroCarouselView` (above) so its 5s
+    // auto-rotation re-renders ONLY the hero, not the whole Home feed. Paused
+    // automatically while a detail/player cover is open.
     @ViewBuilder
     private var heroSection: some View {
         if !vm.heroItems.isEmpty {
-            TabView(selection: $vm.heroIndex) {
-                ForEach(Array(vm.heroItems.enumerated()), id: \.element.id) { idx, item in
-                    heroCard(item).tag(idx)
-                }
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .frame(height: heroHeight)
-            // Pause the auto-rotation the moment the user touches the hero, and
-            // resume (with a fresh interval) when they lift — so manual swiping is
-            // never fought by the timer (removes the residual stutter).
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { _ in vm.stopHeroTimer() }
-                    .onEnded   { _ in vm.startHeroTimer() }
-            )
+            HeroCarouselView(items: vm.heroItems, height: heroHeight,
+                             paused: cover != nil, onOpen: openHero)
         }
     }
 
-    private func heroCard(_ item: HomeVM.HeroItem) -> some View {
-        ZStack(alignment: .bottom) {
-            Color.clear
-                .frame(maxWidth: .infinity)
-                .frame(height: heroHeight)
-                .overlay { S8KImage(url: item.backdropURL, placeholder: "film") }
-                .clipped()
-            LinearGradient(
-                stops: [
-                    .init(color: .s8kBlack,              location: 0.0),
-                    .init(color: .s8kBlack.opacity(0.6), location: 0.28),
-                    .init(color: .clear,                 location: 0.60),
-                    .init(color: .s8kBlack.opacity(0.5), location: 1.0)
-                ],
-                startPoint: .bottom, endPoint: .top)
-                .frame(height: heroHeight)
-                .allowsHitTesting(false)
-
-            VStack(alignment: .trailing, spacing: 11) {
-                HStack(spacing: 6) {
-                    tag(L("home.featured"), isGold: true)
-                    tag(L("home.new_tag"), color: .s8kBlue)
-                }
-                Text(item.name).font(.system(size: 32, weight: .black)).foregroundColor(.s8kTextPrimary)
-                    .lineLimit(2).multilineTextAlignment(.trailing)
-                    .shadow(color: .black.opacity(0.7), radius: 6)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(S8KGradient.goldFlat)
-                    .frame(width: 52, height: 4)
-                    .shadow(color: .s8kGoldHigh.opacity(0.6), radius: 5)
-                HStack(spacing: 8) {
-                    if let r = item.rating, let rv = Double(r), rv > 0, rv <= 10 {
-                        HStack(spacing: 3) {
-                            Image(systemName: "star.fill").font(.system(size: 10)).foregroundColor(.s8kGoldHigh)
-                            Text(String(format: "%.1f", rv)).font(S8KFont.caption1.weight(.bold)).foregroundColor(.s8kGoldHigh)
-                        }
-                    }
-                    if let g = item.genre {
-                        Text(g).font(S8KFont.caption1).foregroundColor(.s8kTextSecondary).lineLimit(1)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .trailing)
-
-                HStack(spacing: 14) {
-                    Button(action: {
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        toggleHeroFav(item)
-                    }) {
-                        let isFav = heroIsFav(item)
-                        Image(systemName: isFav ? "heart.fill" : "heart").font(.system(size: 18, weight: .bold))
-                            .foregroundColor(isFav ? .s8kRed : .s8kTextPrimary)
-                            .symbolEffect(.bounce, value: isFav)   // interactive pop on toggle
-                            .frame(width: 48, height: 48)
-                            .background(Color.white.opacity(0.14))
-                            .clipShape(Circle())
-                            .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
-                    }
-                    .buttonStyle(S8KButtonStyle())
-                    Button(action: { openHero(item) }) {
-                        Image(systemName: "play.fill").font(.system(size: 20, weight: .black))
-                            .foregroundColor(.s8kBlack)
-                            .frame(width: 52, height: 52)
-                            .background(S8KGradient.goldFlat)
-                            .clipShape(Circle())
-                            .shadow(color: .s8kGoldHigh.opacity(0.5), radius: 12, y: 3)
-                    }
-                    .buttonStyle(S8KButtonStyle())
-                }
-                .frame(maxWidth: .infinity, alignment: .trailing)
-
-                HStack(spacing: 5) {
-                    ForEach(0..<vm.heroItems.count, id: \.self) { i in
-                        Capsule()
-                            .fill(i == vm.heroIndex ? AnyShapeStyle(S8KGradient.goldFlat)
-                                                    : AnyShapeStyle(Color.white.opacity(0.3)))
-                            .frame(width: i == vm.heroIndex ? 22 : 6, height: 6)
-                            .animation(.spring(response: 0.3), value: vm.heroIndex)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.top, 4)
-            }
-            .padding(.horizontal, S8KSpace.xl)
-            .padding(.bottom, S8KSpace.xl)
-            .frame(maxWidth: .infinity, alignment: .trailing)
-        }
-        .frame(height: heroHeight)
-    }
-
-    private func heroIsFav(_ item: HomeVM.HeroItem) -> Bool {
-        switch item.kind {
-        case .movie(let m):  return favs.isMovieFav(m.id)
-        case .series(let s): return favs.isSeriesFav(s.id)
-        }
-    }
-    private func toggleHeroFav(_ item: HomeVM.HeroItem) {
-        switch item.kind {
-        case .movie(let m):  favs.toggleMovie(m.id)
-        case .series(let s): favs.toggleSeries(s.id)
-        }
-    }
     private func openHero(_ item: HomeVM.HeroItem) {
         switch item.kind {
         case .movie(let m):  cover = .movie(m)
         case .series(let s): cover = .series(s)
         }
-    }
-
-    private func tag(_ text: String, color: Color? = nil, isGold: Bool = false) -> some View {
-        Text(text)
-            .font(S8KFont.caption3)
-            .foregroundColor(isGold ? .black : (color ?? .s8kTextPrimary))
-            .padding(.horizontal, 7).padding(.vertical, 3)
-            .background(
-                Group {
-                    if isGold { AnyView(S8KGradient.goldFlat) }
-                    else if let c = color { AnyView(c.opacity(0.15)) }
-                    else { AnyView(Color.white.opacity(0.12)) }
-                }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: S8KRadius.xs))
-            .overlay(RoundedRectangle(cornerRadius: S8KRadius.xs)
-                .strokeBorder(color?.opacity(0.35) ?? Color.clear, lineWidth: 0.5))
     }
 
     // MARK: - Top-rated numbered rankings (Netflix "Top 10" — HOLLOW numbers ON the
@@ -747,7 +781,7 @@ struct HomeView: View {
             .padding(.bottom, S8KSpace.sm)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .bottom, spacing: 10) {
+                LazyHStack(alignment: .bottom, spacing: 10) {
                     ForEach(cells, id: \.id) { c in
                         Button(action: { onTap(c.id) }) {
                             rankCell(rank: c.rank, poster: c.poster, rating: c.rating, year: c.year)
@@ -813,6 +847,9 @@ struct HomeView: View {
             base.foregroundColor(.s8kBlack)
         }
         .shadow(color: .black.opacity(0.5), radius: 3)
+        // Flatten the 9 stacked 94pt glyph layers into a single GPU texture so a
+        // horizontal fling of the Top-10 rail composites one layer per cell, not 9.
+        .drawingGroup()
     }
 
     // MARK: - Curated themed rails (Smart Rail Engine)
