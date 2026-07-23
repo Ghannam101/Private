@@ -115,6 +115,7 @@ enum L10n {
         "search.movies": [.ar: "ابحث في كل الأفلام…",   .en: "Search all movies…",   .fr: "Rechercher des films…", .tr: "Tüm filmlerde ara…", .es: "Buscar películas…"],
         "search.series": [.ar: "ابحث في كل المسلسلات…", .en: "Search all series…",   .fr: "Rechercher des séries…",.tr: "Tüm dizilerde ara…", .es: "Buscar series…"],
         "search.live":   [.ar: "ابحث في كل القنوات…",   .en: "Search all channels…", .fr: "Rechercher des chaînes…",.tr: "Tüm kanallarda ara…", .es: "Buscar canales…"],
+        "search.all":    [.ar: "ابحث في كل المحتوى…",   .en: "Search everything…",   .fr: "Tout rechercher…",     .tr: "Her şeyde ara…",     .es: "Buscar todo…"],
         "search.cat":    [.ar: "ابحث عن قسم…",          .en: "Search a category…",   .fr: "Rechercher une catégorie…", .tr: "Kategori ara…", .es: "Buscar categoría…"],
 
         // Home sections

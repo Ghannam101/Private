@@ -1092,12 +1092,20 @@ struct AppTabBar: View {
     @Binding var selected: AppTab
     @ObservedObject private var vis = BarVisibility.shared
     @ObservedObject private var alerts = ActivationService.shared   // notification badge
+    @ObservedObject private var router = AppRouter.shared           // global search state
     @Environment(\.horizontalSizeClass) private var hSize
+    @FocusState private var searchFocused: Bool
     private let haptic = UISelectionFeedbackGenerator()
 
     var body: some View {
         Group {
-            if vis.minimized {
+            if router.searchActive {
+                // Search mode: the pill morphs into an in-place text field that
+                // filters the active section live (owner spec — App-Store style,
+                // expanding from the corner menu itself).
+                searchField
+                    .padding(.horizontal, S8KSpace.lg)
+            } else if vis.minimized {
                 // Collapsed: the HOME puck hugs the bottom-RIGHT corner.
                 collapsedPuck
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -1111,6 +1119,57 @@ struct AppTabBar: View {
         .frame(maxWidth: hSize == .regular ? 560 : .infinity)   // cap the bar on iPad
         .padding(.bottom, 10)
         .environment(\.layoutDirection, .leftToRight)
+        .animation(.snappy(duration: 0.3), value: router.searchActive)
+    }
+
+    // The morphed search field (glass capsule matching the menu pill): magnifier +
+    // live text field (auto-focused) + clear + Cancel. Rises above the keyboard
+    // automatically (bottom-anchored, respects the keyboard safe area).
+    private var searchField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 16, weight: .semibold)).foregroundColor(.s8kTextSecondary)
+            TextField(searchPlaceholder, text: $router.searchText)
+                .focused($searchFocused)
+                .foregroundColor(.s8kTextPrimary)
+                .tint(.s8kGoldMid)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .environment(\.layoutDirection, .rightToLeft)   // Arabic caret/alignment
+            if !router.searchText.isEmpty {
+                Button { router.searchText = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16)).foregroundColor(.s8kTextTertiary)
+                }
+                .buttonStyle(S8KButtonStyle())
+            }
+            Button {
+                haptic.selectionChanged()
+                router.endSearch()
+                searchFocused = false
+                BarVisibility.shared.collapse()
+            } label: {
+                Text(L("common.close")).font(S8KFont.subhead.weight(.semibold)).foregroundColor(.s8kGoldMid)
+            }
+            .buttonStyle(S8KButtonStyle())
+        }
+        .padding(.horizontal, 16).padding(.vertical, 11)
+        .s8kGlass(Capsule(style: .continuous))
+        .overlay(Capsule(style: .continuous)
+            .strokeBorder(Color.white.opacity(0.10), lineWidth: 1).allowsHitTesting(false))
+        .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
+        .transition(.scale(scale: 0.5, anchor: .bottomTrailing).combined(with: .opacity))
+        .onAppear { searchFocused = true }
+    }
+
+    // Placeholder reflects the scope: the active section, or "all content" on Home.
+    private var searchPlaceholder: String {
+        switch router.searchScope {
+        case .live:   return L("search.live")
+        case .series: return L("search.series")
+        case .movies: return selected == .home ? L("search.all") : L("search.movies")
+        }
     }
 
     // Collapsed — the lime HOME puck in the corner (the persistent marker). Tap to
@@ -1183,9 +1242,11 @@ private struct ExpandedNavBar: View {
             navCircle(icon: "magnifyingglass", active: false,
                       staggerFromRight: 2, label: L("search.title")) {
                 haptic.selectionChanged()
+                // In-place search (owner spec): morph the bar into a text field for
+                // the current scope instead of opening a separate search page.
                 AppRouter.shared.searchScope = AppTabBar.scope(for: selected)
-                AppRouter.shared.homeSheet = .search
-                BarVisibility.shared.collapse()
+                AppRouter.shared.searchText = ""
+                AppRouter.shared.searchActive = true
             }
             // Notifications — only appears when there are unread; opens the list,
             // marks them read (so it vanishes), and closes the menu.

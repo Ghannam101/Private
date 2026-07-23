@@ -28,6 +28,15 @@ final class AppRouter: ObservableObject {
     /// Scope the contextual search opens with (seeded from the current section by
     /// the tab bar's search button before it presents the search cover).
     @Published var searchScope: SearchVM.SearchScope = .movies
+
+    /// Global in-place search (owner spec): the corner-menu search button morphs
+    /// into a text field (App-Store style) instead of opening a separate page.
+    /// `searchActive` toggles the tab bar into search mode; `searchText` is the
+    /// single query the active section (or Home = all content) filters by live.
+    @Published var searchActive = false
+    @Published var searchText   = ""
+    /// Collapse search mode + clear the query (Cancel / section switch).
+    func endSearch() { searchActive = false; searchText = "" }
     enum HomeSheet: Identifiable {
         case search, alerts, downloads
         var id: String {

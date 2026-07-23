@@ -92,6 +92,7 @@ struct LiveTVView: View {
     @StateObject private var favs = FavoritesService.shared
     @StateObject private var hist = HistoryService.shared
     @StateObject private var parental = ParentalService.shared
+    @ObservedObject private var router = AppRouter.shared   // global in-place search
     @Environment(\.horizontalSizeClass) private var hSize
     @State private var playerItem: ContentItem? = nil
     @State private var showCategories = false
@@ -134,6 +135,9 @@ struct LiveTVView: View {
             }
         }
         .task { await vm.load() }
+        // Global in-place search (owner #6) — corner-menu search field drives it.
+        .onChange(of: router.searchText) { _, q in vm.search = q }
+        .onChange(of: router.searchActive) { _, a in if !a { vm.search = "" } }
         .fullScreenCover(item: $playerItem) { PlayerView(item: $0, channels: vm.channels) }
         .sheet(isPresented: $showCategories) {
             CategoryPickerSheet(title: L("cats.channels"), categories: vm.folders,
@@ -283,8 +287,8 @@ struct LiveTVView: View {
             }
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
-                    SearchField(text: $vm.search, placeholder: L("search.live"))
-                        .padding(.horizontal, S8KSpace.xl).padding(.vertical, S8KSpace.md)
+                    // Search field removed — it now lives in the corner menu (owner #6).
+                    Color.clear.frame(height: S8KSpace.md)
                     if !vm.search.isEmpty {
                         ChannelList(channels: vm.searchResults) { preview($0) }
                     } else {
@@ -1277,6 +1281,7 @@ struct MoviesView: View {
     @StateObject private var favs = FavoritesService.shared
     @StateObject private var hist = HistoryService.shared
     @StateObject private var parental = ParentalService.shared
+    @ObservedObject private var router = AppRouter.shared   // global in-place search
     @Environment(\.horizontalSizeClass) private var hSize
     @State private var selected: Movie? = nil
     @State private var tab: ContentTab = .all
@@ -1318,6 +1323,10 @@ struct MoviesView: View {
             }
         }
         .task { await vm.load() }
+        // Global in-place search (owner #6): the corner-menu search field drives
+        // this section's live filter; typing swaps the feed for results.
+        .onChange(of: router.searchText) { _, q in vm.search = q }
+        .onChange(of: router.searchActive) { _, a in if !a { vm.search = "" } }
         .fullScreenCover(item: $selected) { MovieDetailView(movie: $0) }
         .sheet(isPresented: $showCategories) {
             CategoryPickerSheet(title: L("cats.movies"), categories: vm.folders,
@@ -1414,21 +1423,23 @@ struct MoviesView: View {
                 }
                 .buttonStyle(S8KButtonStyle())
             }
-            HStack(spacing: 8) {
-                SearchField(text: $vm.search, placeholder: L("search.movies"))
-                if tab != .all {
-                    Button { withAnimation { tab = .all } } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: tab.icon).font(.system(size: 11, weight: .bold))
-                            Image(systemName: "xmark").font(.system(size: 9, weight: .bold))
-                        }
-                        .foregroundColor(.s8kBlack)
-                        .padding(.horizontal, 12).frame(height: 44)
-                        .background(S8KGradient.goldFlat)
-                        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
+            // Search moved to the corner-menu search button (owner #6) — the top bar
+            // is now a clean row. Only a "back to All" chip remains when a filter tab
+            // (Favorites / Newest / History) is active.
+            if tab != .all {
+                Button { withAnimation { tab = .all } } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: tab.icon).font(.system(size: 11, weight: .bold))
+                        Text(tab.title).font(S8KFont.caption1.weight(.bold))
+                        Image(systemName: "xmark").font(.system(size: 9, weight: .bold))
                     }
-                    .buttonStyle(S8KButtonStyle())
+                    .foregroundColor(.s8kBlack)
+                    .padding(.horizontal, 12).frame(height: 38)
+                    .background(S8KGradient.goldFlat)
+                    .clipShape(Capsule())
                 }
+                .buttonStyle(S8KButtonStyle())
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
         .padding(.horizontal, S8KSpace.xl)
@@ -1721,6 +1732,7 @@ struct SeriesListView: View {
     @StateObject private var favs = FavoritesService.shared
     @StateObject private var hist = HistoryService.shared
     @StateObject private var parental = ParentalService.shared
+    @ObservedObject private var router = AppRouter.shared   // global in-place search
     @Environment(\.horizontalSizeClass) private var hSize
     @State private var selected: Series? = nil
     @State private var tab: ContentTab = .all
@@ -1762,6 +1774,9 @@ struct SeriesListView: View {
             }
         }
         .task { await vm.load() }
+        // Global in-place search (owner #6) — corner-menu search field drives it.
+        .onChange(of: router.searchText) { _, q in vm.search = q }
+        .onChange(of: router.searchActive) { _, a in if !a { vm.search = "" } }
         .fullScreenCover(item: $selected) { SeriesDetailView(series: $0) }
         .sheet(isPresented: $showCategories) {
             CategoryPickerSheet(title: L("cats.series"), categories: vm.folders,
@@ -1817,9 +1832,7 @@ struct SeriesListView: View {
                                 trailingIcon: "line.3.horizontal.decrease.circle",
                                 onTrailing: { showCategories = true },
                                 reorderAction: { showReorder = true })
-                SearchField(text: $vm.search, placeholder: L("search.series"))
-                    .padding(.horizontal, S8KSpace.xl).padding(.bottom, S8KSpace.lg)
-
+                // Search field removed — it now lives in the corner menu (owner #6).
                 if !vm.search.isEmpty {
                     SeriesGrid(series: vm.searchResults, empty: L("empty.no_results")) { selected = $0 }
                 } else {
