@@ -100,9 +100,14 @@ struct LiveTVView: View {
     @State private var path = NavigationPath()
     @State private var padCat: Category? = nil
     @State private var padChannel: Channel? = nil
+    @State private var currentChannel: Channel? = nil   // iPhone sticky mini-player selection
 
     private var favorites: [Channel] { vm.channels.filter { favs.channels.contains($0.id) } }
     private var liveHistory: [WatchHistory] { hist.items.filter { $0.contentType == .live } }
+    // The channel shown in the iPhone sticky mini-player — the tapped one, else
+    // the first channel (so the page auto-previews on open).
+    private var previewing: Channel? { currentChannel ?? vm.channels.first }
+    private func preview(_ ch: Channel) { currentChannel = ch }
     private var isPad: Bool { hSize == .regular && UIDevice.current.userInterfaceIdiom == .pad }
     // Use the 3-pane split only when there's genuinely room (full-screen iPad).
     // In Split View / Slide Over the size class is still .regular but the width
@@ -261,26 +266,91 @@ struct LiveTVView: View {
         .padding(S8KSpace.xl)
     }
 
+    // iPhone: a sticky mini-player (preview) pinned at the top + a scrolling
+    // channel list under it. Tapping a row swaps the preview channel; tapping the
+    // player expands to fullscreen. Auto-previews the first channel on open.
     @ViewBuilder
     private var browser: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: 0) {
-                ContentTitleBar(title: L("title.live"), subtitle: "\(vm.channels.count) \(L("count.channel"))",
-                                trailingIcon: "line.3.horizontal.decrease.circle",
-                                onTrailing: { showCategories = true },
-                                reorderAction: { showReorder = true })
-                SearchField(text: $vm.search, placeholder: L("search.live"))
-                    .padding(.horizontal, S8KSpace.xl).padding(.bottom, S8KSpace.lg)
-
-                if !vm.search.isEmpty {
-                    ChannelList(channels: vm.searchResults) { playerItem = .live($0) }
-                } else {
-                    ContentTabBar(selected: $tab)
-                    tabContent
+        VStack(spacing: 0) {
+            liveTopBar
+            if let ch = previewing {
+                InlineLivePlayer(channel: ch, isExpanded: playerItem != nil) { playerItem = .live(ch) }
+                    .id(ch.id)
+                    .aspectRatio(16.0/9.0, contentMode: .fit)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.black)
+                miniInfoBar(ch)
+            }
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    SearchField(text: $vm.search, placeholder: L("search.live"))
+                        .padding(.horizontal, S8KSpace.xl).padding(.vertical, S8KSpace.md)
+                    if !vm.search.isEmpty {
+                        ChannelList(channels: vm.searchResults) { preview($0) }
+                    } else {
+                        ContentTabBar(selected: $tab)
+                        tabContent
+                    }
+                    Color.clear.frame(height: 110)
                 }
-                Color.clear.frame(height: 110)
             }
         }
+    }
+
+    // Slim top bar for the live page (title + reorder + categories).
+    private var liveTopBar: some View {
+        HStack(spacing: 10) {
+            Text(L("title.live")).font(.system(size: 20, weight: .black)).foregroundColor(.s8kTextPrimary)
+            RoundedRectangle(cornerRadius: 1.5).fill(S8KGradient.goldFlat).frame(width: 22, height: 3)
+            Spacer()
+            liveBarButton("arrow.up.arrow.down") { showReorder = true }
+            liveBarButton("line.3.horizontal.decrease.circle") { showCategories = true }
+        }
+        .padding(.horizontal, S8KSpace.xl).padding(.top, 56).padding(.bottom, 8)
+    }
+    private func liveBarButton(_ icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .bold)).foregroundColor(.s8kGoldHigh)
+                .frame(width: 40, height: 40)
+                .background(Color.s8kSurface, in: RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+                    .strokeBorder(Color.s8kBorder, lineWidth: 1))
+        }
+        .buttonStyle(S8KButtonStyle())
+    }
+
+    // Compact info bar under the mini-player: favorite · fullscreen · name/live ·
+    // now/next EPG (renders nothing if the provider has no guide).
+    private func miniInfoBar(_ ch: Channel) -> some View {
+        VStack(alignment: .trailing, spacing: 8) {
+            HStack(spacing: 12) {
+                Button { favs.toggleChannel(ch.id) } label: {
+                    Image(systemName: favs.isChannelFav(ch.id) ? "heart.fill" : "heart")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(favs.isChannelFav(ch.id) ? .s8kRed : .s8kTextSecondary)
+                }
+                .buttonStyle(S8KButtonStyle())
+                Button { playerItem = .live(ch) } label: {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 13, weight: .bold)).foregroundColor(.s8kBlack)
+                        .frame(width: 34, height: 34).background(S8KGradient.goldFlat).clipShape(Circle())
+                }
+                .buttonStyle(S8KButtonStyle())
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(ch.name).font(S8KFont.subhead).foregroundColor(.s8kTextPrimary).lineLimit(1)
+                    HStack(spacing: 5) {
+                        Circle().fill(Color.s8kRed).frame(width: 6, height: 6)
+                        Text(L("home.live_now")).font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
+                    }
+                }
+            }
+            EPGNowNext(channel: ch, compact: true)
+        }
+        .padding(.horizontal, S8KSpace.xl).padding(.vertical, 10)
+        .background(Color.s8kBlack)
+        .overlay(GoldDivider(), alignment: .bottom)
     }
 
     @ViewBuilder
@@ -288,7 +358,7 @@ struct LiveTVView: View {
         switch tab {
         case .all:
             if vm.folders.isEmpty {
-                ChannelList(channels: vm.channels) { playerItem = .live($0) }
+                ChannelList(channels: vm.channels) { preview($0) }
             } else {
                 LazyVStack(spacing: 0) {
                     ForEach(vm.folders) { cat in
@@ -297,7 +367,7 @@ struct LiveTVView: View {
                                     gated: parental.isGated(.live, cat.id)) {
                             ForEach(vm.list(in: cat).prefix(16)) { ch in
                                 ChannelChip(name: ch.name, logoURL: ch.logoURL, isLive: true) {
-                                    playerItem = .live(ch)
+                                    preview(ch)
                                 }
                             }
                         }
@@ -305,12 +375,12 @@ struct LiveTVView: View {
                 }
             }
         case .favorites:
-            ChannelList(channels: favorites) { playerItem = .live($0) }
+            ChannelList(channels: favorites) { preview($0) }
         case .newest:
-            ChannelList(channels: vm.channels) { playerItem = .live($0) }
+            ChannelList(channels: vm.channels) { preview($0) }
         case .history:
             HistoryGrid(items: liveHistory, empty: L("history.empty")) { h in
-                if let ch = vm.channels.first(where: { $0.id == h.contentID }) { playerItem = .live(ch) }
+                if let ch = vm.channels.first(where: { $0.id == h.contentID }) { preview(ch) }
             }
         }
     }
