@@ -1126,38 +1126,52 @@ struct AppTabBar: View {
     // live text field (auto-focused) + clear + Cancel. Rises above the keyboard
     // automatically (bottom-anchored, respects the keyboard safe area).
     private var searchField: some View {
+        // App-Store layout (owner's reference): a circular X (cancel) on the far
+        // left + a rounded search pill on the right holding — RTL — the magnifier
+        // (leading), the text, and a clear ⊗ (trailing). Sits at the bottom and
+        // rises above the keyboard, exactly like the familiar App Store search.
         HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 16, weight: .semibold)).foregroundColor(.s8kTextSecondary)
-            TextField(searchPlaceholder, text: $router.searchText)
-                .focused($searchFocused)
-                .foregroundColor(.s8kTextPrimary)
-                .tint(.s8kGoldMid)
-                .submitLabel(.search)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-                .environment(\.layoutDirection, .rightToLeft)   // Arabic caret/alignment
-            if !router.searchText.isEmpty {
-                Button { router.searchText = "" } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 16)).foregroundColor(.s8kTextTertiary)
-                }
-                .buttonStyle(S8KButtonStyle())
-            }
             Button {
                 haptic.selectionChanged()
                 router.endSearch()
                 searchFocused = false
                 BarVisibility.shared.collapse()
             } label: {
-                Text(L("common.close")).font(S8KFont.subhead.weight(.semibold)).foregroundColor(.s8kGoldMid)
+                Image(systemName: "xmark")
+                    .font(.system(size: 15, weight: .bold)).foregroundColor(.s8kTextSecondary)
+                    .frame(width: 46, height: 46)
+                    .background(Circle().fill(Color.white.opacity(0.08)))
+                    .overlay(Circle().strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
             }
             .buttonStyle(S8KButtonStyle())
+
+            HStack(spacing: 9) {
+                // Clear ⊗ on the LEFT, magnifier on the RIGHT (matches the Arabic
+                // App Store, where the glyph sits at the leading/right edge).
+                if !router.searchText.isEmpty {
+                    Button { router.searchText = "" } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 16)).foregroundColor(.s8kTextTertiary)
+                    }
+                    .buttonStyle(S8KButtonStyle())
+                }
+                TextField(searchPlaceholder, text: $router.searchText)
+                    .focused($searchFocused)
+                    .foregroundColor(.s8kTextPrimary)
+                    .tint(.s8kGoldMid)
+                    .submitLabel(.search)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .multilineTextAlignment(.trailing)              // Arabic reads right→left
+                    .environment(\.layoutDirection, .rightToLeft)
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 15, weight: .semibold)).foregroundColor(.s8kTextSecondary)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 12)
+            .s8kGlass(Capsule(style: .continuous))
+            .overlay(Capsule(style: .continuous)
+                .strokeBorder(Color.white.opacity(0.10), lineWidth: 1).allowsHitTesting(false))
         }
-        .padding(.horizontal, 16).padding(.vertical, 11)
-        .s8kGlass(Capsule(style: .continuous))
-        .overlay(Capsule(style: .continuous)
-            .strokeBorder(Color.white.opacity(0.10), lineWidth: 1).allowsHitTesting(false))
         .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
         .transition(.scale(scale: 0.5, anchor: .bottomTrailing).combined(with: .opacity))
         .onAppear { searchFocused = true }
