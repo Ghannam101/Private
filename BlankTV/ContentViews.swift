@@ -334,7 +334,7 @@ struct ChannelList: View {
                     }
                 }
             }
-            .onAppear { S8KImageCache.shared.prefetch(channels.prefix(40).compactMap { $0.logoURL }, maxPixel: 800) }
+            .onAppear { S8KImageCache.shared.prefetch(channels.prefix(40).compactMap { $0.logoURL }, maxPixel: 240) }
         }
     }
 }
@@ -353,7 +353,7 @@ struct ChannelRow: View {
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
                         .foregroundColor(.s8kTextDisabled).frame(width: 22)
 
-                    S8KImage(url: channel.logoURL, placeholder: "antenna.radiowaves.left.and.right")
+                    S8KImage(url: channel.logoURL, placeholder: "antenna.radiowaves.left.and.right", maxPixel: 240)
                         .frame(width: 46, height: 46).background(Color.s8kElevated)
                         .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)

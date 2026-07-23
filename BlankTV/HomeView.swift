@@ -804,7 +804,7 @@ struct HomeView: View {
         HStack(alignment: .bottom, spacing: -18) {
             outlinedNumber(rank)
             Color.clear.frame(width: 106, height: 154)
-                .overlay { S8KImage(url: poster, placeholder: "film") }
+                .overlay { S8KImage(url: poster, placeholder: "film", maxPixel: 420) }
                 .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
                     .strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
@@ -1451,7 +1451,7 @@ struct ChannelInfoSheet: View {
         ZStack {
             Color.s8kBlack.ignoresSafeArea()
             VStack(spacing: S8KSpace.xl) {
-                S8KImage(url: channel.logoURL, placeholder: "antenna.radiowaves.left.and.right")
+                S8KImage(url: channel.logoURL, placeholder: "antenna.radiowaves.left.and.right", maxPixel: 240)
                     .frame(width: 90, height: 90)
                     .background(Color.s8kElevated)
                     .clipShape(RoundedRectangle(cornerRadius: 22))

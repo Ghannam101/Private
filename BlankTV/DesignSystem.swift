@@ -589,6 +589,12 @@ struct S8KImage: View {
     let url: String?
     var placeholder: String = "photo"
     var contentMode: ContentMode = .fill
+    /// Max decoded edge in pixels. Default suits posters/backdrops; small cells
+    /// (channel logos, chips, watermarks) should pass a much smaller value so a
+    /// long list doesn't decode 800px bitmaps for 46pt tiles — that oversampling
+    /// blew the image cache (~38 images at 800px) and caused re-decode flicker
+    /// while scrolling. Cost scales with maxPixel², so 150 vs 800 is ~28× cheaper.
+    var maxPixel: CGFloat = 800
 
     @State private var image: UIImage?
     @State private var failed = false
@@ -611,7 +617,7 @@ struct S8KImage: View {
         guard let u = url, let imageURL = URL(string: u) else { image = nil; failed = false; return }
         failed = false
         if let hit = S8KImageCache.shared.cached(u) { image = hit; return }
-        let img = await S8KImageCache.shared.load(imageURL, key: u, maxPixel: 800)
+        let img = await S8KImageCache.shared.load(imageURL, key: u, maxPixel: maxPixel)
         guard !Task.isCancelled else { return }
         if let img { image = img } else { failed = true }
     }
@@ -688,7 +694,7 @@ struct S8KWatermark: View {
             HStack(spacing: 6) {
                 // Reseller logo (remote) when set, else the bundled logo.
                 if let logo = BrandKit.logoURL {
-                    S8KImage(url: logo, placeholder: "play.tv.fill")
+                    S8KImage(url: logo, placeholder: "play.tv.fill", maxPixel: 120)
                         .frame(width: 22, height: 22)
                         .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                 } else {
@@ -938,7 +944,7 @@ struct ChannelChip: View {
         Button(action: onTap) {
             VStack(spacing: 7) {
                 ZStack(alignment: .topTrailing) {
-                    S8KImage(url: logoURL, placeholder: "antenna.radiowaves.left.and.right")
+                    S8KImage(url: logoURL, placeholder: "antenna.radiowaves.left.and.right", maxPixel: 240)
                         .frame(width: 64, height: 64)
                         .background(Color.s8kElevated)
                         .clipShape(RoundedRectangle(cornerRadius: 18))
