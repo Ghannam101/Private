@@ -99,7 +99,11 @@ final class HomeVM: ObservableObject {
         }
         loaded = true
         rebuildHero()
-        rebuildRails()
+        // rebuildRails() intentionally NOT called: the curated Smart-Rail feed
+        // (`railsSection`) is not currently shown on Home (owner kept the
+        // movies/series/live layout), so building it — RailEngine classification +
+        // per-category sorts on the main actor + a poster prefetch — was wasted
+        // work on every load. Re-enable this call if `railsSection` is added back.
         isLoading = false
     }
 
@@ -123,7 +127,8 @@ final class HomeVM: ObservableObject {
         history = Array(hist.items.prefix(8))
         loaded = true
         rebuildHero()
-        rebuildRails()
+        // rebuildRails() intentionally skipped — see note in load(). The curated
+        // rail feed isn't shown, so we don't spend a load classifying/sorting it.
         isLoading = false
     }
 
