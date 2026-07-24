@@ -335,7 +335,7 @@ struct SettingsView: View {
             // APPLE REQUIRED (4.7.1): report objectionable content
             row(icon: "exclamationmark.bubble.fill", color: .s8kOrange,
                 title: L("legal.report"), hasChevron: true) {
-                let subject = "إبلاغ عن محتوى — BLANK TV"
+                let subject = "إبلاغ عن محتوى — Blank Prime"
                     .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
                 if let u = URL(string: "mailto:\(S8KLegal.reportEmail)?subject=\(subject)") {
                     UIApplication.shared.open(u)
@@ -390,7 +390,7 @@ struct SettingsView: View {
                 .scaledToFit()
                 .frame(width: 30, height: 30)
                 .opacity(0.8)
-            Text("BLANK TV")
+            Text("Blank Prime")
                 .font(.system(size: 11, weight: .black)).tracking(2)
                 .foregroundColor(.s8kTextDisabled)
             Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0")")
@@ -874,7 +874,7 @@ struct SettingsProV2: View {
     private var footer: some View {
         VStack(spacing: 5) {
             Image("Logo").resizable().scaledToFit().frame(width: 28, height: 28).opacity(0.8)
-            Text("BLANK TV").font(.system(size: 11, weight: .black)).tracking(2).foregroundColor(.s8kTextDisabled)
+            Text("Blank Prime").font(.system(size: 11, weight: .black)).tracking(2).foregroundColor(.s8kTextDisabled)
             Text("v\(appVersion)").font(.system(size: 10, design: .monospaced)).foregroundColor(.s8kTextDisabled.opacity(0.5))
         }
         .padding(.top, 6)
@@ -1280,7 +1280,7 @@ struct AboutView: View {
                         .frame(width: 96, height: 96)
                         .shadow(color: .s8kGoldHigh.opacity(0.3), radius: 24)
                     VStack(spacing: 8) {
-                        Text("BLANK TV")
+                        Text("Blank Prime")
                             .font(.system(size: 28, weight: .black)).tracking(5)
                             .foregroundStyle(S8KGradient.goldFlat)
                         Text(L("about.subtitle"))

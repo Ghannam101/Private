@@ -1,5 +1,5 @@
 // ============================================================
-// BLANK TV — Core.swift
+// Blank Prime — Core.swift
 // Network + Storage + Security — All in one file
 // ============================================================
 
@@ -325,7 +325,7 @@ enum L10n {
         "subs.choose":      [.ar: "اختر اشتراكاً للمتابعة", .en: "Choose a subscription to continue", .fr: "Choisissez un abonnement", .tr: "Devam etmek için bir abonelik seçin", .es: "Elige una suscripción para continuar"],
         "subs.add":         [.ar: "إضافة اشتراك",        .en: "Add subscription", .fr: "Ajouter un abonnement", .tr: "Abonelik ekle", .es: "Añadir suscripción"],
         "subs.add_first":   [.ar: "أضف اشتراكك الأول",    .en: "Add your first subscription", .fr: "Ajoutez votre premier abonnement", .tr: "İlk aboneliğinizi ekleyin", .es: "Añade tu primera suscripción"],
-        "subs.welcome":     [.ar: "مرحباً بك في بلانك تي في", .en: "Welcome to BLANK TV", .fr: "Bienvenue sur BLANK TV", .tr: "BLANK TV'ye hoş geldiniz", .es: "Bienvenido a BLANK TV"],
+        "subs.welcome":     [.ar: "مرحباً بك في Blank Prime", .en: "Welcome to Blank Prime", .fr: "Bienvenue sur Blank Prime", .tr: "Blank Prime'ye hoş geldiniz", .es: "Bienvenido a Blank Prime"],
 
         // About
         "about.subtitle":   [.ar: "Premium IPTV Player", .en: "Premium IPTV Player", .fr: "Lecteur IPTV Premium", .tr: "Premium IPTV Oynatıcı", .es: "Reproductor IPTV Premium"],
@@ -450,7 +450,7 @@ enum L10n {
 
         // Terms
         "terms.accept.t":    [.ar: "قبول الشروط",       .en: "Acceptance of Terms", .fr: "Acceptation des conditions", .tr: "Şartların Kabulü", .es: "Aceptación de los términos"],
-        "terms.accept.b":    [.ar: "باستخدام تطبيق BLANK TV، فإنك تقبل هذه الشروط والأحكام بالكامل.", .en: "By using the BLANK TV app, you fully accept these terms and conditions.", .fr: "En utilisant l'application BLANK TV, vous acceptez pleinement ces conditions générales.", .tr: "BLANK TV uygulamasını kullanarak bu şartları ve koşulları tamamen kabul edersiniz.", .es: "Al usar la aplicación BLANK TV, aceptas plenamente estos términos y condiciones."],
+        "terms.accept.b":    [.ar: "باستخدام تطبيق Blank Prime، فإنك تقبل هذه الشروط والأحكام بالكامل.", .en: "By using the Blank Prime app, you fully accept these terms and conditions.", .fr: "En utilisant l'application Blank Prime, vous acceptez pleinement ces conditions générales.", .tr: "Blank Prime uygulamasını kullanarak bu şartları ve koşulları tamamen kabul edersiniz.", .es: "Al usar la aplicación Blank Prime, aceptas plenamente estos términos y condiciones."],
         "terms.use.t":       [.ar: "الاستخدام المسموح", .en: "Permitted Use",   .fr: "Utilisation autorisée", .tr: "İzin Verilen Kullanım", .es: "Uso permitido"],
         "terms.use.b":       [.ar: "التطبيق مخصص للاستخدام الشخصي فقط. يُحظر إعادة التوزيع أو الاستخدام التجاري.", .en: "The app is for personal use only. Redistribution or commercial use is prohibited.", .fr: "L'app est réservée à un usage personnel. La redistribution ou l'usage commercial est interdit.", .tr: "Uygulama yalnızca kişisel kullanım içindir. Yeniden dağıtım veya ticari kullanım yasaktır.", .es: "La app es solo para uso personal. Se prohíbe la redistribución o el uso comercial."],
         "terms.content.t":   [.ar: "مسؤولية المحتوى",   .en: "Content Responsibility", .fr: "Responsabilité du contenu", .tr: "İçerik Sorumluluğu", .es: "Responsabilidad del contenido"],
@@ -2075,7 +2075,7 @@ enum ContentService {
     // the user's OWN provider via PlaylistService (raw M3U or Xtream-direct), or to
     // DemoContent. The old `XtreamService` proxy fallback (→ strong8k.app) has been
     // removed structurally, so no content request can ever reach the backend —
-    // regardless of `mode`. BLANK TV is a pure, independent player.
+    // regardless of `mode`. Blank Prime is a pure, independent player.
     static func liveCategories() async throws -> [Category] {
         if isDemo { return DemoContent.liveCategories }
         return try await PlaylistService.shared.load().liveCategories
@@ -2158,7 +2158,7 @@ enum DemoContent {
     static let seriesCategories = [Category(id: "demo_series", name: "مسلسلات تجريبية", parentID: nil)]
 
     static let channels: [Channel] = [
-        Channel(id: "d1", name: "BLANK TV — قناة العرض", logoURL: pBunny,
+        Channel(id: "d1", name: "Blank Prime — قناة العرض", logoURL: pBunny,
                 groupTitle: "تجريبي", epgChannelID: nil, directURL: hls),
         Channel(id: "d2", name: "Demo Live 4K", logoURL: pSintel,
                 groupTitle: "تجريبي", epgChannelID: nil, directURL: hls2),
@@ -2178,7 +2178,7 @@ enum DemoContent {
     ]
 
     static let series: [Series] = [
-        Series(id: "d_s1", name: "BLANK TV Originals (تجريبي)", coverURL: pSeries,
+        Series(id: "d_s1", name: "Blank Prime Originals (تجريبي)", coverURL: pSeries,
                backdropURL: bBunny, year: "2024", rating: "9.0", genre: "عرض",
                plot: "مسلسل تجريبي يعرض ميزات المشغّل بحلقات من محتوى مفتوح المصدر.",
                cast: nil, director: nil, categoryID: "demo_series",

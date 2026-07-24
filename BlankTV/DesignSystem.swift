@@ -196,7 +196,7 @@ final class AppTheme: ObservableObject {
 
     @Published var primaryColor: Color   = .s8kGoldMid
     @Published var accentColor:  Color   = .s8kGoldHigh
-    @Published var serverName:   String  = "BLANK TV"
+    @Published var serverName:   String  = "Blank Prime"
     @Published var logoURL:      String? = nil
     @Published var isCustom:     Bool    = false
     /// Bumped whenever the active BRAND palette (colors) changes → the root uses
@@ -221,7 +221,7 @@ final class AppTheme: ObservableObject {
         withAnimation(.easeInOut(duration: 0.3)) {
             primaryColor = .s8kGoldMid
             accentColor  = .s8kGoldHigh
-            serverName   = "BLANK TV"
+            serverName   = "Blank Prime"
             logoURL      = nil
             isCustom     = false
         }
@@ -725,7 +725,7 @@ struct S8KWatermark: View {
                 } else {
                     Image("Logo").resizable().scaledToFit().frame(width: 22, height: 22)
                 }
-                Text(BrandKit.customName ?? "BLANK TV")
+                Text(BrandKit.customName ?? "Blank Prime")
                     .font(.system(size: 11, weight: .black))
                     .tracking(1.5)
                     .foregroundColor(.s8kGoldHigh)
@@ -778,14 +778,14 @@ struct S8KWordmark: View {
                 .lineLimit(1).minimumScaleFactor(0.6)
                 .shadow(color: .black.opacity(0.35), radius: 6, y: 1)
         } else {
-            HStack(spacing: size * 0.30) {
-                Text("BLANK")
+            HStack(spacing: size * 0.24) {
+                Text("Blank")
                     .font(.system(size: size, weight: .semibold, design: .rounded))
-                    .tracking(size * 0.16)
+                    .tracking(size * 0.10)
                     .foregroundColor(.s8kTextPrimary)
-                Text("TV")
+                Text("Prime")
                     .font(.system(size: size * 1.02, weight: .heavy, design: .rounded))
-                    .tracking(size * 0.06)
+                    .tracking(size * 0.04)
                     .foregroundStyle(S8KGradient.goldFlat)
             }
             // Keep the wordmark on ONE line, scaling down to fit rather than wrapping
