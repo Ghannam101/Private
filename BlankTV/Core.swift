@@ -155,6 +155,11 @@ enum L10n {
         "set.support":  [.ar: "تواصل مع الدعم", .en: "Contact Support", .fr: "Contacter le support", .tr: "Destek ile İletişim", .es: "Contactar soporte"],
         "set.connection":[.ar: "الاتصال والحساب", .en: "Connection & Account", .fr: "Connexion et compte", .tr: "Bağlantı ve Hesap", .es: "Conexión y cuenta"],
         "set.about_legal":[.ar: "حول والدعم والقانوني", .en: "About & Legal", .fr: "À propos et mentions", .tr: "Hakkında ve Yasal", .es: "Acerca de y legal"],
+        "set.connection.sub":[.ar: "الخادم · معرّف الجهاز · القوائم", .en: "Server · Device ID · Playlists", .fr: "Serveur · Appareil · Listes", .tr: "Sunucu · Cihaz · Listeler", .es: "Servidor · Dispositivo · Listas"],
+        "set.player.sub":[.ar: "التشغيل التلقائي · المحرّك · الجودة", .en: "Autoplay · Engine · Quality", .fr: "Lecture auto · Moteur · Qualité", .tr: "Otomatik · Motor · Kalite", .es: "Reproducción · Motor · Calidad"],
+        "set.app.sub":[.ar: "اللغة · التنزيلات · الإشعارات", .en: "Language · Downloads · Notifications", .fr: "Langue · Téléchargements · Notifications", .tr: "Dil · İndirmeler · Bildirimler", .es: "Idioma · Descargas · Notificaciones"],
+        "set.about.sub":[.ar: "الإصدار · الدعم · الخصوصية · الشروط", .en: "Version · Support · Privacy · Terms", .fr: "Version · Support · Confidentialité", .tr: "Sürüm · Destek · Gizlilik", .es: "Versión · Soporte · Privacidad"],
+        "reorder.sub":[.ar: "رتّب أقسام الأفلام والمسلسلات والقنوات", .en: "Arrange movies, series & channel rows", .fr: "Organiser films, séries et chaînes", .tr: "Film, dizi ve kanalları düzenle", .es: "Organizar películas, series y canales"],
         "set.device_copied":[.ar: "تم نسخ معرّف الجهاز", .en: "Device ID copied", .fr: "Identifiant copié", .tr: "Cihaz kimliği kopyalandı", .es: "ID de dispositivo copiado"],
 
         // Detail
@@ -181,6 +186,9 @@ enum L10n {
         "pc.enable_hint":    [.ar: "أنشئ رمزاً سرياً لقفل أقسام محددة. ستحتاج الرمز لفتحها.", .en: "Create a PIN to lock specific categories. You'll need it to open them.", .fr: "Créez un code pour verrouiller des catégories. Il sera requis pour les ouvrir.", .tr: "Belirli kategorileri kilitlemek için bir PIN oluşturun.", .es: "Crea un PIN para bloquear categorías. Lo necesitarás para abrirlas."],
         "pc.change_pin":     [.ar: "تغيير الرمز", .en: "Change PIN", .fr: "Changer le code", .tr: "PIN'i Değiştir", .es: "Cambiar PIN"],
         "pc.disable":        [.ar: "إيقاف الرقابة الأبوية", .en: "Turn Off Parental Control", .fr: "Désactiver le contrôle parental", .tr: "Ebeveyn Denetimini Kapat", .es: "Desactivar control parental"],
+        "pc.locked_cats.sub":[.ar: "اختر الأقسام التي تتطلّب الرمز", .en: "Choose which categories need the PIN", .fr: "Catégories nécessitant le code", .tr: "PIN gerektiren kategoriler", .es: "Categorías que requieren PIN"],
+        "pc.change_pin.sub": [.ar: "عيّن رمزاً جديداً من أربعة أرقام", .en: "Set a new four-digit PIN", .fr: "Définir un nouveau code", .tr: "Yeni dört haneli PIN", .es: "Nuevo PIN de cuatro dígitos"],
+        "pc.disable.sub":    [.ar: "إلغاء القفل وإظهار كل المحتوى", .en: "Unlock and reveal all content", .fr: "Déverrouiller tout le contenu", .tr: "Kilidi aç, tüm içeriği göster", .es: "Desbloquear todo el contenido"],
         "pc.on":             [.ar: "مفعّلة", .en: "On", .fr: "Activé", .tr: "Açık", .es: "Activado"],
         "pc.off":            [.ar: "متوقفة", .en: "Off", .fr: "Désactivé", .tr: "Kapalı", .es: "Desactivado"],
         "pc.recovery_title": [.ar: "رمز الاستعادة", .en: "Recovery Code", .fr: "Code de récupération", .tr: "Kurtarma Kodu", .es: "Código de recuperación"],

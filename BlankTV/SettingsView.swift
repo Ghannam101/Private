@@ -605,287 +605,29 @@ struct SettingsView: View {
 // — deliberately avoiding the fancy nested background/overlay layering.
 // Design: premium grouped cards (Apple-Settings-grade, Arabic-natural direction).
 // ============================================================
-struct SettingsProV2: View {
-    var onClose: (() -> Void)? = nil
-    @StateObject private var auth   = AuthService.shared
-    @StateObject private var theme  = AppTheme.shared
-    @StateObject private var activation = ActivationService.shared
-    @StateObject private var loc    = LocalizationManager.shared
-    @StateObject private var parental = ParentalService.shared
-    @StateObject private var config = ConfigService.shared
-    @Environment(\.horizontalSizeClass) private var hSize
-
-    @State private var sleepMins    = Store.shared.sleepTimerMins
-    @State private var quality      = Store.shared.preferredQuality
-    @State private var pipOn        = Store.shared.pipEnabled
-    @State private var enginePref   = Store.shared.playerEnginePref
-    @State private var autoNextOn   = Store.shared.autoPlayNext
-    @State private var autoNextSecs = Store.shared.autoNextSeconds
-    @State private var skipIntroOn  = Store.shared.skipIntroEnabled
-    @State private var skipIntroSecs = Store.shared.skipIntroSeconds
-    @State private var notifOn      = Store.shared.notificationsEnabled
-    @State private var wifiOnlyOn   = Store.shared.downloadWifiOnly
-    @State private var turboOn      = Store.shared.turboDownloads
-    @State private var analyticsOn  = Store.shared.analyticsConsent
-    @State private var idCopied     = false
-    @State private var showReorder  = false
-    @State private var showDownloads = false
-    @State private var showParental = false
-    @State private var showAbout    = false
-    @State private var showPrivacy  = false
-    @State private var showTerms    = false
-    @State private var showPlaylists = false
-    @State private var showLogoutAlert = false
-    @State private var showDeleteAlert = false
-
-    @State private var showAccounts = false
-    // Name shown in the hero — the account's custom name (NOT the "قائمة m3u"
-    // placeholder the owner asked to remove); falls back to the Xtream username.
-    private var displayName: String {
-        let id = Store.shared.activePlaylistID
-        if let p = Store.shared.savedPlaylists.first(where: { $0.id == id }), !p.name.isEmpty { return p.name }
-        if let u = auth.user?.username, !u.isEmpty { return u }
-        return L("settings.user")
-    }
-    private var initials: String { String(displayName.prefix(2).uppercased()) }
-    private var planText: String { (auth.user?.plan ?? (auth.mode == .m3u ? "M3U" : "basic")).uppercased() }
-    private var appVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0" }
-    private var serverHost: String? {
-        if auth.mode == .m3u { return Store.shared.m3uURL }
-        return Keychain.shared.serverCredentials()?.host
-    }
-
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            Color.s8kBlack.ignoresSafeArea()
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 20) {
-                    hero   // cinematic, full-bleed under the notch
-                    VStack(spacing: 20) {
-                        connectionCard
-                        playerCard
-                        appCard
-                        aboutCard
-                        logoutButton
-                        footer
-                        Color.clear.frame(height: 40)
-                    }
-                    .frame(maxWidth: hSize == .regular ? 640 : .infinity)
-                    .frame(maxWidth: .infinity)
-                }
-            }
-            .ignoresSafeArea(edges: .top)
-            // Floating close — a glass circle over the cinematic header.
-            Button { onClose?() } label: {
-                Image(systemName: "xmark").font(.system(size: 15, weight: .bold)).foregroundColor(.white)
-                    .frame(width: 38, height: 38)
-                    .background(.ultraThinMaterial, in: Circle())
-                    .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
-            }
-            .buttonStyle(S8KButtonStyle())
-            .padding(.leading, 18).padding(.top, 54)
-        }
-        .overlay {
-            if showLogoutAlert {
-                S8KConfirm(icon: "rectangle.portrait.and.arrow.right", iconColor: .s8kRed,
-                           title: L("set.logout"), message: L("alert.logout.msg"),
-                           confirmTitle: L("set.logout"), destructive: true,
-                           onConfirm: { showLogoutAlert = false; Task { await auth.logout() } },
-                           onCancel: { withAnimation { showLogoutAlert = false } }).zIndex(10)
-            } else if showDeleteAlert {
-                S8KConfirm(icon: "person.crop.circle.badge.minus", iconColor: .s8kRed,
-                           title: L("set.delete"), message: L("alert.delete.msg"),
-                           confirmTitle: L("alert.delete.confirm"), destructive: true,
-                           onConfirm: { showDeleteAlert = false; Task { try? await auth.deleteAccount() } },
-                           onCancel: { withAnimation { showDeleteAlert = false } }).zIndex(10)
-            }
-        }
-        .animation(.easeInOut(duration: 0.2), value: showLogoutAlert)
-        .animation(.easeInOut(duration: 0.2), value: showDeleteAlert)
-        .sheet(isPresented: $showPrivacy) { PrivacyView() }
-        .sheet(isPresented: $showTerms)   { TermsView() }
-        .sheet(isPresented: $showAbout)   { AboutView() }
-        .sheet(isPresented: $showPlaylists) { PlaylistsView() }
-        .sheet(isPresented: $showParental) { ParentalControlView() }
-        .sheet(isPresented: $showDownloads) { DownloadsView() }
-        .sheet(isPresented: $showReorder) { UnifiedReorderView() }
-        .fullScreenCover(isPresented: $showAccounts) { AccountSwitcherView(onClose: { showAccounts = false }) }
-    }
-
-    // MARK: Cinematic profile header (full-bleed lime→black glow · avatar · name ·
-    // plan · status). Immersive, brand-native — nothing like the reference card.
-    private var hero: some View {
-        ZStack(alignment: .bottom) {
-            LinearGradient(stops: [
-                .init(color: Color.s8kGoldMid.opacity(0.20), location: 0.0),
-                .init(color: Color.s8kBlack.opacity(0.0),    location: 0.55),
-                .init(color: Color.s8kBlack,                 location: 1.0)
-            ], startPoint: .top, endPoint: .bottom)
-            VStack(spacing: 11) {
-                ZStack {
-                    Circle().fill(S8KGradient.goldFlat).frame(width: 84, height: 84)
-                        .shadow(color: .s8kGoldHigh.opacity(0.45), radius: 18, y: 5)
-                    Text(initials).font(.system(size: 29, weight: .black)).foregroundColor(.s8kBlack)
-                }
-                Text(displayName).font(.system(size: 23, weight: .black))
-                    .foregroundColor(.s8kTextPrimary).lineLimit(1)
-                HStack(spacing: 8) {
-                    Text(planText).font(S8KFont.caption3.weight(.heavy)).foregroundColor(.s8kBlack)
-                        .padding(.horizontal, 11).padding(.vertical, 4)
-                        .background(Capsule().fill(S8KGradient.goldFlat))
-                    HStack(spacing: 5) {
-                        Circle().fill(Color.s8kGreen).frame(width: 6, height: 6)
-                        Text("\(L("common.connected")) · \(theme.serverName)")
-                            .font(S8KFont.caption1).foregroundColor(.s8kTextTertiary).lineLimit(1)
-                    }
-                }
-                // Tap the whole header to open the account switcher.
-                HStack(spacing: 4) {
-                    Text(L("accounts.switch")).font(S8KFont.caption2.weight(.bold))
-                    Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
-                }
-                .foregroundColor(.s8kGoldMid)
-                .padding(.horizontal, 11).padding(.vertical, 5)
-                .background(Capsule().fill(Color.s8kGoldMid.opacity(0.12)))
-                .overlay(Capsule().strokeBorder(Color.s8kBorderGold, lineWidth: 1))
-                .padding(.top, 4)
-            }
-            .padding(.bottom, 26)
-        }
-        .frame(height: 250)
-        .frame(maxWidth: .infinity)
-        .contentShape(Rectangle())
-        .onTapGesture { showAccounts = true }
-    }
-
-    // MARK: Grouped cards
-    private var connectionCard: some View {
-        groupCard(L("set.connection")) {
-            navRow(icon: "list.and.film", title: activePlaylistName,
-                   value: "\(Store.shared.savedPlaylists.count)", chevron: true) { showPlaylists = true }
-            if let host = serverHost {
-                cardDivider()
-                infoRow(icon: "server.rack", title: L("common.connected"), value: host, mono: true)
-            }
-            cardDivider()
-            Button(action: copyDeviceID) {
-                proRow(icon: idCopied ? "checkmark.circle.fill" : "doc.on.doc",
-                       title: L("settings.device_id"), trailing: {
-                    Text(activation.deviceID).font(.system(size: 12, weight: .bold, design: .monospaced))
-                        .foregroundColor(.s8kTextTertiary).lineLimit(1)
-                })
-            }.buttonStyle(S8KButtonStyle())
+// ============================================================
+// MARK: - Shared settings row builders (hub + every detail page)
+// Centralised so the hub and each sub-page render identical rows without
+// duplication. Pure, RTL-natural, dark-luxury styling on the app font.
+// ============================================================
+enum SetUI {
+    static func iconTile(_ icon: String, danger: Bool = false) -> some View {
+        let tint = danger ? Color.s8kRed : Color.s8kTextSecondary
+        return ZStack {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(danger ? Color.s8kRed.opacity(0.12) : Color.white.opacity(0.06))
+                .frame(width: 32, height: 32)
+                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .strokeBorder(danger ? Color.s8kRed.opacity(0.25) : Color.white.opacity(0.08), lineWidth: 1))
+            Image(systemName: icon).font(.system(size: 14, weight: .medium)).foregroundColor(tint)
         }
     }
 
-    private var playerCard: some View {
-        groupCard(L("set.player")) {
-            toggle(icon: "play.square.stack.fill", title: L("player.autonext.title"), isOn: $autoNextOn)
-                .onChange(of: autoNextOn) { _, v in Store.shared.autoPlayNext = v }
-            cardDivider()
-            toggle(icon: "forward.end.fill", title: L("player.skipintro.title"), isOn: $skipIntroOn)
-                .onChange(of: skipIntroOn) { _, v in Store.shared.skipIntroEnabled = v }
-            cardDivider()
-            navRow(icon: "play.circle.fill", title: L("player.quality"), value: quality.displayName) {
-                let all = StreamQuality.allCases
-                if let i = all.firstIndex(of: quality) { quality = all[(i + 1) % all.count]; Store.shared.preferredQuality = quality }
-            }
-            cardDivider()
-            navRow(icon: "cpu", title: L("player.engine"), value: engineLabel(enginePref)) {
-                let order = ["auto", "av", "vlc"]
-                enginePref = order[((order.firstIndex(of: enginePref) ?? 0) + 1) % order.count]
-                Store.shared.playerEnginePref = enginePref
-            }
-            cardDivider()
-            toggle(icon: "rectangle.inset.filled.on.rectangle", title: L("player.pip"), isOn: $pipOn)
-                .onChange(of: pipOn) { _, v in Store.shared.pipEnabled = v }
-            cardDivider()
-            navRow(icon: "moon.stars.fill", title: L("player.sleep.default"), value: "\(sleepMins) \(L("unit.minute"))") {
-                let options = [15, 30, 45, 60, 90, 120]
-                sleepMins = options[((options.firstIndex(of: sleepMins) ?? 0) + 1) % options.count]
-                Store.shared.sleepTimerMins = sleepMins
-            }
-        }
-    }
+    static func divider() -> some View { Divider().background(Color.s8kBorder).padding(.leading, 60) }
 
-    private var appCard: some View {
-        groupCard(L("set.app")) {
-            Menu {
-                ForEach(AppLang.allCases) { l in
-                    Button(action: { loc.set(l) }) {
-                        if loc.lang == l { Label(l.display, systemImage: "checkmark") } else { Text(l.display) }
-                    }
-                }
-            } label: {
-                proRow(icon: "globe", title: L("settings.language"), trailing: {
-                    Text(loc.lang.display).font(S8KFont.callout).foregroundColor(.s8kTextTertiary)
-                })
-            }
-            cardDivider()
-            navRow(icon: "arrow.up.arrow.down.circle.fill", title: L("reorder.manage"), chevron: true) { showReorder = true }
-            cardDivider()
-            navRow(icon: "arrow.down.circle.fill", title: L("set.downloads"), chevron: true) { showDownloads = true }
-            cardDivider()
-            toggle(icon: "wifi", title: L("downloads.wifi_only"), isOn: $wifiOnlyOn)
-                .onChange(of: wifiOnlyOn) { _, v in Store.shared.downloadWifiOnly = v }
-            cardDivider()
-            toggle(icon: "bell.badge.fill", title: L("set.notifications"), isOn: $notifOn)
-                .onChange(of: notifOn) { _, v in Store.shared.notificationsEnabled = v }
-            if config.hasParental {
-                cardDivider()
-                navRow(icon: "lock.shield.fill", title: L("app.parental"),
-                       value: parental.enabled ? L("app.parental.on") : L("app.parental.off"), chevron: true) { showParental = true }
-            }
-        }
-    }
-
-    private var aboutCard: some View {
-        groupCard(L("set.about_legal")) {
-            navRow(icon: "info.circle.fill", title: L("set.about"), value: "v\(appVersion)", chevron: true) { showAbout = true }
-            if let support = activation.supportURL, let u = URL(string: support) {
-                cardDivider()
-                navRow(icon: "bubble.left.and.bubble.right.fill", title: L("set.support"), chevron: true) { UIApplication.shared.open(u) }
-            }
-            cardDivider()
-            navRow(icon: "hand.raised.fill", title: L("set.privacy"), chevron: true) { showPrivacy = true }
-            cardDivider()
-            navRow(icon: "doc.text.fill", title: L("set.terms"), chevron: true) { showTerms = true }
-            cardDivider()
-            Button(action: { showDeleteAlert = true }) {
-                proRow(icon: "person.crop.circle.badge.minus", title: L("set.delete"), danger: true, trailing: { EmptyView() })
-            }.buttonStyle(S8KButtonStyle())
-        }
-    }
-
-    private var logoutButton: some View {
-        Button(action: { showLogoutAlert = true }) {
-            HStack(spacing: 10) {
-                Image(systemName: "rectangle.portrait.and.arrow.right").font(.system(size: 15, weight: .semibold))
-                Text(L("set.logout")).font(S8KFont.headline)
-            }
-            .foregroundColor(.s8kRed).frame(maxWidth: .infinity).padding(.vertical, 15)
-            .background(RoundedRectangle(cornerRadius: S8KRadius.lg).fill(Color.s8kRed.opacity(0.08)))
-            .overlay(RoundedRectangle(cornerRadius: S8KRadius.lg).strokeBorder(Color.s8kRed.opacity(0.2), lineWidth: 1))
-        }
-        .buttonStyle(S8KButtonStyle())
-        .padding(.horizontal, S8KSpace.xl)
-    }
-
-    private var footer: some View {
-        VStack(spacing: 5) {
-            Image("Logo").resizable().scaledToFit().frame(width: 28, height: 28).opacity(0.8)
-            Text("Blank Prime").font(.system(size: 11, weight: .black)).tracking(2).foregroundColor(.s8kTextDisabled)
-            Text("v\(appVersion)").font(.system(size: 10, design: .monospaced)).foregroundColor(.s8kTextDisabled.opacity(0.5))
-        }
-        .padding(.top, 6)
-    }
-
-    // MARK: Builders (simple, RTL-natural)
     @ViewBuilder
-    private func groupCard<C: View>(_ title: String, @ViewBuilder content: () -> C) -> some View {
+    static func group<C: View>(_ title: String, @ViewBuilder content: () -> C) -> some View {
         VStack(spacing: 0) {
-            // Muted uppercase section label (iOS-inset style — no reference-like
-            // gold accent bar).
             HStack {
                 Spacer(minLength: 0)
                 Text(title.uppercased())
@@ -902,23 +644,8 @@ struct SettingsProV2: View {
         }
     }
 
-    private func iconTile(_ icon: String, danger: Bool = false) -> some View {
-        let tint = danger ? Color.s8kRed : Color.s8kTextSecondary
-        return ZStack {
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(danger ? Color.s8kRed.opacity(0.12) : Color.white.opacity(0.06))
-                .frame(width: 32, height: 32)
-                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .strokeBorder(danger ? Color.s8kRed.opacity(0.25) : Color.white.opacity(0.08), lineWidth: 1))
-            Image(systemName: icon).font(.system(size: 14, weight: .medium)).foregroundColor(tint)
-        }
-    }
-
-    private func cardDivider() -> some View { Divider().background(Color.s8kBorder).padding(.leading, 60) }
-
-    // A pro row (RTL): [trailing on left] Spacer [title] [icon on right]
-    private func proRow<T: View>(icon: String, title: String, danger: Bool = false,
-                                 @ViewBuilder trailing: () -> T) -> some View {
+    static func proRow<T: View>(icon: String, title: String, danger: Bool = false,
+                                @ViewBuilder trailing: () -> T) -> some View {
         HStack(spacing: 12) {
             trailing()
             Spacer(minLength: 8)
@@ -930,8 +657,8 @@ struct SettingsProV2: View {
         .contentShape(Rectangle())
     }
 
-    private func navRow(icon: String, title: String, value: String = "", chevron: Bool = false,
-                        action: @escaping () -> Void) -> some View {
+    static func navRow(icon: String, title: String, value: String = "", chevron: Bool = false,
+                       action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 12) {
                 if chevron {
@@ -950,7 +677,7 @@ struct SettingsProV2: View {
         .buttonStyle(S8KButtonStyle())
     }
 
-    private func infoRow(icon: String, title: String, value: String, mono: Bool = false) -> some View {
+    static func infoRow(icon: String, title: String, value: String, mono: Bool = false) -> some View {
         HStack(spacing: 12) {
             Text(value).font(mono ? .system(size: 10, weight: .medium, design: .monospaced) : S8KFont.callout)
                 .foregroundColor(.s8kTextDisabled).lineLimit(1)
@@ -961,7 +688,7 @@ struct SettingsProV2: View {
         .padding(.horizontal, S8KSpace.lg).padding(.vertical, 15)
     }
 
-    private func toggle(icon: String, title: String, isOn: Binding<Bool>) -> some View {
+    static func toggleRow(icon: String, title: String, isOn: Binding<Bool>) -> some View {
         HStack(spacing: 12) {
             Toggle("", isOn: isOn).toggleStyle(SwitchToggleStyle(tint: .s8kGoldMid)).labelsHidden()
             Spacer(minLength: 12)
@@ -970,19 +697,421 @@ struct SettingsProV2: View {
         }
         .padding(.horizontal, S8KSpace.lg).padding(.vertical, 14)
     }
+}
 
+// ============================================================
+// MARK: - Settings hub (V2) — cinematic header + navigable sections
+// Owner spec: respects the device safe-area on EVERY device (iPhone/iPad/Mac);
+// each section is a dark rectangle that opens its OWN page; content-order +
+// parental are first-class sections. Presented isolated via a full-screen cover.
+// ============================================================
+struct SettingsProV2: View {
+    var onClose: (() -> Void)? = nil
+    @StateObject private var auth   = AuthService.shared
+    @StateObject private var theme  = AppTheme.shared
+    @StateObject private var parental = ParentalService.shared
+    @StateObject private var config = ConfigService.shared
+    @Environment(\.horizontalSizeClass) private var hSize
+
+    @State private var showAccounts    = false
+    @State private var showLogoutAlert = false
+    @State private var showReorder     = false
+    @State private var showParental    = false
+
+    // Name shown in the hero — the account's custom name (NOT the "قائمة m3u"
+    // placeholder the owner asked to remove); falls back to the Xtream username.
+    private var displayName: String {
+        let id = Store.shared.activePlaylistID
+        if let p = Store.shared.savedPlaylists.first(where: { $0.id == id }), !p.name.isEmpty { return p.name }
+        if let u = auth.user?.username, !u.isEmpty { return u }
+        return L("settings.user")
+    }
+    private var initials: String { String(displayName.prefix(2).uppercased()) }
+    private var planText: String { (auth.user?.plan ?? (auth.mode == .m3u ? "M3U" : "basic")).uppercased() }
+    private var appVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0" }
+
+    var body: some View {
+        NavigationStack {
+            ZStack(alignment: .topLeading) {
+                Color.s8kBlack.ignoresSafeArea()
+                // Cinematic glow bleeds to the very top edge (behind the status bar)…
+                VStack(spacing: 0) {
+                    LinearGradient(stops: [
+                        .init(color: Color.s8kGoldMid.opacity(0.20), location: 0.0),
+                        .init(color: Color.s8kBlack.opacity(0.0),    location: 1.0)
+                    ], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 300)
+                    Spacer(minLength: 0)
+                }
+                .ignoresSafeArea(edges: .top)
+                .allowsHitTesting(false)
+
+                // …while the CONTENT respects the safe-area on every device.
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 22) {
+                        heroContent
+                        VStack(spacing: 12) {
+                            sections
+                            logoutButton
+                            footer
+                            Color.clear.frame(height: 30)
+                        }
+                        .frame(maxWidth: hSize == .regular ? 640 : .infinity)
+                        .frame(maxWidth: .infinity)
+                    }
+                    .padding(.top, 6)
+                }
+
+                closeButton
+            }
+            .toolbar(.hidden, for: .navigationBar)
+        }
+        .tint(.s8kGoldMid)
+        .overlay {
+            if showLogoutAlert {
+                S8KConfirm(icon: "rectangle.portrait.and.arrow.right", iconColor: .s8kRed,
+                           title: L("set.logout"), message: L("alert.logout.msg"),
+                           confirmTitle: L("set.logout"), destructive: true,
+                           onConfirm: { showLogoutAlert = false; Task { await auth.logout() } },
+                           onCancel: { withAnimation { showLogoutAlert = false } }).zIndex(10)
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: showLogoutAlert)
+        .fullScreenCover(isPresented: $showReorder)  { UnifiedReorderView() }
+        .fullScreenCover(isPresented: $showParental) { ParentalControlView() }
+        .fullScreenCover(isPresented: $showAccounts) { AccountSwitcherView(onClose: { showAccounts = false }) }
+    }
+
+    // MARK: Cinematic header (safe-area-respecting · tappable → account switcher)
+    private var heroContent: some View {
+        VStack(spacing: 11) {
+            ZStack {
+                Circle().fill(S8KGradient.goldFlat).frame(width: 84, height: 84)
+                    .shadow(color: .s8kGoldHigh.opacity(0.45), radius: 18, y: 5)
+                Text(initials).font(.system(size: 29, weight: .black)).foregroundColor(.s8kBlack)
+            }
+            Text(displayName).font(.system(size: 23, weight: .black))
+                .foregroundColor(.s8kTextPrimary).lineLimit(1)
+            HStack(spacing: 8) {
+                Text(planText).font(S8KFont.caption3.weight(.heavy)).foregroundColor(.s8kBlack)
+                    .padding(.horizontal, 11).padding(.vertical, 4)
+                    .background(Capsule().fill(S8KGradient.goldFlat))
+                HStack(spacing: 5) {
+                    Circle().fill(Color.s8kGreen).frame(width: 6, height: 6)
+                    Text("\(L("common.connected")) · \(theme.serverName)")
+                        .font(S8KFont.caption1).foregroundColor(.s8kTextTertiary).lineLimit(1)
+                }
+            }
+            HStack(spacing: 4) {
+                Text(L("accounts.switch")).font(S8KFont.caption2.weight(.bold))
+                Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
+            }
+            .foregroundColor(.s8kGoldMid)
+            .padding(.horizontal, 11).padding(.vertical, 5)
+            .background(Capsule().fill(Color.s8kGoldMid.opacity(0.12)))
+            .overlay(Capsule().strokeBorder(Color.s8kBorderGold, lineWidth: 1))
+            .padding(.top, 4)
+        }
+        .padding(.top, 14)
+        .padding(.bottom, 2)
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        .onTapGesture { showAccounts = true }
+    }
+
+    // MARK: Section list — dark rectangles, each opening its own page
+    @ViewBuilder private var sections: some View {
+        sectionLink(icon: "server.rack", title: L("set.connection"), subtitle: L("set.connection.sub")) {
+            SetConnectionPage()
+        }
+        sectionLink(icon: "play.rectangle.on.rectangle.fill", title: L("set.player"), subtitle: L("set.player.sub")) {
+            SetPlayerPage()
+        }
+        sectionButton(icon: "arrow.up.arrow.down.circle.fill", title: L("reorder.manage"), subtitle: L("reorder.sub")) {
+            showReorder = true
+        }
+        if config.hasParental {
+            sectionButton(icon: "lock.shield.fill", title: L("app.parental"),
+                          subtitle: parental.enabled ? L("app.parental.on") : L("app.parental.off"),
+                          tint: parental.enabled ? .s8kGreen : .s8kGoldMid) {
+                showParental = true
+            }
+        }
+        sectionLink(icon: "slider.horizontal.3", title: L("set.app"), subtitle: L("set.app.sub")) {
+            SetAppPage()
+        }
+        sectionLink(icon: "info.circle.fill", title: L("set.about_legal"), subtitle: L("set.about.sub")) {
+            SetAboutPage()
+        }
+    }
+
+    private func sectionRowLabel(icon: String, title: String, subtitle: String, tint: Color) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: "chevron.left").font(.system(size: 13, weight: .semibold)).foregroundColor(.s8kTextDisabled)
+            Spacer(minLength: 8)
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(title).font(S8KFont.headline).foregroundColor(.s8kTextPrimary).lineLimit(1)
+                Text(subtitle).font(S8KFont.caption1).foregroundColor(.s8kTextTertiary).lineLimit(1)
+            }
+            sectionIcon(icon, tint)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 15)
+        .frame(maxWidth: .infinity)
+        .background(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous).fill(Color.white.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous).strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
+        .contentShape(Rectangle())
+    }
+
+    private func sectionIcon(_ icon: String, _ tint: Color) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .fill(tint.opacity(0.14)).frame(width: 42, height: 42)
+                .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).strokeBorder(tint.opacity(0.30), lineWidth: 1))
+            Image(systemName: icon).font(.system(size: 18, weight: .semibold)).foregroundColor(tint)
+        }
+    }
+
+    private func sectionLink<D: View>(icon: String, title: String, subtitle: String, tint: Color = .s8kGoldMid,
+                                      @ViewBuilder destination: @escaping () -> D) -> some View {
+        NavigationLink { destination() } label: { sectionRowLabel(icon: icon, title: title, subtitle: subtitle, tint: tint) }
+            .buttonStyle(S8KButtonStyle())
+            .padding(.horizontal, S8KSpace.xl)
+    }
+
+    private func sectionButton(icon: String, title: String, subtitle: String, tint: Color = .s8kGoldMid,
+                               action: @escaping () -> Void) -> some View {
+        Button(action: action) { sectionRowLabel(icon: icon, title: title, subtitle: subtitle, tint: tint) }
+            .buttonStyle(S8KButtonStyle())
+            .padding(.horizontal, S8KSpace.xl)
+    }
+
+    private var closeButton: some View {
+        Button { onClose?() } label: {
+            Image(systemName: "xmark").font(.system(size: 15, weight: .bold)).foregroundColor(.white)
+                .frame(width: 38, height: 38)
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
+        }
+        .buttonStyle(S8KButtonStyle())
+        .padding(.leading, 18).padding(.top, 6)
+    }
+
+    private var logoutButton: some View {
+        Button(action: { showLogoutAlert = true }) {
+            HStack(spacing: 10) {
+                Image(systemName: "rectangle.portrait.and.arrow.right").font(.system(size: 15, weight: .semibold))
+                Text(L("set.logout")).font(S8KFont.headline)
+            }
+            .foregroundColor(.s8kRed).frame(maxWidth: .infinity).padding(.vertical, 15)
+            .background(RoundedRectangle(cornerRadius: S8KRadius.lg).fill(Color.s8kRed.opacity(0.08)))
+            .overlay(RoundedRectangle(cornerRadius: S8KRadius.lg).strokeBorder(Color.s8kRed.opacity(0.2), lineWidth: 1))
+        }
+        .buttonStyle(S8KButtonStyle())
+        .padding(.horizontal, S8KSpace.xl)
+        .padding(.top, 6)
+    }
+
+    private var footer: some View {
+        VStack(spacing: 5) {
+            Image("Logo").resizable().scaledToFit().frame(width: 28, height: 28).opacity(0.8)
+            Text("Blank Prime").font(.system(size: 11, weight: .black)).tracking(2).foregroundColor(.s8kTextDisabled)
+            Text("v\(appVersion)").font(.system(size: 10, design: .monospaced)).foregroundColor(.s8kTextDisabled.opacity(0.5))
+        }
+        .padding(.top, 10)
+    }
+}
+
+// MARK: - Detail scaffold (dark page + inline nav title, width-capped for iPad/Mac)
+struct SetScaffold<C: View>: View {
+    let title: String
+    @Environment(\.horizontalSizeClass) private var hSize
+    @ViewBuilder var content: () -> C
+    var body: some View {
+        ZStack {
+            Color.s8kBlack.ignoresSafeArea()
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 20) { content(); Color.clear.frame(height: 30) }
+                    .padding(.top, 14)
+                    .frame(maxWidth: hSize == .regular ? 640 : .infinity)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(Color.s8kBlack, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+    }
+}
+
+// MARK: - Connection & account page
+struct SetConnectionPage: View {
+    @StateObject private var auth = AuthService.shared
+    @StateObject private var activation = ActivationService.shared
+    @State private var idCopied = false
+    @State private var showPlaylists = false
+
+    private var serverHost: String? {
+        if auth.mode == .m3u { return Store.shared.m3uURL }
+        return Keychain.shared.serverCredentials()?.host
+    }
     private var activePlaylistName: String {
         let id = Store.shared.activePlaylistID
         if let p = Store.shared.savedPlaylists.first(where: { $0.id == id }) { return p.name }
         return auth.mode == .m3u ? L("settings.m3u_list") : "Xtream"
     }
-    private func engineLabel(_ p: String) -> String {
-        switch p { case "av": return L("player.engine.av"); case "vlc": return L("player.engine.vlc"); default: return L("player.engine.auto") }
+
+    var body: some View {
+        SetScaffold(title: L("set.connection")) {
+            SetUI.group(L("set.connection")) {
+                SetUI.navRow(icon: "list.and.film", title: activePlaylistName,
+                             value: "\(Store.shared.savedPlaylists.count)", chevron: true) { showPlaylists = true }
+                if let host = serverHost {
+                    SetUI.divider()
+                    SetUI.infoRow(icon: "server.rack", title: L("common.connected"), value: host, mono: true)
+                }
+                SetUI.divider()
+                Button(action: copyDeviceID) {
+                    SetUI.proRow(icon: idCopied ? "checkmark.circle.fill" : "doc.on.doc",
+                                 title: L("settings.device_id"), trailing: {
+                        Text(activation.deviceID).font(.system(size: 12, weight: .bold, design: .monospaced))
+                            .foregroundColor(.s8kTextTertiary).lineLimit(1)
+                    })
+                }.buttonStyle(S8KButtonStyle())
+            }
+        }
+        .sheet(isPresented: $showPlaylists) { PlaylistsView() }
     }
+
     private func copyDeviceID() {
         UIPasteboard.general.string = activation.deviceID
         withAnimation { idCopied = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { withAnimation { idCopied = false } }
+    }
+}
+
+// MARK: - Player page
+struct SetPlayerPage: View {
+    @State private var sleepMins   = Store.shared.sleepTimerMins
+    @State private var quality     = Store.shared.preferredQuality
+    @State private var pipOn       = Store.shared.pipEnabled
+    @State private var enginePref  = Store.shared.playerEnginePref
+    @State private var autoNextOn  = Store.shared.autoPlayNext
+    @State private var skipIntroOn = Store.shared.skipIntroEnabled
+
+    var body: some View {
+        SetScaffold(title: L("set.player")) {
+            SetUI.group(L("set.player")) {
+                SetUI.toggleRow(icon: "play.square.stack.fill", title: L("player.autonext.title"), isOn: $autoNextOn)
+                    .onChange(of: autoNextOn) { _, v in Store.shared.autoPlayNext = v }
+                SetUI.divider()
+                SetUI.toggleRow(icon: "forward.end.fill", title: L("player.skipintro.title"), isOn: $skipIntroOn)
+                    .onChange(of: skipIntroOn) { _, v in Store.shared.skipIntroEnabled = v }
+                SetUI.divider()
+                SetUI.navRow(icon: "play.circle.fill", title: L("player.quality"), value: quality.displayName) {
+                    let all = StreamQuality.allCases
+                    if let i = all.firstIndex(of: quality) { quality = all[(i + 1) % all.count]; Store.shared.preferredQuality = quality }
+                }
+                SetUI.divider()
+                SetUI.navRow(icon: "cpu", title: L("player.engine"), value: engineLabel(enginePref)) {
+                    let order = ["auto", "av", "vlc"]
+                    enginePref = order[((order.firstIndex(of: enginePref) ?? 0) + 1) % order.count]
+                    Store.shared.playerEnginePref = enginePref
+                }
+                SetUI.divider()
+                SetUI.toggleRow(icon: "rectangle.inset.filled.on.rectangle", title: L("player.pip"), isOn: $pipOn)
+                    .onChange(of: pipOn) { _, v in Store.shared.pipEnabled = v }
+                SetUI.divider()
+                SetUI.navRow(icon: "moon.stars.fill", title: L("player.sleep.default"), value: "\(sleepMins) \(L("unit.minute"))") {
+                    let options = [15, 30, 45, 60, 90, 120]
+                    sleepMins = options[((options.firstIndex(of: sleepMins) ?? 0) + 1) % options.count]
+                    Store.shared.sleepTimerMins = sleepMins
+                }
+            }
+        }
+    }
+
+    private func engineLabel(_ p: String) -> String {
+        switch p { case "av": return L("player.engine.av"); case "vlc": return L("player.engine.vlc"); default: return L("player.engine.auto") }
+    }
+}
+
+// MARK: - App preferences page
+struct SetAppPage: View {
+    @StateObject private var loc = LocalizationManager.shared
+    @State private var notifOn    = Store.shared.notificationsEnabled
+    @State private var wifiOnlyOn = Store.shared.downloadWifiOnly
+    @State private var showDownloads = false
+
+    var body: some View {
+        SetScaffold(title: L("set.app")) {
+            SetUI.group(L("set.app")) {
+                Menu {
+                    ForEach(AppLang.allCases) { l in
+                        Button(action: { loc.set(l) }) {
+                            if loc.lang == l { Label(l.display, systemImage: "checkmark") } else { Text(l.display) }
+                        }
+                    }
+                } label: {
+                    SetUI.proRow(icon: "globe", title: L("settings.language"), trailing: {
+                        Text(loc.lang.display).font(S8KFont.callout).foregroundColor(.s8kTextTertiary)
+                    })
+                }
+                SetUI.divider()
+                SetUI.navRow(icon: "arrow.down.circle.fill", title: L("set.downloads"), chevron: true) { showDownloads = true }
+                SetUI.divider()
+                SetUI.toggleRow(icon: "wifi", title: L("downloads.wifi_only"), isOn: $wifiOnlyOn)
+                    .onChange(of: wifiOnlyOn) { _, v in Store.shared.downloadWifiOnly = v }
+                SetUI.divider()
+                SetUI.toggleRow(icon: "bell.badge.fill", title: L("set.notifications"), isOn: $notifOn)
+                    .onChange(of: notifOn) { _, v in Store.shared.notificationsEnabled = v }
+            }
+        }
+        .sheet(isPresented: $showDownloads) { DownloadsView() }
+    }
+}
+
+// MARK: - About & legal page
+struct SetAboutPage: View {
+    @StateObject private var auth = AuthService.shared
+    @StateObject private var activation = ActivationService.shared
+    @State private var showAbout = false
+    @State private var showPrivacy = false
+    @State private var showTerms = false
+    @State private var showDeleteAlert = false
+    private var appVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0" }
+
+    var body: some View {
+        SetScaffold(title: L("set.about_legal")) {
+            SetUI.group(L("set.about_legal")) {
+                SetUI.navRow(icon: "info.circle.fill", title: L("set.about"), value: "v\(appVersion)", chevron: true) { showAbout = true }
+                if let support = activation.supportURL, let u = URL(string: support) {
+                    SetUI.divider()
+                    SetUI.navRow(icon: "bubble.left.and.bubble.right.fill", title: L("set.support"), chevron: true) { UIApplication.shared.open(u) }
+                }
+                SetUI.divider()
+                SetUI.navRow(icon: "hand.raised.fill", title: L("set.privacy"), chevron: true) { showPrivacy = true }
+                SetUI.divider()
+                SetUI.navRow(icon: "doc.text.fill", title: L("set.terms"), chevron: true) { showTerms = true }
+                SetUI.divider()
+                Button(action: { showDeleteAlert = true }) {
+                    SetUI.proRow(icon: "person.crop.circle.badge.minus", title: L("set.delete"), danger: true, trailing: { EmptyView() })
+                }.buttonStyle(S8KButtonStyle())
+            }
+        }
+        .sheet(isPresented: $showAbout)   { AboutView() }
+        .sheet(isPresented: $showPrivacy) { PrivacyView() }
+        .sheet(isPresented: $showTerms)   { TermsView() }
+        .overlay {
+            if showDeleteAlert {
+                S8KConfirm(icon: "person.crop.circle.badge.minus", iconColor: .s8kRed,
+                           title: L("set.delete"), message: L("alert.delete.msg"),
+                           confirmTitle: L("alert.delete.confirm"), destructive: true,
+                           onConfirm: { showDeleteAlert = false; Task { try? await auth.deleteAccount() } },
+                           onCancel: { withAnimation { showDeleteAlert = false } }).zIndex(10)
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: showDeleteAlert)
     }
 }
 
@@ -1509,49 +1638,78 @@ struct ParentalControlView: View {
         .padding(.horizontal, S8KSpace.xl).padding(.top, 50).padding(.bottom, S8KSpace.lg)
     }
 
+    // Redesigned (owner spec: distinct from the reference) — a luminous shield hero,
+    // a live status pill, and dark-rectangle action cards matching the settings hub.
     private var menu: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 0) {
             header
-            ZStack {
-                Circle().fill(Color.s8kGoldMid.opacity(0.12)).frame(width: 80, height: 80)
-                Image(systemName: parental.enabled ? "lock.shield.fill" : "lock.open")
-                    .font(.system(size: 34)).foregroundColor(.s8kGoldMid)
-            }
-            .padding(.vertical, 8)
-            if !parental.enabled {
-                Text(L("pc.enable_hint")).font(S8KFont.callout).foregroundColor(.s8kTextSecondary)
-                    .multilineTextAlignment(.center).padding(.horizontal, S8KSpace.xl)
-                GoldButton(title: L("pc.enable"), icon: "lock.shield.fill") { step = .create }
-                    .padding(.horizontal, S8KSpace.xl).padding(.top, 6)
-            } else {
-                VStack(spacing: 0) {
-                    optionRow(L("app.locked_cats"), "lock.rectangle.stack.fill") { step = .lockedCats }
-                    Divider().background(Color.s8kBorder).padding(.leading, 56)
-                    optionRow(L("pc.change_pin"), "key.fill") { step = .changeVerify }
-                    Divider().background(Color.s8kBorder).padding(.leading, 56)
-                    optionRow(L("pc.disable"), "lock.open.fill", danger: true) { step = .disable }
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 18) {
+                    ZStack {
+                        Circle().fill(RadialGradient(colors: [
+                            (parental.enabled ? Color.s8kGreen : Color.s8kGoldMid).opacity(0.22), .clear],
+                            center: .center, startRadius: 4, endRadius: 72)).frame(width: 156, height: 156)
+                        Circle().strokeBorder(Color.s8kBorderGold, lineWidth: 1).frame(width: 110, height: 110)
+                        Circle().fill((parental.enabled ? Color.s8kGreen : Color.s8kGoldMid).opacity(0.12))
+                            .frame(width: 92, height: 92)
+                        Image(systemName: parental.enabled ? "lock.shield.fill" : "lock.open.fill")
+                            .font(.system(size: 40, weight: .semibold))
+                            .foregroundColor(parental.enabled ? .s8kGreen : .s8kGoldMid)
+                    }
+                    .padding(.top, 6)
+                    HStack(spacing: 6) {
+                        Circle().fill(parental.enabled ? Color.s8kGreen : Color.s8kTextDisabled).frame(width: 7, height: 7)
+                        Text(parental.enabled ? L("app.parental.on") : L("app.parental.off"))
+                            .font(S8KFont.subhead.weight(.bold))
+                            .foregroundColor(parental.enabled ? .s8kGreen : .s8kTextSecondary)
+                    }
+                    .padding(.horizontal, 14).padding(.vertical, 7)
+                    .background(Capsule().fill(Color.white.opacity(0.05)))
+                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
+
+                    if !parental.enabled {
+                        Text(L("pc.enable_hint")).font(S8KFont.callout).foregroundColor(.s8kTextSecondary)
+                            .multilineTextAlignment(.center).lineSpacing(3).padding(.horizontal, S8KSpace.xl)
+                        GoldButton(title: L("pc.enable"), icon: "lock.shield.fill") { step = .create }
+                            .padding(.horizontal, S8KSpace.xl).padding(.top, 4)
+                    } else {
+                        VStack(spacing: 10) {
+                            actionCard(L("app.locked_cats"), L("pc.locked_cats.sub"), "lock.rectangle.stack.fill") { step = .lockedCats }
+                            actionCard(L("pc.change_pin"), L("pc.change_pin.sub"), "key.fill") { step = .changeVerify }
+                            actionCard(L("pc.disable"), L("pc.disable.sub"), "lock.open.fill", danger: true) { step = .disable }
+                        }
+                        .padding(.horizontal, S8KSpace.xl).padding(.top, 4)
+                    }
+                    Color.clear.frame(height: 30)
                 }
-                .background(Color.s8kSurface)
-                .clipShape(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous)
-                    .strokeBorder(Color.s8kBorder, lineWidth: 1))
-                .padding(.horizontal, S8KSpace.xl)
             }
-            Spacer()
         }
     }
 
-    private func optionRow(_ title: String, _ icon: String, danger: Bool = false, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: icon).font(.system(size: 15))
-                    .foregroundColor(danger ? .s8kRed : .s8kTextSecondary).frame(width: 26)
-                Text(title).font(S8KFont.callout.weight(.semibold))
-                    .foregroundColor(danger ? .s8kRed : .s8kTextPrimary)
-                Spacer()
-                Image(systemName: "chevron.left").font(.system(size: 12)).foregroundColor(.s8kTextDisabled)
+    private func actionCard(_ title: String, _ subtitle: String, _ icon: String,
+                            danger: Bool = false, action: @escaping () -> Void) -> some View {
+        let tint = danger ? Color.s8kRed : Color.s8kGoldMid
+        return Button(action: action) {
+            HStack(spacing: 14) {
+                Image(systemName: "chevron.left").font(.system(size: 13, weight: .semibold)).foregroundColor(.s8kTextDisabled)
+                Spacer(minLength: 8)
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text(title).font(S8KFont.headline).foregroundColor(danger ? .s8kRed : .s8kTextPrimary).lineLimit(1)
+                    Text(subtitle).font(S8KFont.caption1).foregroundColor(.s8kTextTertiary).lineLimit(1)
+                }
+                ZStack {
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .fill(tint.opacity(0.14)).frame(width: 42, height: 42)
+                        .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).strokeBorder(tint.opacity(0.30), lineWidth: 1))
+                    Image(systemName: icon).font(.system(size: 18, weight: .semibold)).foregroundColor(tint)
+                }
             }
-            .padding(.horizontal, S8KSpace.lg).padding(.vertical, 15)
+            .padding(.horizontal, 16).padding(.vertical, 14)
+            .frame(maxWidth: .infinity)
+            .background(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous).fill(Color.white.opacity(0.05)))
+            .overlay(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous)
+                .strokeBorder(danger ? Color.s8kRed.opacity(0.2) : Color.white.opacity(0.08), lineWidth: 1))
+            .contentShape(Rectangle())
         }
         .buttonStyle(S8KButtonStyle())
     }
