@@ -160,6 +160,18 @@ enum L10n {
         "set.app.sub":[.ar: "اللغة · التنزيلات · الإشعارات", .en: "Language · Downloads · Notifications", .fr: "Langue · Téléchargements · Notifications", .tr: "Dil · İndirmeler · Bildirimler", .es: "Idioma · Descargas · Notificaciones"],
         "set.about.sub":[.ar: "الإصدار · الدعم · الخصوصية · الشروط", .en: "Version · Support · Privacy · Terms", .fr: "Version · Support · Confidentialité", .tr: "Sürüm · Destek · Gizlilik", .es: "Versión · Soporte · Privacidad"],
         "reorder.sub":[.ar: "رتّب أقسام الأفلام والمسلسلات والقنوات", .en: "Arrange movies, series & channel rows", .fr: "Organiser films, séries et chaînes", .tr: "Film, dizi ve kanalları düzenle", .es: "Organizar películas, series y canales"],
+        "diag.engine.title":[.ar: "تشخيص محرّك التشغيل", .en: "Playback Engine Diagnostics", .fr: "Diagnostic du moteur", .tr: "Oynatıcı Tanılama", .es: "Diagnóstico del motor"],
+        "diag.engine.memory":[.ar: "الذاكرة", .en: "Memory", .fr: "Mémoire", .tr: "Bellek", .es: "Memoria"],
+        "diag.engine.usage":[.ar: "الاستخدام", .en: "Usage", .fr: "Utilisation", .tr: "Kullanım", .es: "Uso"],
+        "diag.engine.health":[.ar: "الأداء", .en: "Health", .fr: "Santé", .tr: "Sağlık", .es: "Estado"],
+        "diag.remembered":[.ar: "عناصر محفوظة", .en: "Remembered items", .fr: "Éléments mémorisés", .tr: "Hatırlanan öğeler", .es: "Elementos recordados"],
+        "diag.opens":[.ar: "عمليات الفتح", .en: "Opens", .fr: "Ouvertures", .tr: "Açılışlar", .es: "Aperturas"],
+        "diag.from_cache":[.ar: "فُتحت من الذاكرة", .en: "Opened from memory", .fr: "Ouvert depuis la mémoire", .tr: "Bellekten açıldı", .es: "Abierto desde memoria"],
+        "diag.default_route":[.ar: "توجيه افتراضي", .en: "Default-routed", .fr: "Routage par défaut", .tr: "Varsayılan yönlendirme", .es: "Enrutado por defecto"],
+        "diag.forced":[.ar: "باختيار المستخدم", .en: "User-forced", .fr: "Forcé par l'utilisateur", .tr: "Kullanıcı seçti", .es: "Forzado por usuario"],
+        "diag.stable_plays":[.ar: "تشغيل مستقرّ ناجح", .en: "Stable successful plays", .fr: "Lectures stables réussies", .tr: "Kararlı başarılı oynatma", .es: "Reproducciones estables"],
+        "diag.failovers":[.ar: "تبديل تلقائي للمحرّك", .en: "Auto engine switches", .fr: "Changements auto de moteur", .tr: "Otomatik motor değişimi", .es: "Cambios automáticos de motor"],
+        "diag.reset":[.ar: "تصفير العدّادات", .en: "Reset counters", .fr: "Réinitialiser", .tr: "Sayaçları sıfırla", .es: "Restablecer contadores"],
         "set.device_copied":[.ar: "تم نسخ معرّف الجهاز", .en: "Device ID copied", .fr: "Identifiant copié", .tr: "Cihaz kimliği kopyalandı", .es: "ID de dispositivo copiado"],
 
         // Detail

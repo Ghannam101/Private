@@ -352,6 +352,7 @@ struct SetConnectionPage: View {
     @StateObject private var activation = ActivationService.shared
     @State private var idCopied = false
     @State private var showPlaylists = false
+    @State private var showEngineStats = false
 
     private var serverHost: String? {
         if auth.mode == .m3u { return Store.shared.m3uURL }
@@ -380,9 +381,12 @@ struct SetConnectionPage: View {
                             .foregroundColor(.s8kTextTertiary).lineLimit(1)
                     })
                 }.buttonStyle(S8KButtonStyle())
+                SetUI.divider()
+                SetUI.navRow(icon: "chart.bar.xaxis", title: L("diag.engine.title"), chevron: true) { showEngineStats = true }
             }
         }
         .sheet(isPresented: $showPlaylists) { PlaylistsView() }
+        .sheet(isPresented: $showEngineStats) { NavigationStack { EngineStatsView() } }
     }
 
     private func copyDeviceID() {
@@ -514,6 +518,61 @@ struct SetAboutPage: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: showDeleteAlert)
+    }
+}
+
+// ============================================================
+// MARK: - Playback-engine diagnostics — numeric PROOF of the routing brain
+// Reads the persistent EngineStats counters + the EngineDecisionCache summary so
+// the owner can verify (with numbers, not impressions) that the memory is being
+// populated, that opens are served from it, and that failovers trend down.
+// ============================================================
+struct EngineStatsView: View {
+    @State private var s = EngineStats.shared.snapshot
+    @State private var cache = EngineDecisionCache.shared.summary()
+
+    var body: some View {
+        SetScaffold(title: L("diag.engine.title")) {
+            SetUI.group(L("diag.engine.memory")) {
+                statRow(L("diag.remembered"), "\(cache.total)")
+                SetUI.divider(); statRow("AVPlayer", "\(cache.av)")
+                SetUI.divider(); statRow("VLC", "\(cache.vlc)")
+            }
+            SetUI.group(L("diag.engine.usage")) {
+                statRow(L("diag.opens"), "\(s.opens)")
+                SetUI.divider(); statRow(L("diag.from_cache"), "\(s.cacheHits)  ·  \(pct(EngineStats.shared.hitRate))")
+                SetUI.divider(); statRow(L("diag.default_route"), "\(s.cacheMisses)")
+                SetUI.divider(); statRow(L("diag.forced"), "\(s.forced)")
+            }
+            SetUI.group(L("diag.engine.health")) {
+                statRow(L("diag.stable_plays"), "\(s.records)  ·  AV \(s.avGood) / VLC \(s.vlcGood)")
+                SetUI.divider(); statRow(L("diag.failovers"), "\(s.failovers)  ·  \(pct(EngineStats.shared.failoverRate))")
+            }
+            Button(action: { EngineStats.shared.reset(); refresh() }) {
+                Text(L("diag.reset")).font(S8KFont.callout.weight(.semibold)).foregroundColor(.s8kGoldMid)
+                    .frame(maxWidth: .infinity).padding(.vertical, 13)
+                    .background(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous).fill(Color.s8kGoldMid.opacity(0.10)))
+                    .overlay(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous).strokeBorder(Color.s8kBorderGold, lineWidth: 1))
+            }
+            .buttonStyle(S8KButtonStyle())
+            .padding(.horizontal, S8KSpace.xl)
+        }
+        .onAppear { refresh() }
+    }
+
+    private func refresh() {
+        s = EngineStats.shared.snapshot
+        cache = EngineDecisionCache.shared.summary()
+    }
+    private func pct(_ v: Double) -> String { "\(Int((v * 100).rounded()))%" }
+
+    private func statRow(_ title: String, _ value: String) -> some View {
+        HStack(spacing: 12) {
+            Text(value).font(.system(size: 13, weight: .bold, design: .monospaced)).foregroundColor(.s8kGoldMid).lineLimit(1)
+            Spacer(minLength: 8)
+            Text(title).font(S8KFont.callout.weight(.semibold)).foregroundColor(.s8kTextPrimary).lineLimit(1)
+        }
+        .padding(.horizontal, S8KSpace.lg).padding(.vertical, 14)
     }
 }
 

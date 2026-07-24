@@ -267,6 +267,7 @@ struct PlayerEngineView: View {
         if !engineRecorded, t > 2, vm.errorMsg == nil {
             engineRecorded = true
             EngineDecisionCache.shared.record(engine, for: currentItem)
+            EngineStats.shared.noteRecord(engine)
         }
         guard Store.shared.autoPlayNext, !nextCancelled,
               nextEpisode != nil, vm.duration > 30 else { return }
@@ -516,6 +517,7 @@ struct PlayerEngineView: View {
         .onChange(of: vm.errorMsg) { _, msg in
             if msg != nil, canFallback, !didReportFailure {
                 didReportFailure = true
+                EngineStats.shared.noteFailover()
                 onEngineFailed(currentItem)
             }
         }

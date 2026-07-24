@@ -27,6 +27,7 @@
 		1A1A1A1A000000000000E001 /* Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1A1A1A000000000000E002 /* Diagnostics.swift */; };
 		1A1A1A1A000000000000F001 /* StreamRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1A1A1A000000000000F002 /* StreamRouter.swift */; };
 		1A1A1A1A000000000000F003 /* EngineDecisionCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1A1A1A000000000000F004 /* EngineDecisionCache.swift */; };
+		1A1A1A1A000000000000F005 /* EngineStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1A1A1A000000000000F006 /* EngineStats.swift */; };
 		9CF0B3FC092447CF884B9686 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EBF265EBFBBB4C56A4DB1667 /* Assets.xcassets */; };
 		1A1A1A1A000000000000B001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1A1A1A1A000000000000B002 /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
@@ -51,6 +52,7 @@
 		1A1A1A1A000000000000D002 /* Downloads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Downloads.swift; sourceTree = "<group>"; };
 		1A1A1A1A000000000000F002 /* StreamRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamRouter.swift; sourceTree = "<group>"; };
 		1A1A1A1A000000000000F004 /* EngineDecisionCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineDecisionCache.swift; sourceTree = "<group>"; };
+		1A1A1A1A000000000000F006 /* EngineStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineStats.swift; sourceTree = "<group>"; };
 		1A1A1A1A000000000000E002 /* Diagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diagnostics.swift; sourceTree = "<group>"; };
 		AA00INFO00PLIST00000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		EBF265EBFBBB4C56A4DB1667 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -108,6 +110,7 @@
 				1A1A1A1A000000000000E002 /* Diagnostics.swift */,
 				1A1A1A1A000000000000F002 /* StreamRouter.swift */,
 				1A1A1A1A000000000000F004 /* EngineDecisionCache.swift */,
+				1A1A1A1A000000000000F006 /* EngineStats.swift */,
 				EBF265EBFBBB4C56A4DB1667 /* Assets.xcassets */,
 				1A1A1A1A000000000000B002 /* PrivacyInfo.xcprivacy */,
 				AA00INFO00PLIST00000001 /* Info.plist */,
@@ -206,6 +209,7 @@
 				1A1A1A1A000000000000E001 /* Diagnostics.swift in Sources */,
 				1A1A1A1A000000000000F001 /* StreamRouter.swift in Sources */,
 				1A1A1A1A000000000000F003 /* EngineDecisionCache.swift in Sources */,
+				1A1A1A1A000000000000F005 /* EngineStats.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

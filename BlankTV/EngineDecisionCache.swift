@@ -52,4 +52,13 @@ final class EngineDecisionCache {
             UserDefaults.standard.set(data, forKey: key)
         }
     }
+
+    /// Current remembered set, for the diagnostics panel: total + per-engine counts.
+    func summary() -> (total: Int, av: Int, vlc: Int) {
+        var av = 0, vlc = 0
+        for e in entries {
+            if e.engine == "av" { av += 1 } else if e.engine == "vlc" { vlc += 1 }
+        }
+        return (entries.count, av, vlc)
+    }
 }

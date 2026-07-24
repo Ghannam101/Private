@@ -696,10 +696,13 @@ enum PlayerEngineSelector {
     ///  3) the StreamRouter default (reliability-first: HLS → AVPlayer, else VLC).
     static func initialKind(for item: ContentItem) -> PlayerEngineKind {
         switch Store.shared.playerEnginePref {
-        case "av":  return .av
-        case "vlc": return .vlc
+        case "av":  EngineStats.shared.noteDecision(.forced); return .av
+        case "vlc": EngineStats.shared.noteDecision(.forced); return .vlc
         default:
-            if let cached = EngineDecisionCache.shared.lastGood(for: item) { return cached }
+            if let cached = EngineDecisionCache.shared.lastGood(for: item) {
+                EngineStats.shared.noteDecision(.cache); return cached
+            }
+            EngineStats.shared.noteDecision(.defaultRoute)
             return StreamRouter.defaultEngine(for: item)
         }
     }
