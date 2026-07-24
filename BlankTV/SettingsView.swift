@@ -128,43 +128,52 @@ struct SettingsView: View {
             .padding(.bottom, S8KSpace.xl)
     }
 
-    // MARK: - Profile Card
+    // MARK: - Profile header (centered hero — distinct from the reference's
+    // left-aligned gold card). Avatar · name · live status · plan chip, over a
+    // soft lime top-glow. Centered, so it reads the same in any language.
+    private var displayName: String {
+        auth.user?.username ?? (auth.mode == .m3u ? L("settings.m3u_list") : L("settings.user"))
+    }
+    private var initials: String { String((auth.user?.username.prefix(2) ?? "BT").uppercased()) }
+    private var planText: String { (auth.user?.plan ?? (auth.mode == .m3u ? "M3U" : "basic")).uppercased() }
+
     private var profileCard: some View {
-        HStack(spacing: S8KSpace.lg) {
+        VStack(spacing: 12) {
             ZStack {
-                S8KGradient.goldFlat
-                    .frame(width: 64, height: 64)
-                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous))
-                    .shadow(color: .s8kGoldMid.opacity(0.45), radius: 10, y: 3)
-                Text(String((auth.user?.username.prefix(2) ?? "BT").uppercased()))
-                    .font(.system(size: 22, weight: .black))
-                    .foregroundColor(.s8kBlack)
+                Circle().fill(S8KGradient.goldFlat)
+                    .frame(width: 78, height: 78)
+                    .shadow(color: .s8kGoldMid.opacity(0.40), radius: 16, y: 5)
+                Text(initials).font(.system(size: 27, weight: .black)).foregroundColor(.s8kBlack)
             }
-            VStack(alignment: .trailing, spacing: 6) {
-                Text(auth.user?.username ?? (auth.mode == .m3u ? L("settings.m3u_list") : L("settings.user")))
-                    .font(.system(size: 20, weight: .black))
-                    .foregroundColor(.s8kTextPrimary)
-                    .lineLimit(1)
-                HStack(spacing: 5) {
-                    Circle().fill(Color.s8kGreen).frame(width: 6, height: 6)
-                    Text("\(L("common.connected")) — \(theme.serverName)")
-                        .font(S8KFont.caption1)
-                        .foregroundColor(.s8kGoldHigh)
-                        .lineLimit(1)
-                }
+            .overlay(alignment: .bottomTrailing) {
+                Circle().fill(Color.s8kGreen).frame(width: 15, height: 15)
+                    .overlay(Circle().strokeBorder(Color.s8kCard, lineWidth: 3))
+                    .offset(x: 2, y: 2)
             }
-            Spacer()
-            Text((auth.user?.plan ?? (auth.mode == .m3u ? "M3U" : "basic")).uppercased())
-                .font(S8KFont.caption3.weight(.heavy))
-                .foregroundColor(.s8kBlack)
-                .padding(.horizontal, 11).padding(.vertical, 6)
-                .background(S8KGradient.goldFlat)
-                .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
-                .shadow(color: .s8kGoldMid.opacity(0.4), radius: 6)
+            Text(displayName)
+                .font(.system(size: 22, weight: .black)).foregroundColor(.s8kTextPrimary)
+                .lineLimit(1)
+            HStack(spacing: 6) {
+                Text(planText)
+                    .font(S8KFont.caption3.weight(.heavy)).foregroundColor(.s8kBlack)
+                    .padding(.horizontal, 10).padding(.vertical, 4)
+                    .background(S8KGradient.goldFlat).clipShape(Capsule())
+                Text("\(L("common.connected")) · \(theme.serverName)")
+                    .font(S8KFont.caption1).foregroundColor(.s8kTextTertiary).lineLimit(1)
+            }
         }
-        .padding(S8KSpace.lg)
-        .background(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous).fill(Color.s8kCard))
-        .overlay(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 26).padding(.bottom, 22).padding(.horizontal, S8KSpace.lg)
+        .background(
+            RoundedRectangle(cornerRadius: S8KRadius.xl, style: .continuous)
+                .fill(Color.s8kCard)
+                .overlay(
+                    LinearGradient(colors: [.s8kGoldMid.opacity(0.12), .clear],
+                                   startPoint: .top, endPoint: .center)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: S8KRadius.xl, style: .continuous))
+        )
+        .overlay(RoundedRectangle(cornerRadius: S8KRadius.xl, style: .continuous)
             .strokeBorder(Color.s8kBorder, lineWidth: 1))
         .padding(.horizontal, S8KSpace.xl)
         .padding(.bottom, S8KSpace.lg)
@@ -256,14 +265,14 @@ struct SettingsView: View {
                 }
             } label: {
                 HStack(spacing: 12) {
-                    iconBox(.s8kGreen, icon: "globe")
-                    Text(L("settings.language")).font(S8KFont.callout.weight(.semibold)).foregroundColor(.s8kTextPrimary)
-                    Spacer()
-                    Text(loc.lang.display).font(S8KFont.callout).foregroundColor(.s8kTextTertiary)
                     Image(systemName: "chevron.up.chevron.down").font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.s8kTextDisabled)
+                    Text(loc.lang.display).font(S8KFont.callout).foregroundColor(.s8kTextTertiary)
+                    Spacer()
+                    Text(L("settings.language")).font(S8KFont.callout.weight(.semibold)).foregroundColor(.s8kTextPrimary)
+                    iconBox(.s8kTextSecondary, icon: "globe")
                 }
-                .padding(.horizontal, S8KSpace.lg).padding(.vertical, 14)
+                .padding(.horizontal, S8KSpace.lg).padding(.vertical, 15)
             }
             divider()
             toggleRow(icon: "bell.badge.fill", color: .s8kOrange,
@@ -328,7 +337,7 @@ struct SettingsView: View {
             // APPLE REQUIRED: Delete Account
             Button(action: { showDeleteAlert = true }) {
                 HStack(spacing: 12) {
-                    iconBox(.s8kRed, icon: "person.crop.circle.badge.minus")
+                    Spacer()
                     VStack(alignment: .trailing, spacing: 2) {
                         Text(L("set.delete"))
                             .font(S8KFont.callout.weight(.semibold))
@@ -337,7 +346,7 @@ struct SettingsView: View {
                             .font(S8KFont.caption2)
                             .foregroundColor(Color.s8kRed.opacity(0.5))
                     }
-                    Spacer()
+                    iconBox(.s8kRed, icon: "person.crop.circle.badge.minus")
                 }
                 .padding(.horizontal, S8KSpace.lg).padding(.vertical, 14)
             }
@@ -427,21 +436,21 @@ struct SettingsView: View {
                 }
             } label: {
                 HStack(spacing: 12) {
-                    iconBox(.s8kTextSecondary, icon: icon)
-                    Text(label)
-                        .font(S8KFont.callout.weight(.bold))
-                        .foregroundColor(.s8kTextPrimary)
-                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(isOpen ? .s8kGoldMid : .s8kTextDisabled)
+                        .rotationEffect(.degrees(isOpen ? 180 : 0))
                     if !summary.isEmpty && !isOpen {
                         Text(summary)
                             .font(S8KFont.caption1)
                             .foregroundColor(.s8kTextTertiary)
                             .lineLimit(1)
                     }
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(isOpen ? .s8kGoldMid : .s8kTextDisabled)
-                        .rotationEffect(.degrees(isOpen ? 180 : 0))
+                    Spacer(minLength: 8)
+                    Text(label)
+                        .font(S8KFont.callout.weight(.bold))
+                        .foregroundColor(.s8kTextPrimary)
+                    iconBox(.s8kTextSecondary, icon: icon)
                 }
                 .padding(.horizontal, S8KSpace.lg)
                 .padding(.vertical, 16)
@@ -482,7 +491,9 @@ struct SettingsView: View {
         if let host = currentServerHost {
             divider()
             HStack(spacing: 12) {
-                iconBox(.s8kTextSecondary, icon: "server.rack")
+                Circle().fill(Color.s8kGreen).frame(width: 8, height: 8)
+                    .shadow(color: .s8kGreen.opacity(0.5), radius: 4)
+                Spacer(minLength: 8)
                 VStack(alignment: .trailing, spacing: 3) {
                     Text(L("common.connected"))
                         .font(S8KFont.callout.weight(.semibold))
@@ -492,9 +503,7 @@ struct SettingsView: View {
                         .foregroundColor(.s8kTextDisabled)
                         .lineLimit(1)
                 }
-                Spacer(minLength: 8)
-                Circle().fill(Color.s8kGreen).frame(width: 8, height: 8)
-                    .shadow(color: .s8kGreen.opacity(0.5), radius: 4)
+                iconBox(.s8kTextSecondary, icon: "server.rack")
             }
             .padding(.horizontal, S8KSpace.lg).padding(.vertical, 14)
         }
@@ -502,15 +511,15 @@ struct SettingsView: View {
         divider()
         Button(action: copyDeviceID) {
             HStack(spacing: 12) {
-                iconBox(.s8kTextSecondary, icon: idCopied ? "checkmark.circle.fill" : "doc.on.doc")
-                Text(L("settings.device_id"))
-                    .font(S8KFont.callout.weight(.semibold))
-                    .foregroundColor(.s8kTextPrimary)
-                Spacer(minLength: 8)
                 Text(activation.deviceID)
                     .font(.system(size: 12, weight: .bold, design: .monospaced))
                     .foregroundColor(.s8kTextTertiary)
                     .lineLimit(1)
+                Spacer(minLength: 8)
+                Text(L("settings.device_id"))
+                    .font(S8KFont.callout.weight(.semibold))
+                    .foregroundColor(.s8kTextPrimary)
+                iconBox(.s8kTextSecondary, icon: idCopied ? "checkmark.circle.fill" : "doc.on.doc")
             }
             .padding(.horizontal, S8KSpace.lg).padding(.vertical, 14)
             .contentShape(Rectangle())
@@ -537,43 +546,47 @@ struct SettingsView: View {
         }
     }
 
+    // Arabic-natural row: disclosure chevron + value on the LEFT, title + icon tile
+    // on the RIGHT. One row shape for the whole page → no more mixed alignment.
     private func row(icon: String, color: Color = .s8kTextSecondary, title: String, value: String = "",
                      hasChevron: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                iconBox(color, icon: icon)
-                Text(title).font(S8KFont.callout.weight(.semibold)).foregroundColor(.s8kTextPrimary)
-                Spacer()
-                if !value.isEmpty {
-                    Text(value).font(S8KFont.callout).foregroundColor(.s8kTextTertiary)
-                }
                 if hasChevron {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.s8kTextDisabled)
                 }
+                if !value.isEmpty {
+                    Text(value).font(S8KFont.callout).foregroundColor(.s8kTextTertiary).lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                Text(title).font(S8KFont.callout.weight(.semibold)).foregroundColor(.s8kTextPrimary)
+                    .lineLimit(1)
+                iconBox(color, icon: icon)
             }
-            .padding(.horizontal, S8KSpace.lg).padding(.vertical, 14)
+            .padding(.horizontal, S8KSpace.lg).padding(.vertical, 15)
             .contentShape(Rectangle())   // whole row tappable, not just the text
         }
         .buttonStyle(S8KButtonStyle())
     }
 
+    // Arabic-natural toggle: switch on the LEFT, title + description right-aligned,
+    // icon tile on the RIGHT — same rhythm as row().
     private func toggleRow(icon: String, color: Color = .s8kTextSecondary, title: String,
                            desc: String, isOn: Binding<Bool>) -> some View {
         HStack(spacing: 12) {
-            iconBox(color, icon: icon)
-            // .leading so the title sits right after the icon exactly like row(),
-            // keeping every settings row's title on the same alignment.
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(S8KFont.callout.weight(.semibold)).foregroundColor(.s8kTextPrimary)
-                Text(desc).font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 12)
             Toggle("", isOn: isOn)
                 .toggleStyle(SwitchToggleStyle(tint: .s8kGoldMid))
                 .labelsHidden()
+            Spacer(minLength: 12)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(title).font(S8KFont.callout.weight(.semibold)).foregroundColor(.s8kTextPrimary)
+                Text(desc).font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
+                    .multilineTextAlignment(.trailing)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            iconBox(color, icon: icon)
         }
         .padding(.horizontal, S8KSpace.lg).padding(.vertical, 14)
     }
