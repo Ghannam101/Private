@@ -129,6 +129,17 @@ enum CatalogDB {
                 )
                 """)
         }
+        // Perceived-instant images: a ~25-byte ThumbHash per image URL, so a blurred
+        // structure-preserving placeholder paints instantly on the next cold start,
+        // before the real poster/logo downloads. Keyed by URL (global, NOT per-scope —
+        // the same poster reused across lines shares one hash). Additive migration.
+        m.registerMigration("v2_imagehash") { db in
+            try db.create(table: "image_hash") { t in
+                t.column("url", .text).primaryKey()
+                t.column("hash", .blob).notNull()
+                t.column("savedAt", .double).notNull()
+            }
+        }
         return m
     }
 
@@ -312,5 +323,29 @@ enum CatalogDB {
                                arguments: [scope, Date().timeIntervalSince1970])
             }
         } catch { print("CatalogDB save failed:", error) }
+    }
+
+    // MARK: - Image ThumbHash cache (perceived-instant poster/logo placeholders)
+    /// The stored ThumbHash bytes for an image URL, or nil if not encoded yet.
+    static func imageHash(_ url: String) -> Data? {
+        guard let q = dbQueue else { return nil }
+        return (try? q.read { db in
+            try Data.fetchOne(db, sql: "SELECT hash FROM image_hash WHERE url = ?", arguments: [url])
+        }) ?? nil
+    }
+    /// Fast existence check (skip the ~1-2ms re-encode when a URL is already hashed).
+    static func hasImageHash(_ url: String) -> Bool {
+        guard let q = dbQueue else { return false }
+        return (try? q.read { db in
+            try Int.fetchOne(db, sql: "SELECT 1 FROM image_hash WHERE url = ? LIMIT 1", arguments: [url]) != nil
+        }) ?? false
+    }
+    /// Persist (or replace) the ThumbHash for an image URL. Tiny (~25-byte) write.
+    static func saveImageHash(_ url: String, _ hash: Data) {
+        guard let q = dbQueue else { return }
+        try? q.write { db in
+            try db.execute(sql: "INSERT OR REPLACE INTO image_hash (url, hash, savedAt) VALUES (?, ?, ?)",
+                           arguments: [url, hash, Date().timeIntervalSince1970])
+        }
     }
 }
