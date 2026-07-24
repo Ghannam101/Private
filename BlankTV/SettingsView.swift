@@ -638,10 +638,16 @@ struct SettingsProV2: View {
     @State private var showLogoutAlert = false
     @State private var showDeleteAlert = false
 
+    @State private var showAccounts = false
+    // Name shown in the hero — the account's custom name (NOT the "قائمة m3u"
+    // placeholder the owner asked to remove); falls back to the Xtream username.
     private var displayName: String {
-        auth.user?.username ?? (auth.mode == .m3u ? L("settings.m3u_list") : L("settings.user"))
+        let id = Store.shared.activePlaylistID
+        if let p = Store.shared.savedPlaylists.first(where: { $0.id == id }), !p.name.isEmpty { return p.name }
+        if let u = auth.user?.username, !u.isEmpty { return u }
+        return L("settings.user")
     }
-    private var initials: String { String((auth.user?.username.prefix(2) ?? "BT").uppercased()) }
+    private var initials: String { String(displayName.prefix(2).uppercased()) }
     private var planText: String { (auth.user?.plan ?? (auth.mode == .m3u ? "M3U" : "basic")).uppercased() }
     private var appVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0" }
     private var serverHost: String? {
@@ -703,6 +709,7 @@ struct SettingsProV2: View {
         .sheet(isPresented: $showParental) { ParentalControlView() }
         .sheet(isPresented: $showDownloads) { DownloadsView() }
         .sheet(isPresented: $showReorder) { UnifiedReorderView() }
+        .fullScreenCover(isPresented: $showAccounts) { AccountSwitcherView(onClose: { showAccounts = false }) }
     }
 
     // MARK: Cinematic profile header (full-bleed lime→black glow · avatar · name ·
@@ -732,11 +739,23 @@ struct SettingsProV2: View {
                             .font(S8KFont.caption1).foregroundColor(.s8kTextTertiary).lineLimit(1)
                     }
                 }
+                // Tap the whole header to open the account switcher.
+                HStack(spacing: 4) {
+                    Text(L("accounts.switch")).font(S8KFont.caption2.weight(.bold))
+                    Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
+                }
+                .foregroundColor(.s8kGoldMid)
+                .padding(.horizontal, 11).padding(.vertical, 5)
+                .background(Capsule().fill(Color.s8kGoldMid.opacity(0.12)))
+                .overlay(Capsule().strokeBorder(Color.s8kBorderGold, lineWidth: 1))
+                .padding(.top, 4)
             }
             .padding(.bottom, 26)
         }
         .frame(height: 250)
         .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        .onTapGesture { showAccounts = true }
     }
 
     // MARK: Grouped cards
@@ -964,6 +983,131 @@ struct SettingsProV2: View {
         UIPasteboard.general.string = activation.deviceID
         withAnimation { idCopied = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { withAnimation { idCopied = false } }
+    }
+}
+
+// ============================================================
+// MARK: - Account switcher (Netflix-profile style, opened from the hero)
+// A grid of profile avatars: the current account (highlighted) + the other saved
+// accounts (tap to switch) + a dashed "+" tile to add a new one (Xtream / M3U via
+// the existing LoginView). Each account name is editable (owner spec). Switching
+// reboots content (switchPlaylist → contentReady=false) which unmounts this cover.
+// ============================================================
+struct AccountSwitcherView: View {
+    var onClose: () -> Void
+    @StateObject private var auth = AuthService.shared
+    @State private var accounts: [SavedPlaylist] = Store.shared.savedPlaylists
+    @State private var showAdd = false
+    @State private var switching = false
+    @State private var renaming: SavedPlaylist? = nil
+    @State private var renameText = ""
+
+    private let cols = [GridItem(.adaptive(minimum: 118, maximum: 168), spacing: 20)]
+
+    var body: some View {
+        ZStack {
+            Color.s8kBlack.ignoresSafeArea()
+            RadialGradient(colors: [Color.s8kGoldMid.opacity(0.10), .clear],
+                           center: .top, startRadius: 0, endRadius: 420).ignoresSafeArea()
+            VStack(spacing: 0) {
+                HStack {
+                    Button { onClose() } label: {
+                        Image(systemName: "xmark").font(.system(size: 15, weight: .bold)).foregroundColor(.s8kTextSecondary)
+                            .frame(width: 38, height: 38).background(Circle().fill(Color.white.opacity(0.06)))
+                            .overlay(Circle().strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
+                    }.buttonStyle(S8KButtonStyle())
+                    Spacer()
+                    Text(L("accounts.title")).font(.system(size: 20, weight: .black)).foregroundColor(.s8kTextPrimary)
+                }
+                .padding(.horizontal, 20).padding(.top, 56).padding(.bottom, 26)
+
+                ScrollView(showsIndicators: false) {
+                    LazyVGrid(columns: cols, spacing: 26) {
+                        ForEach(accounts) { tile($0) }
+                        addTile
+                    }
+                    .padding(.horizontal, 24)
+                    Color.clear.frame(height: 40)
+                }
+            }
+            if switching {
+                ZStack { Color.black.opacity(0.55).ignoresSafeArea(); ProgressView().tint(.s8kGoldMid).scaleEffect(1.3) }
+            }
+        }
+        .sheet(isPresented: $showAdd, onDismiss: { accounts = Store.shared.savedPlaylists }) { LoginView() }
+        .alert(L("accounts.rename"), isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
+            TextField(L("accounts.name_ph"), text: $renameText)
+            Button(L("common.save")) { commitRename() }
+            Button(L("common.cancel"), role: .cancel) { renaming = nil }
+        }
+    }
+
+    private func tile(_ acc: SavedPlaylist) -> some View {
+        let isActive = acc.id == Store.shared.activePlaylistID
+        return VStack(spacing: 9) {
+            Button { if !isActive { switchTo(acc) } } label: {
+                ZStack {
+                    Circle().fill(S8KGradient.goldFlat).frame(width: 88, height: 88)
+                        .shadow(color: .s8kGoldMid.opacity(0.40), radius: 12, y: 4)
+                    Text(String(acc.name.prefix(2).uppercased()))
+                        .font(.system(size: 30, weight: .black)).foregroundColor(.s8kBlack)
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    Image(systemName: acc.kind == .m3u ? "link" : "person.badge.key.fill")
+                        .font(.system(size: 10, weight: .bold)).foregroundColor(.white)
+                        .frame(width: 26, height: 26)
+                        .background(Circle().fill(Color.s8kBlack))
+                        .overlay(Circle().strokeBorder(Color.s8kBorder, lineWidth: 1))
+                }
+                .padding(5)
+                .overlay(Circle().strokeBorder(isActive ? Color.s8kGoldHigh : Color.clear, lineWidth: 3))
+                .opacity(isActive ? 1 : 0.88)
+            }.buttonStyle(S8KButtonStyle())
+
+            Text(acc.name).font(S8KFont.subhead.weight(.bold)).foregroundColor(.s8kTextPrimary).lineLimit(1)
+            Text(isActive ? L("accounts.current") : (acc.kind == .m3u ? "M3U" : "Xtream"))
+                .font(S8KFont.caption2.weight(isActive ? .bold : .regular))
+                .foregroundColor(isActive ? .s8kGoldHigh : .s8kTextTertiary)
+            Button { renameText = acc.name; renaming = acc } label: {
+                Text(L("accounts.rename")).font(S8KFont.caption2)
+                    .foregroundColor(.s8kTextSecondary)
+                    .padding(.horizontal, 9).padding(.vertical, 3)
+                    .background(Capsule().fill(Color.white.opacity(0.06)))
+                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
+            }.buttonStyle(S8KButtonStyle())
+        }
+    }
+
+    private var addTile: some View {
+        VStack(spacing: 9) {
+            Button { showAdd = true } label: {
+                ZStack {
+                    Circle().fill(Color.white.opacity(0.04)).frame(width: 88, height: 88)
+                        .overlay(Circle().strokeBorder(Color.s8kBorderGold, style: StrokeStyle(lineWidth: 2, dash: [6, 5])))
+                    Image(systemName: "plus").font(.system(size: 32, weight: .bold)).foregroundColor(.s8kGoldMid)
+                }.padding(5)
+            }.buttonStyle(S8KButtonStyle())
+            Text(L("accounts.add")).font(S8KFont.subhead.weight(.bold)).foregroundColor(.s8kTextPrimary)
+            Text("Xtream · M3U").font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
+            Color.clear.frame(height: 22)   // align with the rename row height
+        }
+    }
+
+    private func switchTo(_ acc: SavedPlaylist) {
+        switching = true
+        Task { await auth.switchPlaylist(acc); switching = false; onClose() }
+    }
+    private func commitRename() {
+        guard let acc = renaming else { return }
+        let name = renameText.trimmingCharacters(in: .whitespaces)
+        renaming = nil
+        guard !name.isEmpty else { return }
+        var list = Store.shared.savedPlaylists
+        if let i = list.firstIndex(where: { $0.id == acc.id }) {
+            list[i].name = name
+            Store.shared.savedPlaylists = list
+            accounts = list
+        }
     }
 }
 
