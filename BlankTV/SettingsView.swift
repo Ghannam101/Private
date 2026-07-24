@@ -36,6 +36,7 @@ struct SettingsView: View {
     @State private var showAbout        = false
     @State private var showPlaylists    = false
     @State private var showDownloads    = false
+    @State private var showReorder      = false   // unified content organizer (#7)
     /// Which accordion sections are expanded (all collapsed on open for a clean,
     /// compact page). Keyed by the section id passed to `section(_:)`.
     @State private var openSections: Set<String> = []
@@ -102,6 +103,7 @@ struct SettingsView: View {
         .sheet(isPresented: $showPlaylists) { PlaylistsView() }
         .sheet(isPresented: $showParental) { ParentalControlView() }
         .sheet(isPresented: $showDownloads) { DownloadsView() }
+        .sheet(isPresented: $showReorder) { UnifiedReorderView() }
     }
 
     // Active playlist/account name — shown in the connection row + section summary.
@@ -267,6 +269,10 @@ struct SettingsView: View {
             toggleRow(icon: "bell.badge.fill", color: .s8kOrange,
                       title: L("set.notifications"), desc: L("app.notif.desc"), isOn: $notifOn)
                 .onChange(of: notifOn) { _, newValue in Store.shared.notificationsEnabled = newValue }
+            divider()
+            // Unified content organizer (owner #7) — Movies/Series/Live in one place.
+            row(icon: "arrow.up.arrow.down.circle.fill", color: .s8kGoldMid, title: L("reorder.manage"),
+                hasChevron: true) { showReorder = true }
             divider()
             // Offline downloads management
             row(icon: "arrow.down.circle.fill", color: .s8kGreen, title: L("set.downloads"),

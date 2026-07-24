@@ -799,11 +799,80 @@ struct ContentTitleBar: View {
 // sits below with a + to add it. Only the user's explicit arrangement is saved,
 // so a new user keeps the provider's default order (Store.orderedCategories).
 // Persists per playlist across relaunch / logout.
+// MARK: - Unified reorder page (owner #7)
+// One place — reached from Settings — to organize ALL sections: a segmented
+// Movies / Series / Live picker over the shared embedded reorder view. Each
+// section auto-saves and carries the region quick-sort presets.
+struct UnifiedReorderView: View {
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var movies = MoviesVM.shared
+    @StateObject private var series = SeriesVM.shared
+    @StateObject private var live   = LiveTVVM.shared
+    @State private var section: Sect = .movies
+
+    enum Sect: String, CaseIterable, Identifiable {
+        case movies, series, live
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .movies: return L("title.movies")
+            case .series: return L("title.series")
+            case .live:   return L("title.live")
+            }
+        }
+    }
+
+    private var cats: [Category] {
+        switch section {
+        case .movies: return movies.folders
+        case .series: return series.folders
+        case .live:   return live.folders
+        }
+    }
+    private func notifyVM() {
+        switch section {
+        case .movies: movies.objectWillChange.send()
+        case .series: series.objectWillChange.send()
+        case .live:   live.objectWillChange.send()
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.s8kBlack.ignoresSafeArea()
+                VStack(spacing: 0) {
+                    Picker("", selection: $section) {
+                        ForEach(Sect.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, S8KSpace.xl)
+                    .padding(.top, S8KSpace.md).padding(.bottom, S8KSpace.sm)
+
+                    CategoryReorderView(title: "", categories: cats, section: section.rawValue,
+                                        onSaved: { notifyVM() }, embedded: true)
+                        .id(section)   // fresh state per section → loads that section's saved order
+                }
+            }
+            .navigationTitle(L("reorder.manage"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(L("common.close")) { dismiss() }
+                        .foregroundColor(.s8kGoldMid).fontWeight(.bold)
+                }
+            }
+            .task { await movies.load(); await series.load(); await live.load() }
+        }
+    }
+}
+
 struct CategoryReorderView: View {
     let title: String
     let categories: [Category]     // current display order
     let section: String            // "live" | "movies" | "series"
     var onSaved: () -> Void = {}   // parent notifies its VM so folders refresh instantly
+    var embedded: Bool = false     // inside the unified reorder page: no nav chrome, auto-save
     @Environment(\.dismiss) private var dismiss
     @State private var picked: [String] = []
     @State private var searchText = ""
@@ -832,11 +901,66 @@ struct CategoryReorderView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.s8kBlack.ignoresSafeArea()
-                GeometryReader { geo in
+        if embedded {
+            // Inside the unified reorder page: no nav chrome; changes auto-save so
+            // switching section tabs never loses the arrangement.
+            reorderBody
+                .onChange(of: picked) { _, p in Store.shared.setCategoryOrder(p, section); onSaved() }
+        } else {
+            NavigationStack {
+                reorderBody
+                    .navigationTitle(title)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button(L("common.cancel")) { dismiss() }.foregroundColor(.s8kTextSecondary)
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(L("common.save")) {
+                                Store.shared.setCategoryOrder(picked, section)
+                                onSaved(); dismiss()
+                            }
+                            .foregroundColor(.s8kGoldMid).fontWeight(.bold)
+                        }
+                    }
+            }
+        }
+    }
+
+    // Region quick-sort presets: one tap floats "your region" to the top; the user
+    // can still drag to fine-tune. Offline keyword classification (RegionClassifier).
+    private var presetBar: some View {
+        HStack(spacing: 8) {
+            Text(L("reorder.quick")).font(S8KFont.caption1.weight(.bold)).foregroundColor(.s8kTextSecondary)
+            Spacer()
+            ForEach(ContentRegion.allCases) { r in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        picked = RegionClassifier.presetOrder(categories, primary: r)
+                    }
+                    haptic.selectionChanged()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: r.icon).font(.system(size: 11, weight: .bold))
+                        Text(r.title).font(S8KFont.caption2.weight(.bold))
+                    }
+                    .foregroundColor(.s8kGoldMid)
+                    .padding(.horizontal, 10).padding(.vertical, 7)
+                    .background(Color.s8kGoldMid.opacity(0.10)).clipShape(Capsule())
+                    .overlay(Capsule().strokeBorder(Color.s8kBorderGold, lineWidth: 1))
+                }
+                .buttonStyle(S8KButtonStyle())
+            }
+        }
+        .padding(.horizontal, S8KSpace.xl).padding(.top, S8KSpace.sm).padding(.bottom, 2)
+    }
+
+    private var reorderBody: some View {
+        ZStack {
+            Color.s8kBlack.ignoresSafeArea()
+            GeometryReader { geo in
                 VStack(spacing: 0) {
+                    presetBar
                     // ── Your order — drag to reorder, swipe to remove ──
                     sectionHeader(L("reorder.your_order"), count: pickedCats.isEmpty ? nil : pickedCats.count)
                     Text(L("reorder.drag_hint"))
@@ -904,23 +1028,6 @@ struct CategoryReorderView: View {
                 .frame(width: geo.size.width, height: geo.size.height)
                 }
             }
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(L("common.cancel")) { dismiss() }.foregroundColor(.s8kTextSecondary)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(L("common.save")) {
-                        // Store ONLY the user's explicit arrangement (orderedCategories
-                        // keeps the rest in default order) — a new user sees nothing
-                        // arranged, a returning user sees exactly their own order.
-                        Store.shared.setCategoryOrder(picked, section)
-                        onSaved(); dismiss()
-                    }
-                    .foregroundColor(.s8kGoldMid).fontWeight(.bold)
-                }
-            }
             .onAppear {
                 guard !didLoad else { return }
                 didLoad = true
@@ -928,7 +1035,6 @@ struct CategoryReorderView: View {
                 // categories): empty for a new user, their own order for a returning one.
                 picked = Store.shared.categoryOrder(section).filter { id in categories.contains { $0.id == id } }
             }
-        }
     }
 
     private func sectionHeader(_ text: String, count: Int?) -> some View {

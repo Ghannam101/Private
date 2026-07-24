@@ -150,3 +150,58 @@ enum RailEngine {
         return joined.isEmpty ? raw.trimmingCharacters(in: .whitespacesAndNewlines) : joined
     }
 }
+
+// MARK: - Regional classifier (quick "Arabic / European / American" ordering)
+// Classifies a provider category by REGION from keyword rules — same offline,
+// metadata-free approach as RailEngine — so the unified reorder page can offer a
+// one-tap "put my region first" default. The user can still drag to fine-tune.
+enum ContentRegion: String, CaseIterable, Identifiable {
+    case arabic, european, american
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .arabic:   return L("region.arabic")
+        case .european: return L("region.european")
+        case .american: return L("region.american")
+        }
+    }
+    var icon: String {
+        switch self {
+        case .arabic:   return "moon.stars.fill"
+        case .european: return "globe.europe.africa.fill"
+        case .american: return "globe.americas.fill"
+        }
+    }
+}
+
+enum RegionClassifier {
+    private static let arabic: [String] = [
+        "عرب","arab","mbc","بين","bein","osn","شاهد","قنوات","سعود","ksa","saudi","مصر","egypt",
+        "uae","امارات","emirat","kuwait","الكويت","قطر","qatar","دبي","dubai","اردن","jordan",
+        "lebanon","لبنان","syria","سوري","iraq","عراق","maghreb","مغرب","tunis","تونس","algeri",
+        "جزائر","yemen","يمن","oman","عمان","bahrain","بحرين","sudan","سودان","libya","ليبيا",
+        "palestin","فلسطين","islam","اسلام","قران","quran","نايل","nile","روتانا","rotana","abudhabi","ابوظبي"]
+    private static let european: [String] = [
+        "uk","british","britain","bbc","itv","sky","germ","deutsch","france","french","canal",
+        "ital","spain","span","españ","dutch","holland","portug","poland","polski","turk","türk",
+        "greek","yunan","roman","serbia","croat","sweden","norway","denmark","finland","russia",
+        "ukrain","euro","albania","الماني","فرنس","ايطال","اسبان","برتغال","يونان","روسي","تركي","اوروب"]
+    private static let american: [String] = [
+        "usa","united states","america","hbo","espn","nbc"," abc","cbs","fox","disney","hulu",
+        "peacock","paramount","latino","latin","brazil","brasil","mexic","argentin","colombia",
+        "chile","peru","canada","canadian","امريك","لاتين","برازيل","مكسيك"]
+
+    static func region(for name: String) -> ContentRegion? {
+        let l = " " + name.lowercased() + " "
+        if arabic.contains(where: { l.contains($0) })   { return .arabic }
+        if american.contains(where: { l.contains($0) }) { return .american }
+        if european.contains(where: { l.contains($0) }) { return .european }
+        return nil
+    }
+
+    /// Category IDs for the chosen region, in their original order — the reorder
+    /// page floats these to the top (the rest stay in provider-default order).
+    static func presetOrder(_ cats: [Category], primary: ContentRegion) -> [String] {
+        cats.filter { region(for: $0.name) == primary }.map { $0.id }
+    }
+}
