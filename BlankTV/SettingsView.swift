@@ -650,12 +650,12 @@ struct SettingsProV2: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.s8kBlack.ignoresSafeArea()
-                ScrollView(showsIndicators: false) {
+        ZStack(alignment: .topLeading) {
+            Color.s8kBlack.ignoresSafeArea()
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 20) {
+                    hero   // cinematic, full-bleed under the notch
                     VStack(spacing: 20) {
-                        hero
                         connectionCard
                         playerCard
                         appCard
@@ -664,19 +664,20 @@ struct SettingsProV2: View {
                         footer
                         Color.clear.frame(height: 40)
                     }
-                    .padding(.top, 10)
                     .frame(maxWidth: hSize == .regular ? 640 : .infinity)
                     .frame(maxWidth: .infinity)
                 }
             }
-            .navigationTitle(L("set.title"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(L("common.close")) { onClose?() }
-                        .foregroundColor(.s8kGoldMid).fontWeight(.semibold)
-                }
+            .ignoresSafeArea(edges: .top)
+            // Floating close — a glass circle over the cinematic header.
+            Button { onClose?() } label: {
+                Image(systemName: "xmark").font(.system(size: 15, weight: .bold)).foregroundColor(.white)
+                    .frame(width: 38, height: 38)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
             }
+            .buttonStyle(S8KButtonStyle())
+            .padding(.leading, 18).padding(.top, 54)
         }
         .overlay {
             if showLogoutAlert {
@@ -704,30 +705,38 @@ struct SettingsProV2: View {
         .sheet(isPresented: $showReorder) { UnifiedReorderView() }
     }
 
-    // MARK: Profile hero (clean card — avatar · name · status · plan)
+    // MARK: Cinematic profile header (full-bleed lime→black glow · avatar · name ·
+    // plan · status). Immersive, brand-native — nothing like the reference card.
     private var hero: some View {
-        VStack(spacing: 12) {
-            ZStack {
-                Circle().fill(S8KGradient.goldFlat).frame(width: 76, height: 76)
-                Text(initials).font(.system(size: 26, weight: .black)).foregroundColor(.s8kBlack)
+        ZStack(alignment: .bottom) {
+            LinearGradient(stops: [
+                .init(color: Color.s8kGoldMid.opacity(0.20), location: 0.0),
+                .init(color: Color.s8kBlack.opacity(0.0),    location: 0.55),
+                .init(color: Color.s8kBlack,                 location: 1.0)
+            ], startPoint: .top, endPoint: .bottom)
+            VStack(spacing: 11) {
+                ZStack {
+                    Circle().fill(S8KGradient.goldFlat).frame(width: 84, height: 84)
+                        .shadow(color: .s8kGoldHigh.opacity(0.45), radius: 18, y: 5)
+                    Text(initials).font(.system(size: 29, weight: .black)).foregroundColor(.s8kBlack)
+                }
+                Text(displayName).font(.system(size: 23, weight: .black))
+                    .foregroundColor(.s8kTextPrimary).lineLimit(1)
+                HStack(spacing: 8) {
+                    Text(planText).font(S8KFont.caption3.weight(.heavy)).foregroundColor(.s8kBlack)
+                        .padding(.horizontal, 11).padding(.vertical, 4)
+                        .background(Capsule().fill(S8KGradient.goldFlat))
+                    HStack(spacing: 5) {
+                        Circle().fill(Color.s8kGreen).frame(width: 6, height: 6)
+                        Text("\(L("common.connected")) · \(theme.serverName)")
+                            .font(S8KFont.caption1).foregroundColor(.s8kTextTertiary).lineLimit(1)
+                    }
+                }
             }
-            Text(displayName).font(.system(size: 21, weight: .black))
-                .foregroundColor(.s8kTextPrimary).lineLimit(1)
-            HStack(spacing: 6) {
-                Circle().fill(Color.s8kGreen).frame(width: 6, height: 6)
-                Text("\(L("common.connected")) · \(theme.serverName)")
-                    .font(S8KFont.caption1).foregroundColor(.s8kTextTertiary).lineLimit(1)
-            }
-            Text(planText).font(S8KFont.caption3.weight(.heavy)).foregroundColor(.s8kBlack)
-                .padding(.horizontal, 12).padding(.vertical, 4)
-                .background(Capsule().fill(S8KGradient.goldFlat))
+            .padding(.bottom, 26)
         }
+        .frame(height: 250)
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 24)
-        .background(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous).fill(Color.s8kCard))
-        .overlay(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous)
-            .strokeBorder(Color.s8kBorder, lineWidth: 1))
-        .padding(.horizontal, S8KSpace.xl)
     }
 
     // MARK: Grouped cards
@@ -856,16 +865,20 @@ struct SettingsProV2: View {
     @ViewBuilder
     private func groupCard<C: View>(_ title: String, @ViewBuilder content: () -> C) -> some View {
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
+            // Muted uppercase section label (iOS-inset style — no reference-like
+            // gold accent bar).
+            HStack {
                 Spacer(minLength: 0)
-                Text(title).font(.system(size: 13, weight: .heavy)).foregroundColor(.s8kTextSecondary)
-                RoundedRectangle(cornerRadius: 1.5).fill(S8KGradient.goldFlat).frame(width: 3, height: 13)
+                Text(title.uppercased())
+                    .font(.system(size: 12, weight: .heavy)).tracking(0.5)
+                    .foregroundColor(.s8kTextTertiary)
             }
-            .padding(.horizontal, 22).padding(.bottom, 8)
+            .padding(.horizontal, 28).padding(.bottom, 7)
             VStack(spacing: 0) { content() }
-                .background(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous).fill(Color.s8kCard))
+                .background(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous)
+                    .fill(Color.white.opacity(0.04)))
                 .overlay(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous)
-                    .strokeBorder(Color.s8kBorder, lineWidth: 1))
+                    .strokeBorder(Color.white.opacity(0.07), lineWidth: 1))
                 .padding(.horizontal, S8KSpace.xl)
         }
     }
