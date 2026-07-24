@@ -5,6 +5,23 @@
 
 import SwiftUI
 
+// SwiftUI `ForEach` + `.scrollPosition(id:)` REQUIRE unique ids. M3U series hash
+// their id from the NAME, so same-titled series (mirrored across categories /
+// quality variants — pervasive in IPTV lists) collide on the same id. The old
+// `TabView(.page)` hero tolerated that; the new paging ScrollView does NOT and
+// crashes. Keep only the first item per id everywhere a ForEach/scrollPosition
+// consumes these arrays (hero + Top-10).
+func s8kUniqueByID<T>(_ items: [T], _ id: (T) -> String) -> [T] {
+    var seen = Set<String>()
+    return items.filter { seen.insert(id($0)).inserted }
+}
+// NaN-safe rating parse: `Double("nan")` returns `.nan`, and a NaN in a `>`
+// sort comparator violates strict-weak-ordering → `sorted` traps at runtime.
+func s8kRating(_ s: String?) -> Double {
+    let d = Double(s ?? "") ?? 0
+    return d.isFinite ? d : 0
+}
+
 @MainActor
 final class HomeVM: ObservableObject {
     static let shared = HomeVM()
@@ -58,8 +75,8 @@ final class HomeVM: ObservableObject {
     func rebuildHero() {
         // Sort ONCE here (not on every SwiftUI render) — re-sorting a large catalog
         // on each body eval was a major source of home jank.
-        topMovies = Array(movies.sorted { $0.ratingDouble > $1.ratingDouble }.prefix(10))
-        topSeries = Array(series.sorted { (Double($0.rating ?? "") ?? 0) > (Double($1.rating ?? "") ?? 0) }.prefix(10))
+        topMovies = Array(s8kUniqueByID(movies.sorted { $0.ratingDouble > $1.ratingDouble }, { $0.id }).prefix(10))
+        topSeries = Array(s8kUniqueByID(series.sorted { s8kRating($0.rating) > s8kRating($1.rating) }, { $0.id }).prefix(10))
         // "Recently added" ≈ highest Xtream id (ids auto-increment, so newest last).
         newMovies = Array(movies.sorted { (Int($0.id) ?? 0) > (Int($1.id) ?? 0) }.prefix(20))
         newSeries = Array(series.sorted { (Int($0.id) ?? 0) > (Int($1.id) ?? 0) }.prefix(20))
@@ -73,7 +90,7 @@ final class HomeVM: ObservableObject {
             if i < hM.count { out.append(hM[i]) }
             if i < hS.count { out.append(hS[i]) }
         }
-        heroItems = Array(out.prefix(8))
+        heroItems = Array(s8kUniqueByID(out, { $0.id }).prefix(8))
         if heroIndex >= heroItems.count { heroIndex = 0 }
         heroDir = 1
 

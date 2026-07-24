@@ -112,7 +112,7 @@ enum RailEngine {
         for cat in seriesCats {
             guard let items = sByCat[cat.id], items.count >= minItems else { continue }
             let c = classify(cat.name)
-            let ranked = items.sorted { (Double($0.rating ?? "") ?? 0) > (Double($1.rating ?? "") ?? 0) }
+            let ranked = items.sorted { s8kRating($0.rating) > s8kRating($1.rating) }
             let rail = HomeRail(id: "s_\(cat.id)", title: c.title,
                                 networkTag: c.tag, kind: .series(Array(ranked.prefix(perRail))))
             scored.append((rail, c.score, items.count))

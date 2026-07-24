@@ -688,8 +688,8 @@ final class MoviesVM: ObservableObject {
     // Editorial rows: Top-10 by rating (Movie has a ratingDouble helper) + a
     // newest-movies hero.
     private func rebuildEditorial() {
-        topRanked = Array(movies.sorted { $0.ratingDouble > $1.ratingDouble }.prefix(10))
-        let newest = movies.sorted { (Int($0.id) ?? 0) > (Int($1.id) ?? 0) }
+        topRanked = Array(s8kUniqueByID(movies.sorted { $0.ratingDouble > $1.ratingDouble }, { $0.id }).prefix(10))
+        let newest = s8kUniqueByID(movies.sorted { (Int($0.id) ?? 0) > (Int($1.id) ?? 0) }, { $0.id })
         heroItems = newest.prefix(6).map { HomeVM.HeroItem(kind: .movie($0)) }
         S8KImageCache.shared.prefetch(heroItems.compactMap { $0.backdropURL }, maxPixel: 1200)
     }
@@ -1790,8 +1790,8 @@ final class SeriesVM: ObservableObject {
     // Build the editorial rows (Top-10 by rating + a newest-series hero). Series
     // has no `ratingDouble` helper, so parse the String rating inline (as Home does).
     private func rebuildEditorial() {
-        topRanked = Array(series.sorted { (Double($0.rating ?? "") ?? 0) > (Double($1.rating ?? "") ?? 0) }.prefix(10))
-        let newest = series.sorted { (Int($0.id) ?? 0) > (Int($1.id) ?? 0) }
+        topRanked = Array(s8kUniqueByID(series.sorted { s8kRating($0.rating) > s8kRating($1.rating) }, { $0.id }).prefix(10))
+        let newest = s8kUniqueByID(series.sorted { (Int($0.id) ?? 0) > (Int($1.id) ?? 0) }, { $0.id })
         heroItems = newest.prefix(6).map { HomeVM.HeroItem(kind: .series($0)) }
         S8KImageCache.shared.prefetch(heroItems.compactMap { $0.backdropURL }, maxPixel: 1200)
     }

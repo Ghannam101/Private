@@ -197,7 +197,7 @@ struct Movie: Codable, Identifiable, Hashable {
     // Direct stream URL (M3U playlists) — not part of the API payload
     var directURL: String? = nil
 
-    var ratingDouble: Double { Double(rating ?? "") ?? 0 }
+    var ratingDouble: Double { let d = Double(rating ?? "") ?? 0; return d.isFinite ? d : 0 }
 
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
     static func == (l: Movie, r: Movie) -> Bool { l.id == r.id }
