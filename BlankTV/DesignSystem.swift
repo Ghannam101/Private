@@ -546,7 +546,27 @@ final class S8KImageCache: @unchecked Sendable {
         // scrolling never pays a decode cost on-screen (iOS 15+).
         let img = await down.byPreparingForDisplay() ?? down
         memory.setObject(img, forKey: key as NSString, cost: Int(img.size.width * img.size.height * 4))
+        // Encode a ThumbHash for this URL once (idempotent, off-main) so a future
+        // cold start can paint an instant blurred placeholder before it re-downloads.
+        Self.ensureThumbHash(key: key, image: img)
         return img
+    }
+
+    /// Decode the cached ThumbHash for `key` into a tiny blurred placeholder image.
+    /// nil when nothing is stored. Cheap; call OFF the main thread.
+    func thumbHashImage(_ key: String) -> UIImage? {
+        guard let data = CatalogDB.imageHash(key), data.count >= 5 else { return nil }
+        return thumbHashToImage(hash: data)
+    }
+
+    /// Encode + persist a ThumbHash for `key` once (idempotent). The heavy encode
+    /// runs at background priority so it never delays the on-screen image.
+    private static func ensureThumbHash(key: String, image: UIImage) {
+        guard !CatalogDB.hasImageHash(key) else { return }
+        Task.detached(priority: .background) {
+            let hash = imageToThumbHash(image: image)
+            if !hash.isEmpty { CatalogDB.saveImageHash(key, hash) }
+        }
     }
 
     /// Warm the cache for posters about to scroll on-screen. Callers pass a
@@ -597,12 +617,16 @@ struct S8KImage: View {
     var maxPixel: CGFloat = 800
 
     @State private var image: UIImage?
+    @State private var placeholderImage: UIImage?
     @State private var failed = false
 
     var body: some View {
         ZStack {
             if let image {
                 Image(uiImage: image).resizable().aspectRatio(contentMode: contentMode)
+            } else if let placeholderImage {
+                // Instant ThumbHash placeholder — blurred but structure-preserving.
+                Image(uiImage: placeholderImage).resizable().aspectRatio(contentMode: contentMode)
             } else if url == nil || failed {
                 placeholderView
             } else {
@@ -614,12 +638,19 @@ struct S8KImage: View {
     }
 
     private func load() async {
-        guard let u = url, let imageURL = URL(string: u) else { image = nil; failed = false; return }
+        guard let u = url, let imageURL = URL(string: u) else { image = nil; placeholderImage = nil; failed = false; return }
         failed = false
         if let hit = S8KImageCache.shared.cached(u) { image = hit; return }
+        // Paint an instant blurred ThumbHash placeholder (decoded off-main) while the
+        // real image downloads. A nil result for the new url also clears any stale one.
+        let ph = await Task.detached(priority: .utility) { S8KImageCache.shared.thumbHashImage(u) }.value
+        guard !Task.isCancelled else { return }
+        if image == nil { placeholderImage = ph }
         let img = await S8KImageCache.shared.load(imageURL, key: u, maxPixel: maxPixel)
         guard !Task.isCancelled else { return }
-        if let img { image = img } else { failed = true }
+        if let img {
+            withAnimation(.easeOut(duration: 0.25)) { image = img }
+        } else { failed = true }
     }
 
     private var placeholderView: some View {
