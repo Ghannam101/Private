@@ -2625,42 +2625,53 @@ final class SearchVM: ObservableObject {
             try? await Task.sleep(nanoseconds: 350_000_000)   // debounce
             guard !Task.isCancelled else { return }
             do {
-                let low = q.lowercased()
                 var r: [SearchResult] = []
-                switch scope {
-                case .all:
-                    // Home: search movies + series + channels at once, merged.
-                    async let am = (try? await ContentService.movies()) ?? []
-                    async let asr = (try? await ContentService.series()) ?? []
-                    async let ac = (try? await ContentService.liveStreams()) ?? []
-                    let (mm, ss, cc) = await (am, asr, ac)
-                    let rm = mm.filter { $0.name.lowercased().contains(low) }.prefix(30).map {
-                        SearchResult(type: .movie($0), title: $0.name, subtitle: $0.year ?? "", imageURL: $0.posterURL)
-                    }
-                    let rs = ss.filter { $0.name.lowercased().contains(low) }.prefix(30).map {
-                        SearchResult(type: .series($0), title: $0.name, subtitle: $0.year ?? "", imageURL: $0.coverURL)
-                    }
-                    let rc = cc.filter { $0.name.lowercased().contains(low) }.prefix(30).map {
-                        SearchResult(type: .channel($0), title: $0.name, subtitle: "", imageURL: $0.logoURL)
-                    }
-                    r = Array(rm) + Array(rs) + Array(rc)
-                case .movies:
-                    let m = try await ContentService.movies()
-                    r = m.filter { $0.name.lowercased().contains(low) }.prefix(60).map {
-                        SearchResult(type: .movie($0), title: $0.name,
-                                     subtitle: $0.year ?? "", imageURL: $0.posterURL)
-                    }
-                case .series:
-                    let s = try await ContentService.series()
-                    r = s.filter { $0.name.lowercased().contains(low) }.prefix(60).map {
-                        SearchResult(type: .series($0), title: $0.name,
-                                     subtitle: $0.year ?? "", imageURL: $0.coverURL)
-                    }
-                case .live:
-                    let c = try await ContentService.liveStreams()
-                    r = c.filter { $0.name.lowercased().contains(low) }.prefix(80).map {
-                        SearchResult(type: .channel($0), title: $0.name,
-                                     subtitle: "", imageURL: $0.logoURL)
+                // Fast path: FTS5 (multi-field, diacritic-insensitive, ranked) once the
+                // SQLite store is populated for this line. Falls back to the in-memory
+                // scan when the store isn't ready (demo, first run, pure-Xtream, or an
+                // empty index) — so behaviour is identical until the store fills.
+                if let sk = Store.shared.m3uURL, CatalogDB.isSearchable(scope: sk) {
+                    // GRDB reads run OFF the main actor (SearchVM is @MainActor).
+                    r = await Task.detached(priority: .userInitiated) {
+                        SearchVM.ftsResults(q, scope: scope, scopeKey: sk)
+                    }.value
+                } else {
+                    let low = q.lowercased()
+                    switch scope {
+                    case .all:
+                        // Home: search movies + series + channels at once, merged.
+                        async let am = (try? await ContentService.movies()) ?? []
+                        async let asr = (try? await ContentService.series()) ?? []
+                        async let ac = (try? await ContentService.liveStreams()) ?? []
+                        let (mm, ss, cc) = await (am, asr, ac)
+                        let rm = mm.filter { $0.name.lowercased().contains(low) }.prefix(30).map {
+                            SearchResult(type: .movie($0), title: $0.name, subtitle: $0.year ?? "", imageURL: $0.posterURL)
+                        }
+                        let rs = ss.filter { $0.name.lowercased().contains(low) }.prefix(30).map {
+                            SearchResult(type: .series($0), title: $0.name, subtitle: $0.year ?? "", imageURL: $0.coverURL)
+                        }
+                        let rc = cc.filter { $0.name.lowercased().contains(low) }.prefix(30).map {
+                            SearchResult(type: .channel($0), title: $0.name, subtitle: "", imageURL: $0.logoURL)
+                        }
+                        r = Array(rm) + Array(rs) + Array(rc)
+                    case .movies:
+                        let m = try await ContentService.movies()
+                        r = m.filter { $0.name.lowercased().contains(low) }.prefix(60).map {
+                            SearchResult(type: .movie($0), title: $0.name,
+                                         subtitle: $0.year ?? "", imageURL: $0.posterURL)
+                        }
+                    case .series:
+                        let s = try await ContentService.series()
+                        r = s.filter { $0.name.lowercased().contains(low) }.prefix(60).map {
+                            SearchResult(type: .series($0), title: $0.name,
+                                         subtitle: $0.year ?? "", imageURL: $0.coverURL)
+                        }
+                    case .live:
+                        let c = try await ContentService.liveStreams()
+                        r = c.filter { $0.name.lowercased().contains(low) }.prefix(80).map {
+                            SearchResult(type: .channel($0), title: $0.name,
+                                         subtitle: "", imageURL: $0.logoURL)
+                        }
                     }
                 }
                 guard !Task.isCancelled else { return }
@@ -2669,6 +2680,33 @@ final class SearchVM: ObservableObject {
                 print("🔎 search failed (scope=\(scope.rawValue)): \(error)")
                 await MainActor.run { self.loading = false; self.failed = true; self.results = [] }
             }
+        }
+    }
+
+    /// FTS-backed results (rank-ordered) for a scope, resolved from the SQLite store.
+    /// Word-prefix, multi-field (name/genre/cast/plot/director), diacritic-insensitive.
+    /// `nonisolated` so it can run off the main actor (GRDB reads are synchronous).
+    nonisolated private static func ftsResults(_ q: String, scope: SearchScope, scopeKey sk: String) -> [SearchResult] {
+        func movs(_ limit: Int) -> [SearchResult] {
+            CatalogDB.moviesByIds(scope: sk, ids: CatalogDB.search(q, kind: "movie", scope: sk, limit: limit)).map {
+                SearchResult(type: .movie($0), title: $0.name, subtitle: $0.year ?? "", imageURL: $0.posterURL)
+            }
+        }
+        func sers(_ limit: Int) -> [SearchResult] {
+            CatalogDB.seriesByIds(scope: sk, ids: CatalogDB.search(q, kind: "series", scope: sk, limit: limit)).map {
+                SearchResult(type: .series($0), title: $0.name, subtitle: $0.year ?? "", imageURL: $0.coverURL)
+            }
+        }
+        func chans(_ limit: Int) -> [SearchResult] {
+            CatalogDB.channelsByIds(scope: sk, ids: CatalogDB.search(q, kind: "live", scope: sk, limit: limit)).map {
+                SearchResult(type: .channel($0), title: $0.name, subtitle: "", imageURL: $0.logoURL)
+            }
+        }
+        switch scope {
+        case .all:    return movs(30) + sers(30) + chans(30)
+        case .movies: return movs(60)
+        case .series: return sers(60)
+        case .live:   return chans(80)
         }
     }
 
