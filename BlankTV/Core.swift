@@ -1702,6 +1702,10 @@ actor PlaylistService {
             xtream  = xd
             content = built
             CatalogDiskCache.save(built, scope: urlString)
+            // Shadow-write the same catalog into the SQLite store (off-actor, off-main).
+            // No reader yet (step 3) — this only POPULATES the DB so a later switch to
+            // paged reads is instant. Never blocks the return; store failure is a no-op.
+            Task.detached(priority: .utility) { CatalogDB.save(built, scope: urlString) }
             return built
         }
 
@@ -1743,6 +1747,8 @@ actor PlaylistService {
         }
         content = parsed
         CatalogDiskCache.save(parsed, scope: urlString)
+        // Shadow-write into the SQLite store too (off-actor, off-main; no reader yet).
+        Task.detached(priority: .utility) { CatalogDB.save(parsed, scope: urlString) }
         return parsed
     }
 
