@@ -78,8 +78,8 @@ final class HomeVM: ObservableObject {
         topMovies = Array(s8kUniqueByID(movies.sorted { $0.ratingDouble > $1.ratingDouble }, { $0.id }).prefix(10))
         topSeries = Array(s8kUniqueByID(series.sorted { s8kRating($0.rating) > s8kRating($1.rating) }, { $0.id }).prefix(10))
         // "Recently added" ≈ highest Xtream id (ids auto-increment, so newest last).
-        newMovies = Array(movies.sorted { (Int($0.id) ?? 0) > (Int($1.id) ?? 0) }.prefix(20))
-        newSeries = Array(series.sorted { (Int($0.id) ?? 0) > (Int($1.id) ?? 0) }.prefix(20))
+        newMovies = Array(s8kUniqueByID(movies.sorted { (Int($0.id) ?? 0) > (Int($1.id) ?? 0) }, { $0.id }).prefix(20))
+        newSeries = Array(s8kUniqueByID(series.sorted { (Int($0.id) ?? 0) > (Int($1.id) ?? 0) }, { $0.id }).prefix(20))
 
         // Hero features the NEWEST content (movies + series interleaved) — it refreshes
         // as fresh titles arrive on reload. (Owner: hero tracks new movies/series.)
@@ -231,44 +231,27 @@ struct HeroCarouselView: View {
     let onOpen: (HomeVM.HeroItem) -> Void
 
     @ObservedObject private var favs = FavoritesService.shared
-    @State private var currentID: String?   // the visible page's item id (drives dots + auto-rotate)
+    @State private var index = 0
     @State private var dir = 1               // ping-pong direction (ذهاب/عودة)
     private let ticker = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
-    // A paging horizontal ScrollView (NOT TabView.page): a `.page` TabView nested
-    // in a vertical ScrollView swallows vertical drags, so the user could only
-    // swipe posters and never scroll the Movies/Series feed (owner #1). The iOS 17
-    // paging scroll composes orthogonally with the parent vertical scroll — a
-    // horizontal swipe pages the hero, a vertical swipe scrolls the page.
+    // Stable TabView paging — reverted from an iOS-17 paging ScrollView
+    // (containerRelativeFrame + scrollPosition + scrollTargetLayout) that crashed
+    // on some real playlists. Auto-rotates every 5s; the customer can also swipe.
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(spacing: 0) {
-                ForEach(items) { item in
-                    heroCard(item)
-                        .containerRelativeFrame(.horizontal)   // one page = container width
-                        .id(item.id)
-                }
+        TabView(selection: $index) {
+            ForEach(Array(items.enumerated()), id: \.element.id) { idx, item in
+                heroCard(item).tag(idx)
             }
-            .scrollTargetLayout()
         }
-        .scrollTargetBehavior(.paging)
-        .scrollPosition(id: $currentID)
+        .tabViewStyle(.page(indexDisplayMode: .never))
         .frame(height: height)
-        .onReceive(ticker) { _ in advance() }
-        .onAppear { if currentID == nil { currentID = items.first?.id } }
-        .onChange(of: items.map(\.id)) { _, ids in
-            if currentID == nil || !ids.contains(currentID!) { currentID = ids.first }
+        .onReceive(ticker) { _ in
+            guard !paused, items.count > 1 else { return }
+            if index >= items.count - 1 { dir = -1 } else if index <= 0 { dir = 1 }
+            withAnimation(.easeInOut(duration: 0.6)) { index += dir }
         }
-    }
-
-    // Auto-rotate: ping-pong to the neighbouring page. Skipped while a cover is
-    // open. Manual scrolling updates `currentID` natively via `scrollPosition`.
-    private func advance() {
-        guard !paused, items.count > 1,
-              let cur = currentID, let idx = items.firstIndex(where: { $0.id == cur }) else { return }
-        if idx >= items.count - 1 { dir = -1 } else if idx <= 0 { dir = 1 }
-        let next = max(0, min(items.count - 1, idx + dir))
-        withAnimation(.easeInOut(duration: 0.6)) { currentID = items[next].id }
+        .onChange(of: items.count) { _, n in if index >= n { index = 0 } }
     }
 
     private func heroCard(_ item: HomeVM.HeroItem) -> some View {
@@ -343,17 +326,16 @@ struct HeroCarouselView: View {
                 .frame(maxWidth: .infinity, alignment: .trailing)
 
                 HStack(spacing: 5) {
-                    ForEach(items) { it in
-                        let on = it.id == currentID
+                    ForEach(0..<items.count, id: \.self) { i in
                         Capsule()
-                            .fill(on ? AnyShapeStyle(S8KGradient.goldFlat)
-                                     : AnyShapeStyle(Color.white.opacity(0.3)))
-                            .frame(width: on ? 22 : 6, height: 6)
+                            .fill(i == index ? AnyShapeStyle(S8KGradient.goldFlat)
+                                             : AnyShapeStyle(Color.white.opacity(0.3)))
+                            .frame(width: i == index ? 22 : 6, height: 6)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .padding(.top, 4)
-                .animation(.spring(response: 0.3), value: currentID)
+                .animation(.spring(response: 0.3), value: index)
             }
             .padding(.horizontal, S8KSpace.xl)
             .padding(.bottom, S8KSpace.xl)

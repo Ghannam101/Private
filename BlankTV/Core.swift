@@ -1926,7 +1926,11 @@ actor PlaylistService {
         c.liveCategories   = toCategories(liveCats)
         c.movieCategories  = toCategories(vodCats)
         c.seriesCategories = toCategories(serCats)
-        let liveCatName = Dictionary(uniqueKeysWithValues: c.liveCategories.map { ($0.id, $0.name) })
+        // `uniquingKeysWith` (NOT uniqueKeysWithValues, which TRAPS on duplicate
+        // keys): messy IPTV panels often return the same category_id twice, which
+        // would crash the whole content load.
+        let liveCatName = Dictionary(c.liveCategories.map { ($0.id, $0.name) },
+                                     uniquingKeysWith: { first, _ in first })
 
         // 3. Streams — live / VOD / series are independent lists; fetch CONCURRENTLY
         // so login waits ~one slow call instead of the sum of all three.
