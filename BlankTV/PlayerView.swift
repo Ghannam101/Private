@@ -116,6 +116,9 @@ struct PlayerEngineView: View {
 
     @StateObject private var vm: BasePlayerVM
     @State private var didReportFailure = false
+    // Once true, we've persisted the last-known-good engine for the current item
+    // (see EngineDecisionCache). Reset whenever the item changes.
+    @State private var engineRecorded = false
     @Environment(\.dismiss) var dismiss
 
     /// The item currently playing — changes when auto-advancing to next episode.
@@ -257,6 +260,14 @@ struct PlayerEngineView: View {
     }
 
     private func playbackTick(_ t: Double) {
+        // Persist the last-known-good engine once playback is genuinely stable
+        // (>2s, no error) so a replay of this item opens instantly on the right
+        // engine (see EngineDecisionCache). Runs for live/movies/episodes alike —
+        // BEFORE the auto-next guard below, which early-returns for non-episodes.
+        if !engineRecorded, t > 2, vm.errorMsg == nil {
+            engineRecorded = true
+            EngineDecisionCache.shared.record(engine, for: currentItem)
+        }
         guard Store.shared.autoPlayNext, !nextCancelled,
               nextEpisode != nil, vm.duration > 30 else { return }
         let window = Double(Store.shared.autoNextSeconds)   // user-set countdown
@@ -512,6 +523,7 @@ struct PlayerEngineView: View {
         // failover state and re-arm failure reporting for the new item.
         .onChange(of: currentItem.id) { _, _ in
             didReportFailure = false
+            engineRecorded = false
             onItemChanged(currentItem)
         }
         .onAppear { vm.setup(); resetControlsTimer(); haptic.prepare(); scrubHaptic.prepare() }

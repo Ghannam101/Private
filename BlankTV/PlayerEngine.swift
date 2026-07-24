@@ -689,23 +689,18 @@ enum PlayerEngineKind: String {
 }
 
 enum PlayerEngineSelector {
-    static func preferAVPlayer(for item: ContentItem) -> Bool {
-        guard let url = BasePlayerVM.resolvedURL(for: item)?.absoluteString.lowercased() else { return false }
-        // Reliability-first hybrid: AVPlayer (hardware decode + native PiP) is used
-        // ONLY for HLS (.m3u8 — typically live channels), where it clearly wins.
-        // ALL VOD (mp4/mkv/avi…) and every LOCAL downloaded file play through VLC,
-        // the proven engine for IPTV providers (tolerant of UA quirks + all codecs).
-        // Users can still force an engine via Settings → Player → Playback engine.
-        if url.hasPrefix("file:") { return false }
-        return url.contains(".m3u8")
-    }
-
-    /// The engine to try FIRST, honouring the user's "Select Player" preference.
+    /// The engine to try FIRST. Priority order:
+    ///  1) explicit user preference (Settings → Player → Playback engine),
+    ///  2) the persistent per-content decision cache — last-known-good engine
+    ///     (see EngineDecisionCache), so a replay opens instantly on the right one,
+    ///  3) the StreamRouter default (reliability-first: HLS → AVPlayer, else VLC).
     static func initialKind(for item: ContentItem) -> PlayerEngineKind {
         switch Store.shared.playerEnginePref {
         case "av":  return .av
         case "vlc": return .vlc
-        default:    return preferAVPlayer(for: item) ? .av : .vlc
+        default:
+            if let cached = EngineDecisionCache.shared.lastGood(for: item) { return cached }
+            return StreamRouter.defaultEngine(for: item)
         }
     }
     /// Build a specific engine (used by the auto-failover wrapper).
