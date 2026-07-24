@@ -204,7 +204,7 @@ struct BlankTVApp: App {
                     .toolbar(.hidden, for: .tabBar)
                 SeriesListView().tag(AppTab.series)
                     .toolbar(.hidden, for: .tabBar)
-                SettingsView().tag(AppTab.settings)
+                SettingsProV2().tag(AppTab.settings)
                     .toolbar(.hidden, for: .tabBar)
             }
             // Hide the system tab bar (incl. the new iPadOS 18 top tab bar) so
