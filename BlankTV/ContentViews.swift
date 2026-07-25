@@ -897,7 +897,10 @@ struct CategoryReorderView: View {
         // Short (landscape) heights spend more on fixed chrome, so hand the pool an
         // even bigger share there; tall layouts allow the arranged list up to ~42%.
         let fraction: CGFloat = available < 500 ? 0.32 : 0.42
-        return min(content, available * fraction)
+        // `max(available, 220)`: the first layout pass of a sheet can report height 0,
+        // which would collapse the drag list to nothing (and it never comes back until
+        // the view is rebuilt). Never return less than a usable list height.
+        return min(content, max(available, 220) * fraction)
     }
 
     var body: some View {
@@ -1404,7 +1407,9 @@ struct MoviesView: View {
 
     // Editorial hero height (mirrors Home, a touch shorter so the Top-10 peeks).
     private var heroHeight: CGFloat {
-        hSize == .regular ? 520 : min(max(UIScreen.main.bounds.height * 0.58, 460), 600)
+        // WINDOW height, not screen height (see s8kWindowSize) — correct in iPad
+        // Split View / Slide Over / Stage Manager and in a resized Mac window.
+        hSize == .regular ? 520 : min(max(s8kWindowSize().height * 0.58, 390), 600)
     }
     private func openHero(_ item: HomeVM.HeroItem) {
         if case .movie(let m) = item.kind { selected = m }
@@ -1855,7 +1860,9 @@ struct SeriesListView: View {
 
     // Editorial hero height (mirrors Home, a touch shorter so the Top-10 peeks).
     private var heroHeight: CGFloat {
-        hSize == .regular ? 520 : min(max(UIScreen.main.bounds.height * 0.58, 460), 600)
+        // WINDOW height, not screen height (see s8kWindowSize) — correct in iPad
+        // Split View / Slide Over / Stage Manager and in a resized Mac window.
+        hSize == .regular ? 520 : min(max(s8kWindowSize().height * 0.58, 390), 600)
     }
     private func openHero(_ item: HomeVM.HeroItem) {
         if case .series(let s) = item.kind { selected = s }
@@ -2983,7 +2990,10 @@ struct FlexWrap<Item: Hashable, Content: View>: View {
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let maxW = proposal.width ?? .infinity
+        // `max(…, 1)`: SwiftUI probes layouts with ProposedViewSize.zero. A 0 width
+        // would wrap every chip onto its own row and report width 0 — a one-frame
+        // collapse of the chip rows.
+        let maxW = max(proposal.width ?? .infinity, 1)
         var x: CGFloat = 0, y: CGFloat = 0, rowH: CGFloat = 0, maxRowW: CGFloat = 0
         for s in subviews {
             let sz = s.sizeThatFits(.unspecified)

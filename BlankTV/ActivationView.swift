@@ -78,18 +78,26 @@ struct MaintenanceView: View {
     var body: some View {
         ZStack {
             Color.s8kBlack.ignoresSafeArea()
-            VStack(spacing: S8KSpace.xl) {
-                Image(systemName: "wrench.and.screwdriver.fill")
-                    .font(.system(size: 46)).foregroundColor(.s8kGoldHigh)
-                    .shadow(color: .s8kGoldHigh.opacity(0.35), radius: 18)
-                Text(L("maintenance.title"))
-                    .font(S8KFont.title2).foregroundColor(.s8kTextPrimary)
-                Text(message?.isEmpty == false ? message! : L("maintenance.message"))
-                    .font(S8KFont.callout).foregroundColor(.s8kTextSecondary)
-                    .multilineTextAlignment(.center).padding(.horizontal, 36)
-                OutlineButton(title: L("common.retry"), icon: "arrow.clockwise", action: onRetry)
-                    .frame(width: 200)
+            // SCROLLABLE: the message is server-supplied and unbounded — on a short
+            // window (landscape / Mac) or at large text sizes a fixed stack would push
+            // "Retry" off-screen and trap the user in the gate with no way out.
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: S8KSpace.xl) {
+                    Image(systemName: "wrench.and.screwdriver.fill")
+                        .font(.system(size: 46)).foregroundColor(.s8kGoldHigh)
+                        .shadow(color: .s8kGoldHigh.opacity(0.35), radius: 18)
+                    Text(L("maintenance.title"))
+                        .font(S8KFont.title2).foregroundColor(.s8kTextPrimary)
+                    Text(message?.isEmpty == false ? message! : L("maintenance.message"))
+                        .font(S8KFont.callout).foregroundColor(.s8kTextSecondary)
+                        .multilineTextAlignment(.center).padding(.horizontal, 36)
+                    OutlineButton(title: L("common.retry"), icon: "arrow.clockwise", action: onRetry)
+                        .frame(maxWidth: 200)
+                }
+                .padding(.vertical, 32)
+                .frame(maxWidth: .infinity)
             }
+            .scrollBounceBehavior(.basedOnSize)
         }
     }
 }
@@ -101,26 +109,33 @@ struct UpdateRequiredView: View {
     var body: some View {
         ZStack {
             Color.s8kBlack.ignoresSafeArea()
-            VStack(spacing: S8KSpace.xl) {
-                Image(systemName: "arrow.down.circle.fill")
-                    .font(.system(size: 46)).foregroundColor(.s8kGoldHigh)
-                    .shadow(color: .s8kGoldHigh.opacity(0.35), radius: 18)
-                Text(L("update.title"))
-                    .font(S8KFont.title2).foregroundColor(.s8kTextPrimary)
-                Text(L("update.message"))
-                    .font(S8KFont.callout).foregroundColor(.s8kTextSecondary)
-                    .multilineTextAlignment(.center).padding(.horizontal, 36)
-                if let v = latest, !v.isEmpty {
-                    Text("\(L("update.latest")) \(v)")
-                        .font(S8KFont.caption1).foregroundColor(.s8kTextTertiary)
+            // SCROLLABLE for the same reason as MaintenanceView: this gate is the only
+            // UI on screen, so the Update button must be reachable on every device.
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: S8KSpace.xl) {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.system(size: 46)).foregroundColor(.s8kGoldHigh)
+                        .shadow(color: .s8kGoldHigh.opacity(0.35), radius: 18)
+                    Text(L("update.title"))
+                        .font(S8KFont.title2).foregroundColor(.s8kTextPrimary)
+                    Text(L("update.message"))
+                        .font(S8KFont.callout).foregroundColor(.s8kTextSecondary)
+                        .multilineTextAlignment(.center).padding(.horizontal, 36)
+                    if let v = latest, !v.isEmpty {
+                        Text("\(L("update.latest")) \(v)")
+                            .font(S8KFont.caption1).foregroundColor(.s8kTextTertiary)
+                    }
+                    GoldButton(title: L("update.button"), icon: "arrow.up.forward.app") {
+                        if let s = urlString, let u = URL(string: s) { UIApplication.shared.open(u) }
+                    }
+                    .frame(maxWidth: 220)
+                    .opacity((urlString?.isEmpty == false) ? 1 : 0.5)
+                    .disabled(urlString?.isEmpty != false)
                 }
-                GoldButton(title: L("update.button"), icon: "arrow.up.forward.app") {
-                    if let s = urlString, let u = URL(string: s) { UIApplication.shared.open(u) }
-                }
-                .frame(width: 220)
-                .opacity((urlString?.isEmpty == false) ? 1 : 0.5)
-                .disabled(urlString?.isEmpty != false)
+                .padding(.vertical, 32)
+                .frame(maxWidth: .infinity)
             }
+            .scrollBounceBehavior(.basedOnSize)
         }
     }
 }
@@ -264,6 +279,10 @@ struct ActivationRequiredView: View {
         NavigationStack {
             ZStack {
                 Color.s8kBlack.ignoresSafeArea()
+                // SCROLLABLE + resizable detent: the keyboard opens on this sheet, and
+                // on a medium detent it would otherwise cover the Activate button —
+                // the only way to redeem a code.
+                ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 16) {
                     Image(systemName: "number.circle.fill").font(.system(size: 44)).foregroundColor(.s8kGoldMid)
                     Text(L("code.title")).font(S8KFont.title3).foregroundColor(.s8kTextPrimary)
@@ -290,15 +309,19 @@ struct ActivationRequiredView: View {
                         }
                     }
                     .padding(.horizontal, S8KSpace.xl)
-                    Spacer()
                 }
                 .padding(.top, 30)
+                .padding(.bottom, 24)
+                .frame(maxWidth: .infinity)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle(L("code.title")).navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarLeading) {
                 Button(L("common.close")) { showCode = false }.foregroundColor(.s8kGoldMid) } }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
     }
 
     private var header: some View {

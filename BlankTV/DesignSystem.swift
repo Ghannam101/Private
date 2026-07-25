@@ -14,6 +14,21 @@ import SwiftUI
 import ImageIO
 import UIKit
 
+// MARK: - Window metrics (device compatibility)
+// The size of the WINDOW the app is actually running in — NOT `UIScreen.main.bounds`,
+// which always reports the whole physical display and is therefore wrong in iPad
+// Split View / Slide Over (panes as narrow as 320pt), Stage Manager, and on Mac
+// (a freely resized window). Any layout derived from the screen instead of the window
+// renders a phone-sized page inside a small pane, or a giant one inside a big screen.
+// Falls back to the screen only if no window scene is available (e.g. very early launch).
+@MainActor func s8kWindowSize() -> CGSize {
+    let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+    let active = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+    if let s = active?.keyWindow?.bounds.size, s.width > 1, s.height > 1 { return s }
+    if let s = active?.screen.bounds.size, s.width > 1, s.height > 1 { return s }
+    return UIScreen.main.bounds.size
+}
+
 // MARK: - Brand theme (ready-made palettes + per-reseller re-skin)
 // The whole app's brand colors read from `BrandTheme.active`, so swapping ONE
 // palette (a ready-made brand, or a reseller's accent color) re-skins the entire
@@ -385,7 +400,11 @@ struct S8KTextField: View {
             }
         }
         .padding(.horizontal, S8KSpace.lg)
-        .frame(height: 52)
+        .padding(.vertical, 8)
+        // minHeight, NOT a fixed height: keeps the 52pt tap target on every device
+        // while letting the row GROW instead of clipping the text at large accessibility
+        // type sizes. Used by every login / add-playlist form in the app.
+        .frame(minHeight: 52)
         // Non-interactive glass: an input field must not swallow the first tap for a
         // press animation (that caused the "tap once or twice before typing" issue).
         .s8kGlass(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous), interactive: false)
@@ -743,7 +762,11 @@ struct SkeletonBlock: View {
 // centered spinner + "loading…" text. ONE shimmer sweep over the whole page (not
 // per-cell) keeps it cheap. Plain fills for cells (no per-cell GeometryReader).
 struct S8KPosterGridSkeleton: View {
-    var columns: Int = 3
+    // The skeleton MUST use the same adaptive column rule as the real grid
+    // (ContentViews: .adaptive(minimum: regular ? 168 : 116)) — a fixed 3 columns
+    // produced ~440pt "posters" on an iPad and looked nothing like what follows.
+    @Environment(\.horizontalSizeClass) private var hSize
+    private var cols: [GridItem] { [GridItem(.adaptive(minimum: hSize == .regular ? 168 : 116), spacing: 14)] }
     private func cell(_ r: CGFloat = S8KRadius.md) -> some View {
         RoundedRectangle(cornerRadius: r, style: .continuous).fill(Color.s8kElevated)
     }
@@ -752,7 +775,7 @@ struct S8KPosterGridSkeleton: View {
             HStack(spacing: 10) {
                 ForEach(0..<4, id: \.self) { _ in cell(S8KRadius.sm).frame(width: 78, height: 30) }
             }
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: columns), spacing: 14) {
+            LazyVGrid(columns: cols, spacing: 14) {
                 ForEach(0..<12, id: \.self) { _ in cell().aspectRatio(2.0 / 3.0, contentMode: .fit) }
             }
         }
@@ -1347,7 +1370,11 @@ private struct ExpandedNavBar: View {
     private let sections: [AppTab] = [.movies, .series, .live]
 
     var body: some View {
-        HStack(spacing: 4) {
+        // spacing 2 (was 4): with the notifications circle visible the bar needs
+        // 6×44 + spacing + padding — at spacing 4 that was 330pt and clipped inside a
+        // 320pt iPad Slide Over pane. The cells are distributed with maxWidth:.infinity,
+        // so on a phone the change is invisible.
+        HStack(spacing: 2) {
             ForEach(Array(sections.enumerated()), id: \.element) { idx, tab in
                 // stagger counts from the RIGHT (near the corner): home first, movies last.
                 navCircle(icon: selected == tab ? tab.activeIcon : tab.icon,

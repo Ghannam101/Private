@@ -394,7 +394,10 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
     /// 19.5:9 iPhone, 4:3 iPad, in either orientation — no black bars, no distortion.
     /// GCD-reduced to keep the ratio small. Falls back to 16:9.
     private func screenCropGeometry() -> String {
-        let size = surfaceView?.bounds.size ?? UIScreen.main.bounds.size
+        // No surface yet → plain 16:9. Do NOT fall back to the SCREEN size: under iPad
+        // Split View / Stage Manager / Mac the window is not the display, so that crop
+        // ratio would be wrong.
+        guard let size = surfaceView?.bounds.size else { return "16:9" }
         var w = Int(size.width.rounded()), h = Int(size.height.rounded())
         guard w > 1, h > 1 else { return "16:9" }
         // Only fill edge-to-edge in LANDSCAPE. In portrait, cropping ~16:9 content

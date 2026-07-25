@@ -1027,6 +1027,9 @@ struct PlayerEngineView: View {
                     .font(S8KFont.caption3)
                     .foregroundColor(active ? .s8kGoldHigh : .s8kTextSecondary)
                     .lineLimit(1)
+                    // 6 chips share the width: ~51pt each on a 375pt iPhone SE. Without
+                    // this, longer Arabic labels ("معدل التشغيل") truncate to "…".
+                    .minimumScaleFactor(0.7)
             }
             .frame(maxWidth: .infinity)
         }
@@ -1182,6 +1185,9 @@ struct PlayerEngineView: View {
                                 .padding(.horizontal, 40)
                         }
                     } else {
+                        // ScrollView like the sibling sheets (subtitle/speed/audio):
+                        // 6 rows + header exceed a medium detent on a short window.
+                        ScrollView(.vertical, showsIndicators: false) {
                         VStack(spacing: 4) {
                             Text(L("play.sleep.choose")).font(S8KFont.subhead).foregroundColor(.s8kTextTertiary).padding(.vertical, 14)
                             ForEach([15, 30, 45, 60, 90, 120], id: \.self) { mins in
@@ -1197,8 +1203,10 @@ struct PlayerEngineView: View {
                                 }
                                 .buttonStyle(S8KButtonStyle()).padding(.horizontal, S8KSpace.xl)
                             }
-                            Spacer()
                         }
+                        .padding(.bottom, 20)
+                        }
+                        .scrollBounceBehavior(.basedOnSize)
                     }
                 }
             }
@@ -1206,7 +1214,7 @@ struct PlayerEngineView: View {
             .toolbar { ToolbarItem(placement: .topBarLeading) {
                 Button(L("common.close")) { showSleepSheet = false }.foregroundColor(.s8kGoldMid) } }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
     }
 
     // MARK: - Subtitle sheet

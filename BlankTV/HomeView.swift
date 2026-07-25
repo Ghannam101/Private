@@ -942,7 +942,9 @@ struct HomeView: View {
     // Responsive hero height — enlarged DOWNWARD so the full poster shows on all
     // phones (full-bleed under the notch/Dynamic Island; the top bar overlays a scrim).
     private var heroHeight: CGFloat {
-        hSize == .regular ? 560 : min(max(UIScreen.main.bounds.height * 0.62, 520), 660)
+        // WINDOW height, not screen height — otherwise an iPad Slide Over pane (320pt
+        // wide, compact) or a small Mac window gets a 660pt hero built for a Pro Max.
+        hSize == .regular ? 560 : min(max(s8kWindowSize().height * 0.62, 420), 660)
     }
 
     // MARK: - Hero Section — isolated swipeable cinematic carousel.
@@ -1515,6 +1517,10 @@ struct ChannelInfoSheet: View {
     var body: some View {
         ZStack {
             Color.s8kBlack.ignoresSafeArea()
+            // SCROLLABLE + a .large detent available: IPTV channel names are long and
+            // wrap to several lines, and EPGNowNext has a variable height — a fixed
+            // medium detent would push the Play button out of reach.
+            ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: S8KSpace.xl) {
                 S8KImage(url: channel.logoURL, placeholder: "antenna.radiowaves.left.and.right", maxPixel: 240)
                     .frame(width: 90, height: 90)
@@ -1528,6 +1534,8 @@ struct ChannelInfoSheet: View {
                     Text(channel.name)
                         .font(S8KFont.title2).foregroundColor(.s8kTextPrimary)
                         .multilineTextAlignment(.center)
+                        .lineLimit(3).minimumScaleFactor(0.7)
+                        .padding(.horizontal, 24)
                     if !channel.groupTitle.isEmpty {
                         Text(channel.groupTitle)
                             .font(S8KFont.caption1).foregroundColor(.s8kGoldMid)
@@ -1551,10 +1559,13 @@ struct ChannelInfoSheet: View {
 
                 Button(L("common.close")) { dismiss() }
                     .font(S8KFont.subhead).foregroundColor(.s8kTextTertiary)
-
-                Spacer()
             }
+            .padding(.bottom, 28)
+            .frame(maxWidth: 520)
+            .frame(maxWidth: .infinity)
+            }
+            .scrollBounceBehavior(.basedOnSize)
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
     }
 }

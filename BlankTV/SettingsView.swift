@@ -154,7 +154,7 @@ struct SettingsProV2: View {
                             sections
                             logoutButton
                             footer
-                            Color.clear.frame(height: 30)
+                            Color.clear.frame(height: 110)   // clear the floating AppTabBar (was 30 → logout sat under it)
                         }
                         .frame(maxWidth: hSize == .regular ? 640 : .infinity)
                         .frame(maxWidth: .infinity)
@@ -332,7 +332,10 @@ struct SetScaffold<C: View>: View {
         ZStack {
             Color.s8kBlack.ignoresSafeArea()
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 20) { content(); Color.clear.frame(height: 30) }
+                // 110 = the app-wide spacer that clears the floating AppTabBar, which
+                // overlays pushed pages too (was 30 → the last row of every settings
+                // sub-page was covered by the bar).
+                VStack(spacing: 20) { content(); Color.clear.frame(height: 110) }
                     .padding(.top, 14)
                     .frame(maxWidth: hSize == .regular ? 640 : .infinity)
                     .frame(maxWidth: .infinity)
@@ -826,6 +829,9 @@ struct AddPlaylistView: View {
         NavigationStack {
             ZStack {
                 Color.s8kBlack.ignoresSafeArea()
+                // SCROLLABLE: the keyboard is up on this sheet and the error row grows
+                // — without a scroll view the Add button hides under the keyboard.
+                ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 14) {
                     S8KTextField(placeholder: L("playlists.name_ph"), icon: "tag", text: $name)
                     S8KTextField(placeholder: L("playlists.url_ph"), icon: "link", text: $url, ltr: true)
@@ -843,15 +849,19 @@ struct AddPlaylistView: View {
                             else { err = auth.error?.errorDescription ?? L("playlists.add_failed") }
                         }
                     }
-                    Spacer()
                 }
                 .padding(20)
+                .frame(maxWidth: 460)
+                .frame(maxWidth: .infinity)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle(L("playlists.add")).navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarLeading) {
                 Button(L("common.cancel")) { dismiss() }.foregroundColor(.s8kGoldMid) } }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
     }
 }
 
@@ -934,6 +944,9 @@ struct PINEntryView: View {
     var body: some View {
         ZStack {
             Color.s8kBlack.ignoresSafeArea()
+            // SCROLLABLE: icon + title + dots + error + a 4-row keypad ≈ 530pt — taller
+            // than a short window (landscape / small Mac window) or a large text size.
+            ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 24) {
                 Image(systemName: "lock.shield.fill").font(.system(size: 40)).foregroundColor(.s8kGoldMid)
                 Text(title).font(S8KFont.headline).foregroundColor(.s8kTextPrimary)
@@ -956,6 +969,10 @@ struct PINEntryView: View {
                     .font(S8KFont.callout).foregroundColor(.s8kTextSecondary).padding(.top, 2)
             }
             .padding(30)
+            .frame(maxWidth: 420)
+            .frame(maxWidth: .infinity)
+            }
+            .scrollBounceBehavior(.basedOnSize)
         }
     }
 

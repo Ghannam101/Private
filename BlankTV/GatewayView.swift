@@ -14,24 +14,31 @@ import SwiftUI
 // Bundled poster asset names (owner-supplied art). Swap freely — just data.
 private let gatewayPosters = ["gwposter1", "gwposter2", "gwposter3", "gwposter4", "gwposter5", "gwposter6"]
 
-private let gwCardW: CGFloat = 112
-private let gwCardH: CGFloat = 168
 private let gwSpacing: CGFloat = 12
-private var gwBaseWidth: CGFloat { CGFloat(gatewayPosters.count) * (gwCardW + gwSpacing) }
+
+// Poster card size adapts to the CLASS of device, never to a measured width:
+// compact (every iPhone, 375→440pt, and iPad Slide Over at 320pt) vs regular
+// (iPad / Mac, up to 1376pt). No GeometryReader, no arithmetic that can go negative.
+private let gwCardWCompact: CGFloat = 112
+private let gwCardWRegular: CGFloat = 152
+private func gwCardH(_ w: CGFloat) -> CGFloat { (w * 3.0 / 2.0).rounded() }   // 2:3 poster
+private func gwBaseWidth(_ w: CGFloat) -> CGFloat { CGFloat(gatewayPosters.count) * (w + gwSpacing) }
 
 // MARK: - One SEAMLESS infinite marquee row
 // The base 6-poster set is repeated `reps` times; the offset animates by EXACTLY
-// one base-set width (gwBaseWidth). Because poster[6] is identical to poster[0] and
-// the item stride is uniform (cardW+spacing), the loop is perfectly seamless — no
-// jump, no gap, never ends. `reps` is sized to the screen so wide screens stay full.
+// one base-set width. Because poster[6] is identical to poster[0] and the item
+// stride is uniform (cardW+spacing), the loop is perfectly seamless — no jump,
+// no gap, never ends.
 private struct GatewayMarqueeRow: View {
     let posters: [String]
     let reversed: Bool
     let reps: Int
+    let cardW: CGFloat
     let speed: Double            // points per second (calm ≈ 16–24)
     @State private var offset: CGFloat = 0
 
     var body: some View {
+        let base = gwBaseWidth(cardW)
         HStack(spacing: gwSpacing) {
             // Explicit [Int] (NOT a variable-count Range ForEach, which traps when
             // `reps` changes on resize/rotation — see the launch-crash guardrail).
@@ -39,7 +46,7 @@ private struct GatewayMarqueeRow: View {
                 Image(posters[i % posters.count])
                     .resizable()
                     .scaledToFill()
-                    .frame(width: gwCardW, height: gwCardH)
+                    .frame(width: cardW, height: gwCardH(cardW))
                     .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous)
                         .strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
@@ -47,9 +54,9 @@ private struct GatewayMarqueeRow: View {
         }
         .offset(x: offset)
         .onAppear {
-            offset = reversed ? -gwBaseWidth : 0
-            withAnimation(.linear(duration: Double(gwBaseWidth) / max(speed, 1)).repeatForever(autoreverses: false)) {
-                offset = reversed ? 0 : -gwBaseWidth
+            offset = reversed ? -base : 0
+            withAnimation(.linear(duration: Double(base) / max(speed, 1)).repeatForever(autoreverses: false)) {
+                offset = reversed ? 0 : -base
             }
         }
     }
@@ -57,14 +64,16 @@ private struct GatewayMarqueeRow: View {
 
 // MARK: - 3-row poster wall (alternating directions, seamless)
 private struct GatewayPosterWall: View {
-    // Fixed repeat count — 6 base-sets (~4400pt) fills any screen from iPhone→Mac
-    // and keeps the seamless loop simple (no GeometryReader / width dependency).
+    let cardW: CGFloat
+    // 6 base-sets: 4464pt (compact) / 5904pt (regular) of posters — wider than any
+    // shipping screen (iPad Pro 13" landscape = 1376pt) even at maximum scroll
+    // offset, so a row is NEVER seen to run out. No width measurement needed.
     private let reps = 6
     var body: some View {
         VStack(spacing: gwSpacing) {
-            GatewayMarqueeRow(posters: rotate(0), reversed: false, reps: reps, speed: 20)
-            GatewayMarqueeRow(posters: rotate(2), reversed: true,  reps: reps, speed: 16)
-            GatewayMarqueeRow(posters: rotate(4), reversed: false, reps: reps, speed: 22)
+            GatewayMarqueeRow(posters: rotate(0), reversed: false, reps: reps, cardW: cardW, speed: 20)
+            GatewayMarqueeRow(posters: rotate(2), reversed: true,  reps: reps, cardW: cardW, speed: 16)
+            GatewayMarqueeRow(posters: rotate(4), reversed: false, reps: reps, cardW: cardW, speed: 22)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .padding(.top, 30)
@@ -83,6 +92,11 @@ struct GatewayView: View {
     @StateObject private var auth = AuthService.shared
     @StateObject private var activation = ActivationService.shared
     @StateObject private var loc = LocalizationManager.shared
+    // Size classes are the ONLY adaptivity input: they are supplied by the system
+    // (device + orientation + iPad Split View / Stage Manager + Mac window) and can
+    // never yield a bad number, unlike a measured width.
+    @Environment(\.horizontalSizeClass) private var hSize
+    @Environment(\.verticalSizeClass) private var vSize
 
     @State private var loginMode = LoginMode.xtream
     @State private var serverOrCode = ""
@@ -95,56 +109,83 @@ struct GatewayView: View {
     @State private var entering: String? = nil        // account being entered
 
     var body: some View {
-        // GeometryReader ADAPTS to every device automatically (iPhone SE → iPad → Mac)
-        // via its size + safe-area insets — no hard-coded per-device measurements.
-        GeometryReader { geo in
-            // Login block width: EXPLICIT and capped, so it can NEVER be wider than the
-            // screen (≥22pt margin each side) yet stays a tidy 430 max on big screens.
-            let contentW = min(geo.size.width - 44, 430)
+        // ROOT = a plain ZStack. NO GeometryReader anywhere: as the root of a
+        // fullScreenCover it reported a bad size, `min(width-44, 430)` went NEGATIVE
+        // and `.frame(width: -44)` collapsed the whole foreground → "only posters"
+        // (v60/v63). Adaptivity now comes from `maxWidth` + safe-area insets instead,
+        // which need no measurement and can never produce a negative width.
+        ZStack(alignment: .bottom) {
+            Color.s8kBlack.ignoresSafeArea()
+            GatewayPosterWall(cardW: hSize == .regular ? gwCardWRegular : gwCardWCompact)
+                .ignoresSafeArea()
 
-            ZStack(alignment: .bottom) {
-                Color.s8kBlack.ignoresSafeArea()
-                GatewayPosterWall().ignoresSafeArea()
+            LinearGradient(stops: [
+                .init(color: .clear,                       location: 0.00),
+                .init(color: Color.s8kBlack.opacity(0.15), location: 0.26),
+                .init(color: Color.s8kBlack.opacity(0.55), location: 0.40),
+                .init(color: Color.s8kBlack.opacity(0.90), location: 0.49),
+                .init(color: Color.s8kBlack,               location: 0.56),
+                .init(color: Color.s8kBlack,               location: 1.00),
+            ], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
 
-                LinearGradient(stops: [
-                    .init(color: .clear,                       location: 0.00),
-                    .init(color: Color.s8kBlack.opacity(0.15), location: 0.26),
-                    .init(color: Color.s8kBlack.opacity(0.55), location: 0.40),
-                    .init(color: Color.s8kBlack.opacity(0.90), location: 0.49),
-                    .init(color: Color.s8kBlack,               location: 0.56),
-                    .init(color: Color.s8kBlack,               location: 1.00),
-                ], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
-
-                VStack(spacing: 20) {
+            // SCROLLABLE foreground — the guarantee that the login form is reachable
+            // on EVERY device: it fits (and stays pinned to the bottom) on tall
+            // screens, and scrolls when the space is short — iPhone SE with the
+            // keyboard up, a phone/iPad in landscape (as little as ~334pt of usable
+            // height), a resized Mac window, or a large Dynamic Type setting.
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: vSize == .compact ? 14 : 20) {
                     brand
                     if !Store.shared.savedPlaylists.isEmpty { switchAccountButton }
                     loginCard
                     footer
                 }
-                .frame(width: contentW)     // explicit → never overflows the screen
+                // maxWidth (NOT a fixed width): the outer padding takes 24pt off each
+                // side BEFORE the frame resolves, so the block is always ≤ width − 48
+                // (272pt in a 320pt iPad Slide Over pane, 327pt on an iPhone SE) and
+                // stops at a tidy 400, centred, on iPad/Mac. It can never overflow, and
+                // — unlike the old `min(geo.width - 44, 430)` — never goes negative.
+                .frame(maxWidth: 400)
+                .padding(.horizontal, 24)
+                .padding(.top, 24)
                 .padding(.bottom, 16)
+                .frame(maxWidth: .infinity)
             }
-            // The ZStack is bounded by `geo` (which RESPECTS the safe area), so these
-            // overlays align to the SAFE-AREA top — the language pill sits BELOW the
-            // notch/Dynamic Island and is ALWAYS visible, on every device.
-            .overlay(alignment: .topTrailing) {
-                langMenu.padding(.trailing, 18).padding(.top, 8)
-            }
-            .overlay(alignment: .topLeading) {
-                if onClose != nil {
-                    Button { onClose?() } label: {
-                        Image(systemName: "xmark").font(.system(size: 15, weight: .bold)).foregroundColor(.white)
-                            .frame(width: 40, height: 40).background(.ultraThinMaterial, in: Circle())
-                            .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
-                    }
-                    .buttonStyle(S8KButtonStyle())
-                    .padding(.leading, 16).padding(.top, 8)
-                }
-            }
+            // iOS 17+: pins content to the BOTTOM when it is shorter than the
+            // viewport, and scrolls from the bottom when it is taller.
+            .defaultScrollAnchor(.bottom)
+            .scrollBounceBehavior(.basedOnSize)   // no rubber-band when it already fits
+            .scrollDismissesKeyboard(.interactively)
         }
+        // The top bar lives in the SAFE AREA (the guardrail-blessed API): it reserves
+        // its own space below the notch / Dynamic Island on every device, so the gold
+        // language pill is never clipped — and no overlay+padding guesswork.
+        .safeAreaInset(edge: .top) { topBar }
+        // Accessibility text is honoured up to AX1; beyond that a login form cannot
+        // stay legible on a 375pt screen, so we clamp instead of breaking the layout.
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         .sheet(isPresented: $showPrivacy) { PrivacyView() }
         .sheet(isPresented: $showTerms)   { TermsView() }
         .sheet(isPresented: $showAccounts) { accountSheet }
+    }
+
+    // MARK: Top bar — close (optional) + language pill
+    private var topBar: some View {
+        HStack(spacing: 12) {
+            if onClose != nil {
+                Button { onClose?() } label: {
+                    Image(systemName: "xmark").font(.system(size: 15, weight: .bold)).foregroundColor(.white)
+                        .frame(width: 40, height: 40).background(.ultraThinMaterial, in: Circle())
+                        .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
+                }
+                .buttonStyle(S8KButtonStyle())
+            }
+            Spacer(minLength: 0)
+            langMenu
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 6)
+        .padding(.bottom, 10)
     }
 
     // MARK: Multi-account — a professional "switch account" entry + picker sheet.
@@ -247,9 +288,12 @@ struct GatewayView: View {
 
     // MARK: Brand — the app's OWN logo + wordmark (no tagline)
     private var brand: some View {
-        VStack(spacing: 12) {
-            BrandLogo(size: 66)
-            S8KWordmark(size: 30)
+        // Slightly smaller in a short window (phone/iPad landscape) so the form keeps
+        // the room it needs; full size everywhere else.
+        let compactH = (vSize == .compact)
+        return VStack(spacing: compactH ? 8 : 12) {
+            BrandLogo(size: compactH ? 48 : 66)
+            S8KWordmark(size: compactH ? 24 : 30)
         }
         .padding(.bottom, 2)
     }
