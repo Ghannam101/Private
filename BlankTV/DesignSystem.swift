@@ -390,6 +390,9 @@ struct S8KTextField: View {
             .autocorrectionDisabled(disableAutocorrect)
             .textInputAutocapitalization(capitalization)
             .focused($focused)
+            // Claim the row's full width so the NATIVE hit box (and caret placement)
+            // covers the whole field, not just the width of the typed glyphs.
+            .frame(maxWidth: .infinity)
 
             if isSecure {
                 Button(action: { visible.toggle() }) {
@@ -413,6 +416,14 @@ struct S8KTextField: View {
                 .strokeBorder(focused ? Color.s8kGoldMid : Color.s8kBorder, lineWidth: 1.5)
                 .allowsHitTesting(false)   // purely decorative border — never intercept taps
         )
+        // THE fix for "the fields feel sticky / don't respond to touch": a SwiftUI
+        // TextField's hit area is only its intrinsic text box — the icon, the padding
+        // and the extra height from `minHeight: 52` were all DEAD space. These two lines
+        // make the entire 52pt row a single tap target that focuses the field.
+        // (Order matters: after the background/overlay, before the tap gesture. The eye
+        // Button is a child, so it still wins its own taps.)
+        .contentShape(Rectangle())
+        .onTapGesture { focused = true }
         .shadow(color: focused ? .s8kGoldMid.opacity(0.12) : .clear, radius: 8)
         .animation(.easeInOut(duration: 0.2), value: focused)
     }

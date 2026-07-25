@@ -972,6 +972,9 @@ struct PINEntryView: View {
             .frame(maxWidth: 420)
             .frame(maxWidth: .infinity)
             }
+            // The PIN pad was vertically centred before it became scrollable — keep it
+            // centred when it fits (iOS 17+), scroll only when the window is short.
+            .defaultScrollAnchor(.center)
             .scrollBounceBehavior(.basedOnSize)
         }
     }

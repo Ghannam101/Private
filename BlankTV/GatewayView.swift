@@ -10,6 +10,7 @@
 // ============================================================
 
 import SwiftUI
+import UIKit   // UIViewRepresentable / UIScrollView (touch-delay probe below)
 
 // Bundled poster asset names (owner-supplied art). Swap freely — just data.
 private let gatewayPosters = ["gwposter1", "gwposter2", "gwposter3", "gwposter4", "gwposter5", "gwposter6"]
@@ -29,13 +30,23 @@ private func gwBaseWidth(_ w: CGFloat) -> CGFloat { CGFloat(gatewayPosters.count
 // one base-set width. Because poster[6] is identical to poster[0] and the item
 // stride is uniform (cardW+spacing), the loop is perfectly seamless — no jump,
 // no gap, never ends.
-private struct GatewayMarqueeRow: View {
+private struct GatewayMarqueeRow: View, Equatable {
     let posters: [String]
     let reversed: Bool
     let reps: Int
     let cardW: CGFloat
     let speed: Double            // points per second (calm ≈ 16–24)
     @State private var offset: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    // Equatable + `.equatable()` at the call site: without it, EVERY keystroke in the
+    // login form re-runs GatewayView.body and rebuilds all of these poster images
+    // (SwiftUI cannot skip a non-Equatable child's body). Now the wall is rebuilt only
+    // when its own inputs actually change.
+    static func == (l: Self, r: Self) -> Bool {
+        l.cardW == r.cardW && l.reversed == r.reversed && l.reps == r.reps
+            && l.speed == r.speed && l.posters == r.posters
+    }
 
     var body: some View {
         let base = gwBaseWidth(cardW)
@@ -53,8 +64,15 @@ private struct GatewayMarqueeRow: View {
             }
         }
         .offset(x: offset)
+        // NOTE: deliberately no `.drawingGroup()` here. Placed after `.offset` it would
+        // rasterise the ANIMATED transform (re-rendering the whole texture every frame);
+        // placed before it, the texture is thousands of points wide. The real win was
+        // making this view Equatable so it stops rebuilding on every keystroke.
         .onAppear {
             offset = reversed ? -base : 0
+            // Accessibility: users who ask for reduced motion get a still wall, not a
+            // marquee (Apple requires this and App Review checks it).
+            guard !reduceMotion else { return }
             withAnimation(.linear(duration: Double(base) / max(speed, 1)).repeatForever(autoreverses: false)) {
                 offset = reversed ? 0 : -base
             }
@@ -63,17 +81,24 @@ private struct GatewayMarqueeRow: View {
 }
 
 // MARK: - 3-row poster wall (alternating directions, seamless)
-private struct GatewayPosterWall: View {
+private struct GatewayPosterWall: View, Equatable {
     let cardW: CGFloat
-    // 6 base-sets: 4464pt (compact) / 5904pt (regular) of posters — wider than any
-    // shipping screen (iPad Pro 13" landscape = 1376pt) even at maximum scroll
-    // offset, so a row is NEVER seen to run out. No width measurement needed.
+    static func == (l: Self, r: Self) -> Bool { l.cardW == r.cardW }
+    // 6 base-sets. The row is CENTRED in a full-width frame, so half of any surplus is
+    // spent off the leading edge: full coverage at maximum offset needs
+    // reps ≥ screenWidth/baseWidth + 2. Worst case (iPad Pro 13" landscape, 1376pt wide,
+    // base 984pt) → 3.4, so 6 keeps a wide margin on every device. (3 was tried and
+    // would have left a 202pt black gap at the end of each cycle on iPad.)
     private let reps = 6
     var body: some View {
+        // `.id(cardW)`: the row seeds its animation in `.onAppear`, which does NOT fire
+        // again when only a property changes. Without a new identity, a rotation that
+        // changes cardW would leave the animation cycling over the OLD base width while
+        // the layout stride is the new one — a permanent visible jump once per loop.
         VStack(spacing: gwSpacing) {
-            GatewayMarqueeRow(posters: rotate(0), reversed: false, reps: reps, cardW: cardW, speed: 20)
-            GatewayMarqueeRow(posters: rotate(2), reversed: true,  reps: reps, cardW: cardW, speed: 16)
-            GatewayMarqueeRow(posters: rotate(4), reversed: false, reps: reps, cardW: cardW, speed: 22)
+            GatewayMarqueeRow(posters: rotate(0), reversed: false, reps: reps, cardW: cardW, speed: 20).equatable().id(cardW)
+            GatewayMarqueeRow(posters: rotate(2), reversed: true,  reps: reps, cardW: cardW, speed: 16).equatable().id(cardW)
+            GatewayMarqueeRow(posters: rotate(4), reversed: false, reps: reps, cardW: cardW, speed: 22).equatable().id(cardW)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .padding(.top, 30)
@@ -83,6 +108,118 @@ private struct GatewayPosterWall: View {
         guard !a.isEmpty else { return a }
         let k = n % a.count
         return Array(a[k...] + a[..<k])
+    }
+}
+
+// MARK: - Touch responsiveness helpers
+// A UIScrollView holds a touch for ~150ms before delivering it, to decide whether the
+// gesture is a scroll. Inside a login form that reads as "the field / the toggle didn't
+// respond". SwiftUI exposes no API for this, so this zero-size probe walks up to the
+// enclosing UIScrollView once and turns the delay off. `canCancelContentTouches` stays
+// true, so dragging still cancels an in-progress tap and scrolling is unaffected.
+private struct GWNoTouchDelay: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView { Probe(frame: .zero) }
+    func updateUIView(_ v: UIView, context: Context) {}
+    private final class Probe: UIView {
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            var v: UIView? = superview
+            while let cur = v {
+                if let sv = cur as? UIScrollView {
+                    sv.delaysContentTouches = false
+                    sv.canCancelContentTouches = true
+                    break
+                }
+                v = cur.superview
+            }
+        }
+    }
+}
+
+// `.defaultScrollAnchor(.bottom)` on iOS 17 sets THREE behaviours at once: alignment of
+// short content, the initial offset, and the response to size changes. We only want the
+// first — otherwise, whenever the form is taller than the screen, the gateway opens
+// already scrolled to the bottom and the user is looking at "Terms · Privacy" instead of
+// the login fields. iOS 18 can separate the roles; on iOS 17 bottom-alignment is the
+// more important of the two, so it keeps the combined behaviour.
+private struct GWScrollAnchor: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content
+                .defaultScrollAnchor(.bottom, for: .alignment)
+                .defaultScrollAnchor(.top, for: .initialOffset)
+        } else {
+            content.defaultScrollAnchor(.bottom)
+        }
+    }
+}
+
+// MARK: - Xtream / M3U switcher
+// Rebuilt for INSTANT feel (owner: "switching between Xtream and M3U is slow"). Three
+// causes were found and all three are addressed here:
+//  1. The selected pill used to be each tab's own `.background`, so it CROSSFADED
+//     between two capsules. One shared capsule + `matchedGeometryEffect` now SLIDES.
+//  2. Press feedback came from `configuration.isPressed`, which is unreliable inside a
+//     ScrollView (UIScrollView holds the touch ~150ms to see if it is a drag) — so the
+//     control looked dead for the first moment. Motion is now driven by STATE, plus a
+//     haptic that fires on touch-up regardless of render timing.
+//  3. `withAnimation` was global: it dragged the whole screen (scroll height, safe area,
+//     poster wall) into the transaction. The animation is now SCOPED to this control.
+// Timing follows the split every motion system prescribes: the pill (spatial) may
+// overshoot slightly at 0.26s; the label colour (effect) settles faster at 0.12s, so the
+// text reads as being AHEAD of the motion — which is what "instant" feels like.
+private struct GatewayModeSwitcher: View {
+    @Binding var mode: LoginMode
+    var onChange: () -> Void
+    @Namespace private var ns
+    @State private var haptic = UISelectionFeedbackGenerator()
+
+    var body: some View {
+        HStack(spacing: 0) {
+            tab(.xtream, "Xtream", "person.badge.key.fill")
+            tab(.m3u, "M3U", "link")
+        }
+        .padding(5)
+        .background(Capsule(style: .continuous).fill(Color.white.opacity(0.06)))
+        .overlay(Capsule(style: .continuous)
+            .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+            .allowsHitTesting(false))
+        .animation(.snappy(duration: 0.26, extraBounce: 0.12), value: mode)
+        .onAppear { haptic.prepare() }        // cold Taptic engines fire ~100ms late
+    }
+
+    @ViewBuilder
+    private func tab(_ m: LoginMode, _ title: String, _ icon: String) -> some View {
+        let on = (mode == m)
+        Button {
+            guard mode != m else { return }
+            haptic.selectionChanged()          // BEFORE the state change, never inside it
+            mode = m
+            onChange()
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: icon).font(.system(size: 13, weight: .semibold))
+                Text(title).font(S8KFont.subhead.weight(.bold)).lineLimit(1).minimumScaleFactor(0.8)
+            }
+            .foregroundColor(on ? .s8kBlack : .s8kTextSecondary)
+            .animation(.easeOut(duration: 0.12), value: mode)   // colour settles first
+            .frame(maxWidth: .infinity).padding(.vertical, 12)
+            .background {
+                if on {
+                    // ONE capsule that moves between the two segments — no shadow
+                    // (an animated coloured shadow forces an offscreen pass every frame
+                    //  over a live poster wall).
+                    Capsule(style: .continuous)
+                        .fill(S8KGradient.goldFlat)
+                        .matchedGeometryEffect(id: "gwModePill", in: ns)
+                }
+            }
+            // Rectangle, not Capsule: a capsule hit shape rounds ~22pt off each corner,
+            // leaving dead spots exactly where a thumb lands. The pill stays visually
+            // a capsule — only the TAP area is square.
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)   // NOT S8KButtonStyle: isPressed is unreliable in a ScrollView
     }
 }
 
@@ -108,65 +245,82 @@ struct GatewayView: View {
     @State private var showAccounts = false          // multi-account picker
     @State private var entering: String? = nil        // account being entered
 
+    // Poster size follows BOTH size classes: only a genuinely large canvas (iPad /
+    // Mac, not a Pro Max in landscape) gets the big cards. Keeping it out of the
+    // phone-landscape case also stops a 738pt-tall wall in a 390pt-tall window.
+    private var gwCardW: CGFloat {
+        (hSize == .regular && vSize == .regular) ? gwCardWRegular : gwCardWCompact
+    }
+
     var body: some View {
-        // ROOT = a plain ZStack. NO GeometryReader anywhere: as the root of a
-        // fullScreenCover it reported a bad size, `min(width-44, 430)` went NEGATIVE
-        // and `.frame(width: -44)` collapsed the whole foreground → "only posters"
-        // (v60/v63). Adaptivity now comes from `maxWidth` + safe-area insets instead,
-        // which need no measurement and can never produce a negative width.
-        ZStack(alignment: .bottom) {
-            Color.s8kBlack.ignoresSafeArea()
-            GatewayPosterWall(cardW: hSize == .regular ? gwCardWRegular : gwCardWCompact)
-                .ignoresSafeArea()
-
-            LinearGradient(stops: [
-                .init(color: .clear,                       location: 0.00),
-                .init(color: Color.s8kBlack.opacity(0.15), location: 0.26),
-                .init(color: Color.s8kBlack.opacity(0.55), location: 0.40),
-                .init(color: Color.s8kBlack.opacity(0.90), location: 0.49),
-                .init(color: Color.s8kBlack,               location: 0.56),
-                .init(color: Color.s8kBlack,               location: 1.00),
-            ], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
-
-            // SCROLLABLE foreground — the guarantee that the login form is reachable
-            // on EVERY device: it fits (and stays pinned to the bottom) on tall
-            // screens, and scrolls when the space is short — iPhone SE with the
-            // keyboard up, a phone/iPad in landscape (as little as ~334pt of usable
-            // height), a resized Mac window, or a large Dynamic Type setting.
+        // ROOT = a plain VStack — the simplest construction that exists, chosen after
+        // three failed attempts:
+        //   • GeometryReader root  → reported a bad size, `min(width-44, 430)` went
+        //     NEGATIVE, `.frame(width: -44)` collapsed the foreground ("only posters").
+        //   • .overlay(alignment:.top) → an `.ignoresSafeArea()` sibling INFLATES the
+        //     ZStack's own frame to full screen, so "top" was under the Dynamic Island.
+        //   • .safeAreaInset(edge:.top) on that same inflated ZStack → the language
+        //     pill still did not show on device.
+        // Here the top bar is simply the FIRST CHILD of a VStack that respects the safe
+        // area, and the poster wall is a `.background` (a background can never inflate
+        // its host). There is nothing left to measure and nothing left to get wrong.
+        VStack(spacing: 0) {
+            topBar
+            // ONE ScrollView, always — deliberately NOT `ViewThatFits`. A ViewThatFits
+            // branch swap is a structural identity change: the moment the keyboard
+            // appeared the layout would flip branches, every text field would be torn
+            // down and rebuilt, focus would be lost and the keyboard would drop again.
+            // The touch delay a ScrollView normally adds is removed directly instead
+            // (`GWNoTouchDelay` below), and the row-wide tap target added to
+            // S8KTextField is what actually fixed the "sticky fields".
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: vSize == .compact ? 14 : 20) {
-                    brand
-                    if !Store.shared.savedPlaylists.isEmpty { switchAccountButton }
-                    loginCard
-                    footer
-                }
-                // maxWidth (NOT a fixed width): the outer padding takes 24pt off each
-                // side BEFORE the frame resolves, so the block is always ≤ width − 48
-                // (272pt in a 320pt iPad Slide Over pane, 327pt on an iPhone SE) and
-                // stops at a tidy 400, centred, on iPad/Mac. It can never overflow, and
-                // — unlike the old `min(geo.width - 44, 430)` — never goes negative.
-                .frame(maxWidth: 400)
-                .padding(.horizontal, 24)
-                .padding(.top, 24)
-                .padding(.bottom, 16)
-                .frame(maxWidth: .infinity)
+                loginBlock.background(GWNoTouchDelay().frame(width: 0, height: 0))
             }
-            // iOS 17+: pins content to the BOTTOM when it is shorter than the
-            // viewport, and scrolls from the bottom when it is taller.
-            .defaultScrollAnchor(.bottom)
+            .modifier(GWScrollAnchor())
             .scrollBounceBehavior(.basedOnSize)   // no rubber-band when it already fits
             .scrollDismissesKeyboard(.interactively)
         }
-        // The top bar lives in the SAFE AREA (the guardrail-blessed API): it reserves
-        // its own space below the notch / Dynamic Island on every device, so the gold
-        // language pill is never clipped — and no overlay+padding guesswork.
-        .safeAreaInset(edge: .top) { topBar }
+        .background {
+            ZStack {
+                Color.s8kBlack
+                GatewayPosterWall(cardW: gwCardW).equatable()
+                LinearGradient(stops: [
+                    .init(color: .clear,                       location: 0.00),
+                    .init(color: Color.s8kBlack.opacity(0.15), location: 0.26),
+                    .init(color: Color.s8kBlack.opacity(0.55), location: 0.40),
+                    .init(color: Color.s8kBlack.opacity(0.90), location: 0.49),
+                    .init(color: Color.s8kBlack,               location: 0.56),
+                    .init(color: Color.s8kBlack,               location: 1.00),
+                ], startPoint: .top, endPoint: .bottom)
+            }
+            .ignoresSafeArea()
+        }
         // Accessibility text is honoured up to AX1; beyond that a login form cannot
         // stay legible on a 375pt screen, so we clamp instead of breaking the layout.
         .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         .sheet(isPresented: $showPrivacy) { PrivacyView() }
         .sheet(isPresented: $showTerms)   { TermsView() }
         .sheet(isPresented: $showAccounts) { accountSheet }
+    }
+
+    // The foreground column (single call site — inside the ScrollView).
+    private var loginBlock: some View {
+        VStack(spacing: vSize == .compact ? 14 : 20) {
+            brand
+            if !Store.shared.savedPlaylists.isEmpty { switchAccountButton }
+            loginCard
+            footer
+        }
+        // maxWidth (NOT a fixed width): the outer padding takes 24pt off each side
+        // BEFORE the frame resolves, so the block is always ≤ width − 48 (272pt in a
+        // 320pt iPad Slide Over pane, 327pt on an iPhone SE) and stops at a tidy 400,
+        // centred, on iPad/Mac. It can never overflow, and — unlike the old
+        // `min(geo.width - 44, 430)` — it can never go negative.
+        .frame(maxWidth: 400)
+        .padding(.horizontal, 24)
+        .padding(.top, 24)
+        .padding(.bottom, 16)
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: Top bar — close (optional) + language pill
@@ -301,7 +455,7 @@ struct GatewayView: View {
     // MARK: Login card
     private var loginCard: some View {
         VStack(spacing: 11) {
-            modeSwitcher
+            GatewayModeSwitcher(mode: $loginMode) { auth.error = nil }
             if loginMode == .xtream {
                 if Store.shared.resellerHost?.isEmpty != false {
                     S8KTextField(placeholder: L("login.server_or_code"), icon: "server.rack", text: $serverOrCode,
@@ -311,9 +465,11 @@ struct GatewayView: View {
                              ltr: true, contentType: .username, disableAutocorrect: true, capitalization: .never)
                 S8KTextField(placeholder: L("login.password"), icon: "lock.fill", text: $password,
                              isSecure: true, disableAutocorrect: true, capitalization: .never)
+                    .transition(.opacity)
             } else {
                 S8KTextField(placeholder: "http://server.com/playlist.m3u", icon: "link", text: $m3uURL,
                              ltr: true, keyboard: .URL, contentType: .URL, disableAutocorrect: true, capitalization: .never)
+                    .transition(.opacity)
             }
 
             if let err = auth.error {
@@ -334,34 +490,13 @@ struct GatewayView: View {
                 submit()
             }
         }
+        // Cross-FADE the field set on a mode change (never a slide — a horizontal push
+        // on a 2-way toggle reads as page navigation), and let the card's own height
+        // change ride a separate, slightly slower spring than the pill.
+        .animation(.easeOut(duration: 0.18), value: loginMode)
     }
 
-    private var modeSwitcher: some View {
-        HStack(spacing: 0) {
-            modeTab(.xtream, "Xtream", "person.badge.key.fill")
-            modeTab(.m3u, "M3U", "link")
-        }
-        .padding(5)
-        .background(Capsule(style: .continuous).fill(Color.white.opacity(0.06)))
-        .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
-    }
-    private func modeTab(_ mode: LoginMode, _ title: String, _ icon: String) -> some View {
-        let on = loginMode == mode
-        return Button { withAnimation(.snappy(duration: 0.28)) { loginMode = mode; auth.error = nil } } label: {
-            HStack(spacing: 7) {
-                Image(systemName: icon).font(.system(size: 13, weight: .semibold))
-                Text(title).font(S8KFont.subhead.weight(.bold)).lineLimit(1).minimumScaleFactor(0.85)
-            }
-            .foregroundColor(on ? .s8kBlack : .s8kTextSecondary)
-            .frame(maxWidth: .infinity).padding(.vertical, 12)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(on ? AnyShapeStyle(S8KGradient.goldFlat) : AnyShapeStyle(Color.clear))
-                    .shadow(color: on ? Color.s8kGoldMid.opacity(0.45) : .clear, radius: 8, y: 2)
-            )
-        }
-        .buttonStyle(S8KButtonStyle())
-    }
+    // (the switcher lives in its own `GatewayModeSwitcher` view, defined above)
 
     // MARK: Footer — demo + legal
     private var footer: some View {

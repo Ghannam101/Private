@@ -97,6 +97,9 @@ struct MaintenanceView: View {
                 .padding(.vertical, 32)
                 .frame(maxWidth: .infinity)
             }
+            // CENTRES content that is shorter than the screen (iOS 17+) — without this
+            // the ScrollView would top-align it and leave a screen of dead black below.
+            .defaultScrollAnchor(.center)
             .scrollBounceBehavior(.basedOnSize)
         }
     }
@@ -135,6 +138,8 @@ struct UpdateRequiredView: View {
                 .padding(.vertical, 32)
                 .frame(maxWidth: .infinity)
             }
+            // Centre when it fits (see MaintenanceView) — this gate is the whole screen.
+            .defaultScrollAnchor(.center)
             .scrollBounceBehavior(.basedOnSize)
         }
     }

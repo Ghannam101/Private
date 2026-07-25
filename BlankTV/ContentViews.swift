@@ -894,13 +894,15 @@ struct CategoryReorderView: View {
     // items are chosen it shrinks to their content, giving the pool even more room.
     private func arrangedHeight(_ available: CGFloat) -> CGFloat {
         let content = CGFloat(max(pickedCats.count, 1)) * 52 + 6
+        // The first layout pass of a sheet can report height 0, which would collapse the
+        // drag list to nothing (and it never comes back until the view is rebuilt).
+        // Substitute a sensible height ONLY for that degenerate pass — clamping every
+        // real height to ≥500 would hand the list 64% of a short landscape window.
+        let usable: CGFloat = available > 1 ? available : 500
         // Short (landscape) heights spend more on fixed chrome, so hand the pool an
         // even bigger share there; tall layouts allow the arranged list up to ~42%.
-        let fraction: CGFloat = available < 500 ? 0.32 : 0.42
-        // `max(available, 220)`: the first layout pass of a sheet can report height 0,
-        // which would collapse the drag list to nothing (and it never comes back until
-        // the view is rebuilt). Never return less than a usable list height.
-        return min(content, max(available, 220) * fraction)
+        let fraction: CGFloat = usable < 500 ? 0.32 : 0.42
+        return min(content, usable * fraction)
     }
 
     var body: some View {
@@ -1409,7 +1411,7 @@ struct MoviesView: View {
     private var heroHeight: CGFloat {
         // WINDOW height, not screen height (see s8kWindowSize) — correct in iPad
         // Split View / Slide Over / Stage Manager and in a resized Mac window.
-        hSize == .regular ? 520 : min(max(s8kWindowSize().height * 0.58, 390), 600)
+        hSize == .regular ? 520 : min(max(s8kWindowSize().height * 0.58, 460), 600)
     }
     private func openHero(_ item: HomeVM.HeroItem) {
         if case .movie(let m) = item.kind { selected = m }
@@ -1862,7 +1864,7 @@ struct SeriesListView: View {
     private var heroHeight: CGFloat {
         // WINDOW height, not screen height (see s8kWindowSize) — correct in iPad
         // Split View / Slide Over / Stage Manager and in a resized Mac window.
-        hSize == .regular ? 520 : min(max(s8kWindowSize().height * 0.58, 390), 600)
+        hSize == .regular ? 520 : min(max(s8kWindowSize().height * 0.58, 460), 600)
     }
     private func openHero(_ item: HomeVM.HeroItem) {
         if case .series(let s) = item.kind { selected = s }

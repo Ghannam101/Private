@@ -944,7 +944,7 @@ struct HomeView: View {
     private var heroHeight: CGFloat {
         // WINDOW height, not screen height — otherwise an iPad Slide Over pane (320pt
         // wide, compact) or a small Mac window gets a 660pt hero built for a Pro Max.
-        hSize == .regular ? 560 : min(max(s8kWindowSize().height * 0.62, 420), 660)
+        hSize == .regular ? 560 : min(max(s8kWindowSize().height * 0.62, 520), 660)
     }
 
     // MARK: - Hero Section — isolated swipeable cinematic carousel.
