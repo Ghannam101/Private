@@ -331,9 +331,13 @@ struct PlayerEngineView: View {
             if showBufferingUI {
                 VStack(spacing: 12) {
                     ProgressView().progressViewStyle(.circular).tint(.s8kGoldHigh).scaleEffect(1.3)
-                    Text(vm.reconnecting ? L("play.reconnecting")
-                         : vm.buffering ? L("play.buffering") : L("play.starting"))
-                        .font(S8KFont.caption1).foregroundColor(.s8kTextSecondary)
+                    // Big-app minimal (owner spec): just the spinner. Keep text ONLY for
+                    // the active-recovery (reconnecting) state — it meaningfully tells the
+                    // user we're recovering, not stuck. Normal buffering/starting = spinner.
+                    if vm.reconnecting {
+                        Text(L("play.reconnecting"))
+                            .font(S8KFont.caption1).foregroundColor(.s8kTextSecondary)
+                    }
                 }
                 .transition(.opacity)
             }

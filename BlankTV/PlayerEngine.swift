@@ -332,7 +332,7 @@ final class AVPlayerVM: BasePlayerVM {
                 "AVURLAssetHTTPHeaderFieldsKey": ["User-Agent": "VLC/3.0.20 LibVLC/3.0.20"]
             ])
             pItem = AVPlayerItem(asset: asset)
-            if !isLive { pItem.preferredForwardBufferDuration = 4 }    // VOD: modest forward buffer
+            if !isLive { pItem.preferredForwardBufferDuration = 1 }    // instant-start: 1 HLS chunk
         }
         pItem.canUseNetworkResourcesForLiveStreamingWhilePaused = false
         observe(pItem)
@@ -436,6 +436,9 @@ final class AVPlayerVM: BasePlayerVM {
                     // would leave it spinning with no failover.
                     if self.duration == 0, dur.isFinite, dur > 0 { self.duration = dur }
                     self.resumeIfNeeded()
+                    // Instant-start: begin the moment the first chunk is ready instead of
+                    // waiting out the default stall-minimizing buffer (research-backed).
+                    self.avPlayer.playImmediately(atRate: 1.0)
                     self.loadSubtitles(); self.loadAudioTracks()
                     self.updateNowPlaying()
                 case .failed:

@@ -1178,6 +1178,8 @@ struct AppTabBar: View {
         HStack(spacing: 10) {
             Button {
                 haptic.selectionChanged()
+                commitTask?.cancel()   // kill any pending debounce so a stale query can't
+                searchDraft = ""       // re-filter the content after search is closed
                 router.endSearch()
                 searchFocused = false
                 BarVisibility.shared.collapse()

@@ -1317,15 +1317,7 @@ struct HomeView: View {
 struct ContentBootView: View {
     let onComplete: () -> Void
     @StateObject private var vm = HomeVM.shared
-    @State private var p: [Double] = [0, 0, 0]   // live, movies, series
     @State private var logoPulse = false
-    private let timer = Timer.publish(every: 0.03, on: .main, in: .common).autoconnect()
-
-    private let sections: [(String, String)] = [
-        (L("home.boot.live"),   "dot.radiowaves.left.and.right"),
-        (L("home.boot.movies"), "film.fill"),
-        (L("home.boot.series"), "play.tv.fill")
-    ]
 
     var body: some View {
         ZStack {
@@ -1333,32 +1325,15 @@ struct ContentBootView: View {
             RadialGradient(colors: [Color.s8kGoldMid.opacity(0.12), .clear],
                            center: .center, startRadius: 0, endRadius: 340).ignoresSafeArea()
 
-            // Clean, minimal loader — NO percentage bar (per owner feedback). The
-            // section chips fill lime + check off as each section finishes loading.
-            VStack(spacing: 28) {
-                VStack(spacing: 14) {
-                    Image("Logo").resizable().scaledToFit().frame(width: 92, height: 92)
-                        .shadow(color: .s8kGoldHigh.opacity(0.45), radius: 24)
-                        .scaleEffect(logoPulse ? 1.05 : 0.96)
-                        .animation(.easeInOut(duration: 1.3).repeatForever(autoreverses: true), value: logoPulse)
-                    S8KWordmark(size: 27)
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(S8KGradient.goldFlat)
-                        .frame(width: 46, height: 4)
-                        .shadow(color: .s8kGoldHigh.opacity(0.5), radius: 5)
-                }
-
-                HStack(spacing: 10) {
-                    ForEach(0..<3, id: \.self) { i in
-                        chip(sections[i].0, sections[i].1, p[i])
-                    }
-                }
-
-                HStack(spacing: 9) {
-                    ProgressView().tint(.s8kGoldHigh).scaleEffect(0.85)
-                    Text(L("home.preparing"))
-                        .font(S8KFont.footnote).foregroundColor(.s8kTextTertiary)
-                }
+            // Big-app minimal (owner spec): the brand mark + a single standard loading
+            // circle — NO status text ("preparing your library"), NO section checklist.
+            // Just the usual spinner, like X / YouTube / Netflix.
+            VStack(spacing: 26) {
+                Image("Logo").resizable().scaledToFit().frame(width: 96, height: 96)
+                    .shadow(color: .s8kGoldHigh.opacity(0.45), radius: 24)
+                    .scaleEffect(logoPulse ? 1.05 : 0.96)
+                    .animation(.easeInOut(duration: 1.3).repeatForever(autoreverses: true), value: logoPulse)
+                ProgressView().progressViewStyle(.circular).tint(.s8kGoldHigh)
             }
         }
         .onAppear { logoPulse = true }
@@ -1367,33 +1342,6 @@ struct ContentBootView: View {
             try? await Task.sleep(nanoseconds: 150_000_000)  // brief settle; disk cache makes content instant
             onComplete()
         }
-        .onReceive(timer) { _ in
-            advance(0, vm.doneChannels)
-            if vm.doneChannels { advance(1, vm.doneMovies) }
-            if vm.doneMovies   { advance(2, vm.doneSeries) }
-        }
-    }
-
-    private func advance(_ i: Int, _ done: Bool) {
-        if done { if p[i] < 1 { p[i] = min(1, p[i] + 0.14) } }
-        else if p[i] < 0.92 { p[i] += 0.018 }
-    }
-
-    private func chip(_ name: String, _ icon: String, _ value: Double) -> some View {
-        let done = value >= 1
-        return HStack(spacing: 6) {
-            Image(systemName: done ? "checkmark.circle.fill" : icon)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(done ? .s8kGoldHigh : .s8kTextDisabled)
-            Text(name).font(S8KFont.caption1.weight(.semibold))
-                .foregroundColor(done ? .s8kTextPrimary : .s8kTextTertiary)
-        }
-        .padding(.horizontal, 12).padding(.vertical, 8)
-        .background(done ? Color.s8kGoldHigh.opacity(0.12) : Color.s8kElevated)
-        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
-            .strokeBorder(done ? Color.s8kGoldHigh.opacity(0.3) : Color.s8kBorder, lineWidth: 1))
-        .animation(.easeOut(duration: 0.25), value: done)
     }
 }
 
