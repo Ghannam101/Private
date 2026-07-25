@@ -109,6 +109,39 @@ Fixed in this pass (full audit of all view files):
 `.padding(.top, 50…70)` sites, converting `AppTabBar` to a `.safeAreaInset(edge:.bottom)`, and full
 Dynamic Type adoption in `S8KFont`. All three are listed in `DEVICE_MATRIX.md` §6.
 
+## 5c. Owner device feedback + design pass (2026-07-25 evening)
+Owner tested v64 and reported: the language pill never appeared, the switch-account button
+"is a plain rectangle, not elegant", the text fields felt sticky to tap, and the Xtream/M3U
+switch felt slow. Root causes and fixes (build 63 → **v65**, build 64 → **v66**):
+- **Language pill invisible:** an `.ignoresSafeArea()` CHILD inflates its ZStack parent to
+  full screen, so "the top of the container" was under the Dynamic Island — which defeated
+  `.overlay(alignment:.top)` AND `.safeAreaInset`. The gateway root is now a plain `VStack`
+  whose first child is the top bar, with the poster wall in `.background { … }` (a
+  background cannot inflate its host). **Nothing on this screen is measured.**
+- **Sticky fields:** a SwiftUI `TextField`'s hit area is only its intrinsic text box — the
+  icon, padding and the extra `minHeight` were dead space. `S8KTextField` now has
+  `.contentShape(Rectangle())` + `.onTapGesture { focused = true }` (app-wide). Plus
+  `GWNoTouchDelay`, which turns off `UIScrollView.delaysContentTouches` (~150ms) inside the
+  gateway — that delay also suppressed all button press feedback.
+- **Slow toggle:** the pill was each tab's own `.background` (a crossfade, not a slide);
+  feedback came from `configuration.isPressed`, which is unreliable inside a ScrollView;
+  and a global `withAnimation` dragged the scroll height and poster wall into the
+  transaction. Rebuilt as `GatewayModeSwitcher` — one `matchedGeometryEffect` indicator,
+  state-driven, scoped `.animation(value:)`, prepared haptic fired before the state change.
+- **Design pass** (owner-approved directions, vetted by a review-board agent): flat lime CTA
+  with a neutral shadow (no gradient, no glow), flat input surfaces, solid-lime wordmark,
+  side-aligned brand lockup (aligned to the CARD's edge, mirrored by language), crisp
+  rounded-rect mode switcher, and "switch account" rebuilt as an identity row with
+  direct-entry account tiles. Three live defects were found in passing: the disabled CTA
+  was 1.6:1 contrast (its default state on the gateway), button labels had no
+  `lineLimit`/`minimumScaleFactor` and truncate at 13 sites, and the password-reveal control
+  was a ~14pt tap target. Also: the password field had no `contentType: .password`, which
+  breaks iOS Password AutoFill outright.
+
+**Process note that keeps paying off:** every round, an adversarial review agent found real
+defects in the previous round's work (including a `ViewThatFits` that would have destroyed
+text-field focus the moment the keyboard appeared). Do not skip it.
+
 ## 6. Remaining tasks (priority order)
 1. ~~Fix the gateway foreground-disappears bug~~ **DONE** (§5) — owner device-verifies → then adopt it
    (swap `GatewayView()` in for `SubscriptionsGateView()`) + remove the temp preview button.
