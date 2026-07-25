@@ -79,6 +79,8 @@ enum L10n {
         "region.european":[.ar: "أوروبي", .en: "European", .fr: "Européen", .tr: "Avrupa", .es: "Europeo"],
         "region.american":[.ar: "أمريكي", .en: "American", .fr: "Américain", .tr: "Amerikan", .es: "Americano"],
         "accounts.switch":[.ar: "تبديل الحساب", .en: "Switch account", .fr: "Changer de compte", .tr: "Hesap değiştir", .es: "Cambiar cuenta"],
+        "a11y.show_password": [.ar: "إظهار كلمة المرور", .en: "Show password", .fr: "Afficher le mot de passe", .tr: "Şifreyi göster", .es: "Mostrar contraseña"],
+        "a11y.hide_password": [.ar: "إخفاء كلمة المرور", .en: "Hide password", .fr: "Masquer le mot de passe", .tr: "Şifreyi gizle", .es: "Ocultar contraseña"],
         "accounts.title": [.ar: "الحسابات", .en: "Accounts", .fr: "Comptes", .tr: "Hesaplar", .es: "Cuentas"],
         "accounts.add":   [.ar: "إضافة حساب", .en: "Add account", .fr: "Ajouter un compte", .tr: "Hesap ekle", .es: "Añadir cuenta"],
         "accounts.current":[.ar: "الحساب الحالي", .en: "Current", .fr: "Actuel", .tr: "Mevcut", .es: "Actual"],

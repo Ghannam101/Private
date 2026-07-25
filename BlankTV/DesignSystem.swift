@@ -168,6 +168,9 @@ struct S8KFont {
     static let title3     = Font.system(size: 18, weight: .bold)
     static let headline   = Font.system(size: 15, weight: .semibold)
     static let body       = Font.system(size: 15, weight: .regular)
+    /// Text INPUT only (S8KTextField). 16pt is Apple's default input size — anything
+    /// smaller is the size iOS treats as "needs zooming" and reads cheap on a form.
+    static let field      = Font.system(size: 16, weight: .regular)
     static let callout    = Font.system(size: 14, weight: .regular)
     static let subhead    = Font.system(size: 13, weight: .semibold)
     static let footnote   = Font.system(size: 12, weight: .regular)
@@ -301,27 +304,37 @@ struct GoldButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 8) {
-                if isLoading {
-                    ProgressView().progressViewStyle(.circular).tint(.black).scaleEffect(0.85)
-                } else {
+            // ZStack, not an if/else: swapping the label for the spinner changed the
+            // button's intrinsic content, so a wrapped (long Arabic) label collapsed the
+            // row back to 52pt the moment you tapped submit — the page jumped under the
+            // user's thumb. Both live here and cross-fade instead.
+            ZStack {
+                HStack(spacing: 8) {
                     if let icon { Image(systemName: icon).font(.system(size: 14, weight: .bold)) }
-                    Text(title).font(S8KFont.headline)
+                    Text(title)
+                        .font(.system(size: 16, weight: .semibold))
+                        // Without these, long labels TRUNCATE — "تفعيل الرقابة الأبوية",
+                        // "Añade tu primera suscripción" already did, at 13 call sites.
+                        .lineLimit(1).minimumScaleFactor(0.85)
+                }
+                .opacity(isLoading ? 0 : 1)
+                if isLoading {
+                    ProgressView().progressViewStyle(.circular).tint(.s8kBlack).scaleEffect(0.85)
                 }
             }
-            .foregroundColor(.black)
+            // Deep-green ink (not pure black) so the CTA re-skins with BrandTheme.
+            // Disabled ink is WHITE at 45%: the old black-on-white@0.15 was 1.6:1 —
+            // an unreadable empty slab, and that is the button's DEFAULT state on the
+            // login gateway (disabled until a username and password are typed).
+            .foregroundColor(isDisabled ? Color.white.opacity(0.45) : Color.s8kBlack)
             .frame(maxWidth: .infinity, minHeight: 52)
-            .background(
-                Group {
-                    if isDisabled {
-                        Color.white.opacity(0.15)
-                    } else {
-                        LinearGradient(colors: [.s8kGoldHigh, .s8kGoldMid], startPoint: .leading, endPoint: .trailing)
-                    }
-                }
-            )
+            .background(isDisabled ? AnyShapeStyle(Color.white.opacity(0.10))
+                                   : AnyShapeStyle(Color.s8kGoldHigh))   // FLAT, not a gradient
             .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md))
-            .shadow(color: .s8kGoldMid.opacity(isDisabled ? 0 : 0.4), radius: 12, y: 4)
+            // A neutral elevation shadow — the app's standard recipe — instead of a
+            // coloured halo. The glow was the one ornament that read as "gold luxury",
+            // and over the gateway's animated poster wall it cost an offscreen pass.
+            .shadow(color: .black.opacity(isDisabled ? 0 : 0.35), radius: 18, y: 8)
         }
         .disabled(isLoading || isDisabled)
         .buttonStyle(S8KButtonStyle())
@@ -371,7 +384,7 @@ struct S8KTextField: View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .medium))
-                .foregroundColor(focused ? .s8kGoldMid : .s8kTextDisabled)
+                .foregroundColor(focused ? .s8kGoldHigh : .s8kTextDisabled)
                 .frame(width: 20)
                 .animation(.easeInOut(duration: 0.2), value: focused)
 
@@ -382,8 +395,11 @@ struct S8KTextField: View {
                     TextField(placeholder, text: $text)
                 }
             }
-            .font(S8KFont.body)
+            // 16pt: Apple's default input size. Smaller reads as cheap on a login card
+            // and is the size iOS treats as "needs zooming".
+            .font(S8KFont.field)
             .foregroundColor(.s8kTextPrimary)
+            .tint(.s8kGoldHigh)          // brand caret + selection handles
             .environment(\.layoutDirection, ltr ? .leftToRight : .rightToLeft)
             .keyboardType(keyboard)
             .textContentType(contentType)
@@ -395,25 +411,40 @@ struct S8KTextField: View {
             .frame(maxWidth: .infinity)
 
             if isSecure {
+                // 44×44 — the HIG minimum. This was a bare 14pt image (~14pt target):
+                // a near-miss hit the ROW's tap gesture and just focused the field, so
+                // the control read as broken. Outline glyph, not `.fill`: a filled eye
+                // reads as "currently revealed" even when the password is hidden.
                 Button(action: { visible.toggle() }) {
-                    Image(systemName: visible ? "eye.slash.fill" : "eye.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(.s8kTextDisabled)
+                    Image(systemName: visible ? "eye.slash" : "eye")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(visible ? .s8kGoldHigh : .s8kTextDisabled)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel(visible ? L("a11y.hide_password") : L("a11y.show_password"))
             }
         }
         .padding(.horizontal, S8KSpace.lg)
-        .padding(.vertical, 8)
+        // 4, not 8: 44 (reveal button) + 4 + 4 = exactly the 52pt row height, so adding a
+        // real tap target for the eye did not make every form taller.
+        .padding(.vertical, 4)
         // minHeight, NOT a fixed height: keeps the 52pt tap target on every device
         // while letting the row GROW instead of clipping the text at large accessibility
         // type sizes. Used by every login / add-playlist form in the app.
         .frame(minHeight: 52)
-        // Non-interactive glass: an input field must not swallow the first tap for a
-        // press animation (that caused the "tap once or twice before typing" issue).
-        .s8kGlass(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous), interactive: false)
+        // FLAT surface, not glass. Over the gateway's animated poster wall a material had
+        // to re-blur its backdrop every frame and its tone shifted as posters slid past;
+        // on every other screen it was blurring solid black — pure cost, zero effect.
+        // (It also drops the iOS-17 glass fallback's decorative overlays, which were the
+        // original cause of the "field won't take the first tap" bug.)
+        .background(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
+            .fill(Color.white.opacity(0.07)))
         .overlay(
             RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
-                .strokeBorder(focused ? Color.s8kGoldMid : Color.s8kBorder, lineWidth: 1.5)
+                .strokeBorder(focused ? Color.s8kGoldHigh.opacity(0.85) : Color.white.opacity(0.12),
+                              lineWidth: focused ? 1.5 : 1)
                 .allowsHitTesting(false)   // purely decorative border — never intercept taps
         )
         // THE fix for "the fields feel sticky / don't respond to touch": a SwiftUI
@@ -424,7 +455,8 @@ struct S8KTextField: View {
         // Button is a child, so it still wins its own taps.)
         .contentShape(Rectangle())
         .onTapGesture { focused = true }
-        .shadow(color: focused ? .s8kGoldMid.opacity(0.12) : .clear, radius: 8)
+        // (no focus shadow: a coloured glow at 12% was invisible on a dark screen, cost
+        //  an offscreen render pass over the moving posters, and was pure ornament.)
         .animation(.easeInOut(duration: 0.2), value: focused)
     }
 }
@@ -889,7 +921,7 @@ struct S8KWordmark: View {
             Text(brand)
                 .font(.system(size: size, weight: .heavy, design: .rounded))
                 .tracking(size * 0.05)
-                .foregroundStyle(S8KGradient.goldFlat)
+                .foregroundColor(.s8kGoldHigh)   // solid, not a gradient (see below)
                 .lineLimit(1).minimumScaleFactor(0.6)
                 .shadow(color: .black.opacity(0.35), radius: 6, y: 1)
         } else {
@@ -901,7 +933,13 @@ struct S8KWordmark: View {
                 Text("Prime")
                     .font(.system(size: size * 1.02, weight: .heavy, design: .rounded))
                     .tracking(size * 0.04)
-                    .foregroundStyle(S8KGradient.goldFlat)
+                    // SOLID accent, not a gradient. A 2-stop sweep across ~40pt of glyphs
+                    // reads as mud at the 17–18pt sizes used in the Home top bar, and a
+                    // metallic sweep is the exact ornament we are moving away from.
+                    // (The neutral drop shadow STAYS — on the gateway the wordmark sits
+                    //  where posters are still visible through the scrim, and white text
+                    //  over moving artwork shimmers without it.)
+                    .foregroundColor(.s8kGoldHigh)
             }
             // Keep the wordmark on ONE line, scaling down to fit rather than wrapping
             // to two lines (iPhone 11) or overflowing the nav bar's action buttons on
@@ -1505,13 +1543,16 @@ struct S8KConfirm: View {
                 }
                 VStack(spacing: 10) {
                     Button(action: onConfirm) {
-                        Text(confirmTitle).font(S8KFont.headline)
-                            .foregroundColor(destructive ? .white : .black)
+                        // Same flat treatment as GoldButton — the app's two primary CTAs
+                        // must not disagree (one flat, one gradient-with-a-glow).
+                        Text(confirmTitle).font(.system(size: 16, weight: .semibold))
+                            .lineLimit(1).minimumScaleFactor(0.85)
+                            .foregroundColor(destructive ? .white : .s8kBlack)
                             .frame(maxWidth: .infinity, minHeight: 50)
                             .background(destructive ? AnyShapeStyle(Color.s8kRed)
-                                                    : AnyShapeStyle(S8KGradient.goldFlat))
+                                                    : AnyShapeStyle(Color.s8kGoldHigh))
                             .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous))
-                            .shadow(color: (destructive ? Color.s8kRed : .s8kGoldMid).opacity(0.35), radius: 10, y: 3)
+                            .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
                     }
                     .buttonStyle(S8KButtonStyle())
                     Button(action: onCancel) {

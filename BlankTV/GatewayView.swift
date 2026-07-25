@@ -179,9 +179,14 @@ private struct GatewayModeSwitcher: View {
             tab(.xtream, "Xtream", "person.badge.key.fill")
             tab(.m3u, "M3U", "link")
         }
-        .padding(5)
-        .background(Capsule(style: .continuous).fill(Color.white.opacity(0.06)))
-        .overlay(Capsule(style: .continuous)
+        // Crisp rounded rect at the system's own radii (track = md 10, indicator = sm 7,
+        // nested with a 4pt inset so the corners stay concentric) — NOT a soft capsule.
+        // The design system's chips are documented as "crisp rectangular, not a soft
+        // capsule"; the capsule here was the outlier fighting its own language.
+        .padding(4)
+        .background(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
+            .fill(Color.white.opacity(0.06)))
+        .overlay(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
             .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
             .allowsHitTesting(false))
         .animation(.snappy(duration: 0.26, extraBounce: 0.12), value: mode)
@@ -203,14 +208,14 @@ private struct GatewayModeSwitcher: View {
             }
             .foregroundColor(on ? .s8kBlack : .s8kTextSecondary)
             .animation(.easeOut(duration: 0.12), value: mode)   // colour settles first
-            .frame(maxWidth: .infinity).padding(.vertical, 12)
+            .frame(maxWidth: .infinity).padding(.vertical, 11)
             .background {
                 if on {
-                    // ONE capsule that moves between the two segments — no shadow
-                    // (an animated coloured shadow forces an offscreen pass every frame
-                    //  over a live poster wall).
-                    Capsule(style: .continuous)
-                        .fill(S8KGradient.goldFlat)
+                    // ONE indicator that moves between the two segments — flat accent,
+                    // no shadow (an animated coloured shadow forces an offscreen pass
+                    // every frame over a live poster wall).
+                    RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+                        .fill(Color.s8kGoldHigh)
                         .matchedGeometryEffect(id: "gwModePill", in: ns)
                 }
             }
@@ -244,6 +249,10 @@ struct GatewayView: View {
     @State private var showTerms = false
     @State private var showAccounts = false          // multi-account picker
     @State private var entering: String? = nil        // account being entered
+    // A @State COPY, refreshed on appear and when the picker closes. Reading
+    // `Store.shared.savedPlaylists` straight from `body` looks fine but nothing observes
+    // it, so adding an account elsewhere would not refresh this screen.
+    @State private var accounts: [SavedPlaylist] = Store.shared.savedPlaylists
 
     // Poster size follows BOTH size classes: only a genuinely large canvas (iPad /
     // Mac, not a Pro Max in landscape) gets the big cards. Keeping it out of the
@@ -298,16 +307,19 @@ struct GatewayView: View {
         // Accessibility text is honoured up to AX1; beyond that a login form cannot
         // stay legible on a 375pt screen, so we clamp instead of breaking the layout.
         .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+        .task { accounts = Store.shared.savedPlaylists }
         .sheet(isPresented: $showPrivacy) { PrivacyView() }
         .sheet(isPresented: $showTerms)   { TermsView() }
-        .sheet(isPresented: $showAccounts) { accountSheet }
+        .sheet(isPresented: $showAccounts, onDismiss: { accounts = Store.shared.savedPlaylists }) {
+            accountSheet
+        }
     }
 
     // The foreground column (single call site — inside the ScrollView).
     private var loginBlock: some View {
         VStack(spacing: vSize == .compact ? 14 : 20) {
             brand
-            if !Store.shared.savedPlaylists.isEmpty { switchAccountButton }
+            if !accounts.isEmpty { switchAccountButton }
             loginCard
             footer
         }
@@ -345,21 +357,81 @@ struct GatewayView: View {
     // MARK: Multi-account — a professional "switch account" entry + picker sheet.
     // Reuses the proven switchPlaylist login so a returning user picks a saved
     // subscription instead of re-typing (owner: avoid entry errors).
+    // An IDENTITY ROW, not a button (owner: "the switch-account button is a plain
+    // rectangle and not elegant"). It was a full-width tinted capsule the same size and
+    // shape as the CTA below it, carrying no information — so it read as a second, weaker
+    // primary button. Now it shows WHO you are: a lime beam down the leading edge, the
+    // saved accounts as tappable tiles (one tap = straight in, no sheet, no re-typing),
+    // and a picker affordance for the rest.
     private var switchAccountButton: some View {
-        Button { showAccounts = true } label: {
+        HStack(spacing: 10) {
+            Rectangle().fill(Color.s8kGoldHigh.opacity(0.9))
+                .frame(width: 3).clipShape(RoundedRectangle(cornerRadius: 1.5))
+
+            // Up to 3 accounts as direct-entry tiles.
             HStack(spacing: 8) {
-                Image(systemName: "person.2.fill").font(.system(size: 13, weight: .semibold))
-                Text("\(L("accounts.switch")) · \(Store.shared.savedPlaylists.count)")
-                    .font(S8KFont.subhead.weight(.bold)).lineLimit(1)
-                Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold))
+                ForEach(accounts.prefix(3)) { acc in accountTile(acc) }
             }
-            .foregroundColor(.s8kGoldMid)
-            .padding(.horizontal, 16).padding(.vertical, 11)
-            .frame(maxWidth: .infinity)
-            .background(Capsule().fill(Color.s8kGoldMid.opacity(0.12)))
-            .overlay(Capsule().strokeBorder(Color.s8kBorderGold, lineWidth: 1))
+
+            VStack(alignment: rowAlign, spacing: 2) {
+                Text(accounts.first?.name ?? L("accounts.switch"))
+                    .font(S8KFont.headline).foregroundColor(.s8kTextPrimary)
+                    .lineLimit(1).minimumScaleFactor(0.85)
+                Text("\(L("accounts.switch")) · \(accounts.count)")
+                    .font(S8KFont.caption1).foregroundColor(.s8kTextSecondary)
+                    .lineLimit(1).minimumScaleFactor(0.85)
+            }
+            .frame(maxWidth: .infinity, alignment: rowAlign == .leading ? .leading : .trailing)
+
+            // Opens the full picker. `chevron.up.chevron.down` is the standard "this
+            // opens a chooser" glyph — a bare chevron.down promises a disclosure.
+            Button { showAccounts = true } label: {
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.s8kTextTertiary)
+                    .frame(width: 32, height: 32)
+                    .background(Circle().fill(Color.white.opacity(0.06)))
+                    .contentShape(Circle())
+            }
+            .buttonStyle(S8KButtonStyle())
+            .accessibilityLabel(L("accounts.title"))
+        }
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .frame(minHeight: 60)
+        .background(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous)
+            .fill(Color.white.opacity(0.06)))
+        .overlay(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous)
+            .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+            .allowsHitTesting(false))
+    }
+
+    // The app forces layoutDirection .leftToRight globally, so text alignment has to be
+    // driven by the LANGUAGE, not by "leading".
+    private var rowAlign: HorizontalAlignment {
+        LocalizationManager.current.isRTL ? .trailing : .leading
+    }
+
+    // One saved account: 34pt tile, tap = sign in immediately with it.
+    private func accountTile(_ acc: SavedPlaylist) -> some View {
+        let isEntering = entering == acc.id
+        return Button { enter(acc) } label: {
+            ZStack {
+                RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+                    .fill(Color.s8kGoldHigh)
+                    .frame(width: 34, height: 34)
+                if isEntering {
+                    ProgressView().tint(.s8kBlack).scaleEffect(0.7)
+                } else {
+                    Text(String(acc.name.prefix(1)).uppercased())
+                        .font(.system(size: 15, weight: .heavy))
+                        .foregroundColor(.s8kBlack)
+                }
+            }
+            .contentShape(Rectangle())
         }
         .buttonStyle(S8KButtonStyle())
+        .disabled(entering != nil)
+        .accessibilityLabel(acc.name)
     }
 
     private var accountSheet: some View {
@@ -368,7 +440,7 @@ struct GatewayView: View {
                 Color.s8kBlack.ignoresSafeArea()
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 12) {
-                        ForEach(Store.shared.savedPlaylists) { acc in accountRow(acc) }
+                        ForEach(accounts) { acc in accountRow(acc) }
                     }
                     .padding(20)
                 }
@@ -441,15 +513,30 @@ struct GatewayView: View {
     }
 
     // MARK: Brand — the app's OWN logo + wordmark (no tagline)
+    // Owner-approved lockup: a SMALL mark above a LARGE wordmark, aligned to the side
+    // rather than centred — an editorial signature, deliberately unlike the centred
+    // ornamental brand block of the sibling app. Two engineering notes:
+    //  • It aligns to the LOGIN CARD's edge (it lives inside the same 400pt column), not
+    //    to the screen edge — otherwise a side-pinned brand over a centred form gives the
+    //    page two competing axes.
+    //  • The app forces layoutDirection .leftToRight globally, so "leading" would be the
+    //    physical LEFT even in Arabic. Alignment is driven by the LANGUAGE instead, so
+    //    the lockup mirrors to the right side for Arabic.
     private var brand: some View {
-        // Slightly smaller in a short window (phone/iPad landscape) so the form keeps
-        // the room it needs; full size everywhere else.
         let compactH = (vSize == .compact)
-        return VStack(spacing: compactH ? 8 : 12) {
-            BrandLogo(size: compactH ? 48 : 66)
-            S8KWordmark(size: compactH ? 24 : 30)
+        let align: HorizontalAlignment = LocalizationManager.current.isRTL ? .trailing : .leading
+        return VStack(alignment: align, spacing: compactH ? 8 : 10) {
+            BrandLogo(size: compactH ? 36 : 44)
+            S8KWordmark(size: compactH ? 22 : 28)
+            // A thin accent rule under the wordmark. Deliberately 2pt and WITHOUT the
+            // glow used by section headers, so the brand does not read as a section title.
+            RoundedRectangle(cornerRadius: 1)
+                .fill(Color.s8kGoldHigh)
+                .frame(width: 28, height: 2)
+                .padding(.top, 2)
         }
-        .padding(.bottom, 2)
+        .frame(maxWidth: .infinity, alignment: align == .leading ? .leading : .trailing)
+        .padding(.bottom, 4)
     }
 
     // MARK: Login card
@@ -463,8 +550,12 @@ struct GatewayView: View {
                 }
                 S8KTextField(placeholder: L("login.username"), icon: "person.fill", text: $username,
                              ltr: true, contentType: .username, disableAutocorrect: true, capitalization: .never)
+                // `contentType: .password` is REQUIRED for iOS Password AutoFill: a
+                // .username field with no paired .password field breaks the heuristic
+                // outright — saved credentials never fill and iOS never offers to save.
                 S8KTextField(placeholder: L("login.password"), icon: "lock.fill", text: $password,
-                             isSecure: true, disableAutocorrect: true, capitalization: .never)
+                             isSecure: true, contentType: .password,
+                             disableAutocorrect: true, capitalization: .never)
                     .transition(.opacity)
             } else {
                 S8KTextField(placeholder: "http://server.com/playlist.m3u", icon: "link", text: $m3uURL,
@@ -477,7 +568,11 @@ struct GatewayView: View {
                     Image(systemName: "exclamationmark.circle.fill").font(.system(size: 13))
                     Text(err.errorDescription ?? L("common.error")).font(S8KFont.caption1)
                 }
-                .foregroundColor(.s8kRed).padding(12).frame(maxWidth: .infinity, alignment: .trailing)
+                // Alignment follows the LANGUAGE, not "trailing": the app forces LTR
+                // globally, so a hard-coded .trailing right-aligned English errors.
+                .foregroundColor(.s8kRed).padding(12)
+                .frame(maxWidth: .infinity,
+                       alignment: LocalizationManager.current.isRTL ? .trailing : .leading)
                 .background(Color.s8kRed.opacity(0.08))
                 .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm))
                 .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm).strokeBorder(Color.s8kRed.opacity(0.2), lineWidth: 1))
@@ -501,8 +596,13 @@ struct GatewayView: View {
     // MARK: Footer — demo + legal
     private var footer: some View {
         VStack(spacing: 13) {
+            // Demoted to neutral text: a coloured link 20pt under the accent CTA was a
+            // second "primary" competing with the real one. Exactly ONE accent-filled
+            // element belongs on this screen.
             Button { auth.enterDemo() } label: {
-                Text(L("login.demo")).font(S8KFont.subhead.weight(.semibold)).foregroundColor(.s8kGoldMid)
+                Text(L("login.demo")).font(S8KFont.subhead.weight(.semibold))
+                    .foregroundColor(.s8kTextSecondary)
+                    .lineLimit(1).minimumScaleFactor(0.85)
             }
             .buttonStyle(S8KButtonStyle()).padding(.top, 14)
             HStack(spacing: 5) {
