@@ -99,42 +99,41 @@ struct GatewayView: View {
             // Full-bleed poster wall (rows pinned to the top), seamless.
             GatewayPosterWall().ignoresSafeArea()
 
-            // Scrim: clear at the top (posters read sharply) → solid at the bottom.
+            // Scrim — the bottom ~half is fully dark so the login area reads clean on
+            // EVERY screen, regardless of the posters behind it.
             LinearGradient(stops: [
                 .init(color: .clear,                       location: 0.00),
-                .init(color: Color.s8kBlack.opacity(0.12), location: 0.30),
-                .init(color: Color.s8kBlack.opacity(0.72), location: 0.50),
-                .init(color: Color.s8kBlack.opacity(0.97), location: 0.62),
-                .init(color: Color.s8kBlack,               location: 0.74),
+                .init(color: Color.s8kBlack.opacity(0.15), location: 0.26),
+                .init(color: Color.s8kBlack.opacity(0.55), location: 0.40),
+                .init(color: Color.s8kBlack.opacity(0.90), location: 0.49),
+                .init(color: Color.s8kBlack,               location: 0.56),
                 .init(color: Color.s8kBlack,               location: 1.00),
             ], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
 
-            // Foreground — anchored to the BOTTOM of the ZStack (simple + reliable),
-            // width-capped + centered on iPad/Mac. Keyboard avoidance shifts it up.
-            VStack(spacing: 18) {
+            // Foreground — bottom-anchored, width-capped + centered on iPad/Mac,
+            // with real breathing room. Keyboard avoidance shifts it up.
+            VStack(spacing: 20) {
                 brand
                 loginCard
                 footer
             }
             .frame(maxWidth: 440)
             .frame(maxWidth: .infinity)
-            .padding(.horizontal, 22)
-            .padding(.bottom, 6)
-
-            // Top bar (language + preview-close) — a separate top-anchored overlay.
-            topBar
+            .padding(.horizontal, 24)
+            .padding(.bottom, 16)
         }
+        .overlay(alignment: .top) { topBar }   // respects the safe area (below the notch)
         .sheet(isPresented: $showPrivacy) { PrivacyView() }
         .sheet(isPresented: $showTerms)   { TermsView() }
     }
 
-    // MARK: Top bar — close (preview only) + language toggle
+    // MARK: Top bar — close (preview only) + a CLEARLY-VISIBLE language toggle
     private var topBar: some View {
         HStack {
             if onClose != nil {
                 Button { onClose?() } label: {
                     Image(systemName: "xmark").font(.system(size: 15, weight: .bold)).foregroundColor(.white)
-                        .frame(width: 38, height: 38).background(.ultraThinMaterial, in: Circle())
+                        .frame(width: 40, height: 40).background(.ultraThinMaterial, in: Circle())
                         .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
                 }
                 .buttonStyle(S8KButtonStyle())
@@ -142,10 +141,10 @@ struct GatewayView: View {
             Spacer()
             langMenu
         }
-        .padding(.horizontal, 16).padding(.top, 8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.horizontal, 16).padding(.top, 6)
     }
 
+    // A high-contrast GOLD pill so the user always sees the language switch before login.
     private var langMenu: some View {
         Menu {
             ForEach(AppLang.allCases) { l in
@@ -154,14 +153,15 @@ struct GatewayView: View {
                 }
             }
         } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "globe").font(.system(size: 13, weight: .semibold))
-                Text(loc.lang.display).font(S8KFont.caption1.weight(.bold))
+            HStack(spacing: 7) {
+                Image(systemName: "globe").font(.system(size: 14, weight: .bold))
+                Text(loc.lang.display).font(S8KFont.subhead.weight(.heavy))
+                Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold))
             }
-            .foregroundColor(.s8kTextPrimary)
-            .padding(.horizontal, 12).padding(.vertical, 8)
-            .background(Capsule().fill(Color.white.opacity(0.08)))
-            .overlay(Capsule().strokeBorder(Color.white.opacity(0.14), lineWidth: 1))
+            .foregroundColor(.s8kBlack)
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(Capsule().fill(S8KGradient.goldFlat))
+            .shadow(color: .black.opacity(0.4), radius: 9, y: 3)
         }
     }
 
@@ -213,25 +213,28 @@ struct GatewayView: View {
     }
 
     private var modeSwitcher: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 0) {
             modeTab(.xtream, "Xtream Codes", "person.badge.key.fill")
             modeTab(.m3u, L("login.mode_m3u"), "link")
         }
-        .padding(4)
-        .background(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous).fill(Color.white.opacity(0.05)))
-        .overlay(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous).strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
+        .padding(5)
+        .background(Capsule(style: .continuous).fill(Color.white.opacity(0.06)))
+        .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
     }
     private func modeTab(_ mode: LoginMode, _ title: String, _ icon: String) -> some View {
         let on = loginMode == mode
-        return Button { withAnimation(.snappy(duration: 0.25)) { loginMode = mode; auth.error = nil } } label: {
+        return Button { withAnimation(.snappy(duration: 0.28)) { loginMode = mode; auth.error = nil } } label: {
             HStack(spacing: 7) {
                 Image(systemName: icon).font(.system(size: 13, weight: .semibold))
-                Text(title).font(S8KFont.subhead.weight(.bold)).lineLimit(1)
+                Text(title).font(S8KFont.subhead.weight(.bold)).lineLimit(1).minimumScaleFactor(0.85)
             }
             .foregroundColor(on ? .s8kBlack : .s8kTextSecondary)
             .frame(maxWidth: .infinity).padding(.vertical, 12)
-            .background(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
-                .fill(on ? AnyShapeStyle(S8KGradient.goldFlat) : AnyShapeStyle(Color.clear)))
+            .background(
+                Capsule(style: .continuous)
+                    .fill(on ? AnyShapeStyle(S8KGradient.goldFlat) : AnyShapeStyle(Color.clear))
+                    .shadow(color: on ? Color.s8kGoldMid.opacity(0.45) : .clear, radius: 8, y: 2)
+            )
         }
         .buttonStyle(S8KButtonStyle())
     }
