@@ -55,10 +55,11 @@ private struct GatewayMarqueeRow: View {
     }
 }
 
-// MARK: - 3-row poster wall (alternating directions, seamless, screen-sized)
+// MARK: - 3-row poster wall (alternating directions, seamless)
 private struct GatewayPosterWall: View {
-    let width: CGFloat
-    private var reps: Int { max(3, Int((width * 2.0 / max(gwBaseWidth, 1)).rounded(.up))) }
+    // Fixed repeat count — 6 base-sets (~4400pt) fills any screen from iPhone→Mac
+    // and keeps the seamless loop simple (no GeometryReader / width dependency).
+    private let reps = 6
     var body: some View {
         VStack(spacing: gwSpacing) {
             GatewayMarqueeRow(posters: rotate(0), reversed: false, reps: reps, speed: 20)
@@ -92,45 +93,36 @@ struct GatewayView: View {
     @State private var showTerms = false
 
     var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                Color.s8kBlack.ignoresSafeArea()
+        ZStack(alignment: .bottom) {
+            Color.s8kBlack.ignoresSafeArea()
 
-                // Full-bleed poster wall (top), seamless.
-                GatewayPosterWall(width: geo.size.width)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .ignoresSafeArea()
+            // Full-bleed poster wall (rows pinned to the top), seamless.
+            GatewayPosterWall().ignoresSafeArea()
 
-                // Scrim: clear at the top (posters read sharply) → solid at the bottom.
-                LinearGradient(stops: [
-                    .init(color: .clear,                       location: 0.00),
-                    .init(color: Color.s8kBlack.opacity(0.12), location: 0.30),
-                    .init(color: Color.s8kBlack.opacity(0.72), location: 0.50),
-                    .init(color: Color.s8kBlack.opacity(0.97), location: 0.62),
-                    .init(color: Color.s8kBlack,               location: 0.74),
-                    .init(color: Color.s8kBlack,               location: 1.00),
-                ], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
+            // Scrim: clear at the top (posters read sharply) → solid at the bottom.
+            LinearGradient(stops: [
+                .init(color: .clear,                       location: 0.00),
+                .init(color: Color.s8kBlack.opacity(0.12), location: 0.30),
+                .init(color: Color.s8kBlack.opacity(0.72), location: 0.50),
+                .init(color: Color.s8kBlack.opacity(0.97), location: 0.62),
+                .init(color: Color.s8kBlack,               location: 0.74),
+                .init(color: Color.s8kBlack,               location: 1.00),
+            ], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
 
-                // Foreground — bottom-anchored, width-capped (iPad/Mac), keyboard-safe.
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        Spacer(minLength: 0)                  // pushes content to the bottom
-                        VStack(spacing: 18) {
-                            brand
-                            loginCard
-                            footer
-                        }
-                        .frame(maxWidth: 440)                 // cap on iPad / Mac
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 22)
-                        .padding(.bottom, 8)
-                    }
-                    .frame(minHeight: geo.size.height)        // fill → Spacer bottom-anchors
-                }
-                .scrollDismissesKeyboard(.interactively)
-
-                topBar
+            // Foreground — anchored to the BOTTOM of the ZStack (simple + reliable),
+            // width-capped + centered on iPad/Mac. Keyboard avoidance shifts it up.
+            VStack(spacing: 18) {
+                brand
+                loginCard
+                footer
             }
+            .frame(maxWidth: 440)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 22)
+            .padding(.bottom, 6)
+
+            // Top bar (language + preview-close) — a separate top-anchored overlay.
+            topBar
         }
         .sheet(isPresented: $showPrivacy) { PrivacyView() }
         .sheet(isPresented: $showTerms)   { TermsView() }
