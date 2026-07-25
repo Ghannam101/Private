@@ -121,7 +121,7 @@ struct LiveTVView: View {
                 ZStack {
                     Color.s8kBlack.ignoresSafeArea()
                     if vm.isLoading {
-                        LoadingView(message: L("loading.channels"))
+                        S8KListSkeleton()
                     } else if let e = vm.error {
                         ErrorView(message: e.errorDescription ?? L("loading.error")) { Task { await vm.load() } }
                     } else if useSplit(geo.size.width) { padBrowser(geo.size.width) } else { browser }
@@ -1415,7 +1415,7 @@ struct MoviesView: View {
             GeometryReader { geo in
                 ZStack {
                     Color.s8kBlack.ignoresSafeArea()
-                    if vm.isLoading { LoadingView(message: L("loading.movies"))
+                    if vm.isLoading { S8KPosterGridSkeleton()
                     } else if let e = vm.error {
                         ErrorView(message: e.errorDescription ?? L("loading.error")) { Task { await vm.load() } }
                     } else if useSplit(geo.size.width) { padBrowser(geo.size.width) } else { browser }
@@ -1866,7 +1866,7 @@ struct SeriesListView: View {
             GeometryReader { geo in
                 ZStack {
                     Color.s8kBlack.ignoresSafeArea()
-                    if vm.isLoading { LoadingView(message: L("loading.series"))
+                    if vm.isLoading { S8KPosterGridSkeleton()
                     } else if let e = vm.error {
                         ErrorView(message: e.errorDescription ?? L("loading.error")) { Task { await vm.load() } }
                     } else if useSplit(geo.size.width) { padBrowser(geo.size.width) } else { browser }

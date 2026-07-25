@@ -738,6 +738,56 @@ struct SkeletonBlock: View {
     }
 }
 
+// A page-shaped skeleton (category chips + poster grid) for Movies/Series while the
+// catalog loads — the big-app "the page is drawn, filling in" feel instead of a
+// centered spinner + "loading…" text. ONE shimmer sweep over the whole page (not
+// per-cell) keeps it cheap. Plain fills for cells (no per-cell GeometryReader).
+struct S8KPosterGridSkeleton: View {
+    var columns: Int = 3
+    private func cell(_ r: CGFloat = S8KRadius.md) -> some View {
+        RoundedRectangle(cornerRadius: r, style: .continuous).fill(Color.s8kElevated)
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 10) {
+                ForEach(0..<4, id: \.self) { _ in cell(S8KRadius.sm).frame(width: 78, height: 30) }
+            }
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: columns), spacing: 14) {
+                ForEach(0..<12, id: \.self) { _ in cell().aspectRatio(2.0 / 3.0, contentMode: .fit) }
+            }
+        }
+        .padding(.horizontal, S8KSpace.lg).padding(.top, 10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .s8kShimmer()
+        .background(Color.s8kBlack)
+    }
+}
+
+// A list-shaped skeleton (logo + two text bars per row) for the Live channel list.
+struct S8KListSkeleton: View {
+    private func cell(_ r: CGFloat = S8KRadius.sm) -> some View {
+        RoundedRectangle(cornerRadius: r, style: .continuous).fill(Color.s8kElevated)
+    }
+    var body: some View {
+        VStack(spacing: 14) {
+            ForEach(0..<10, id: \.self) { _ in
+                HStack(spacing: 12) {
+                    cell(S8KRadius.md).frame(width: 54, height: 54)
+                    VStack(alignment: .leading, spacing: 8) {
+                        cell().frame(width: 170, height: 12)
+                        cell().frame(width: 92, height: 10)
+                    }
+                    Spacer()
+                }
+            }
+        }
+        .padding(.horizontal, S8KSpace.lg).padding(.top, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .s8kShimmer()
+        .background(Color.s8kBlack)
+    }
+}
+
 // MARK: - Watermark (white-label aware)
 // Uses the reseller's logo + name when a brand is active, otherwise the bundled
 // BLANK TV mark — so a branded device shows the RESELLER's watermark on video.
@@ -863,10 +913,8 @@ struct LoadingView: View {
                         rotation = 360
                     }
                 }
-
-            Text(message)
-                .font(S8KFont.footnote)
-                .foregroundColor(.s8kTextTertiary)
+            // Big-app minimal (owner spec): the spinner alone — no "loading…" text.
+            // `message` stays for source-compat with existing call sites (unused).
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.s8kBlack)
