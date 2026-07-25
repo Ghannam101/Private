@@ -415,7 +415,12 @@ struct S8KTextField: View {
                 // a near-miss hit the ROW's tap gesture and just focused the field, so
                 // the control read as broken. Outline glyph, not `.fill`: a filled eye
                 // reads as "currently revealed" even when the password is hidden.
-                Button(action: { visible.toggle() }) {
+                // Re-assert focus: SecureField and TextField are DIFFERENT view types, so
+                // toggling destroys one and creates the other — the first responder dies
+                // and the keyboard drops mid-typing. The re-focus must happen on the NEXT
+                // runloop: written in the same transaction it would still be bound to the
+                // outgoing field and get dropped.
+                Button(action: { visible.toggle(); DispatchQueue.main.async { focused = true } }) {
                     Image(systemName: visible ? "eye.slash" : "eye")
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(visible ? .s8kGoldHigh : .s8kTextDisabled)

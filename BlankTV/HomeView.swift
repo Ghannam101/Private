@@ -187,7 +187,12 @@ final class HomeVM: ObservableObject {
     }
     /// Remember a content-load failure so the home can show a clear banner
     /// (e.g. the provider line expired mid-session) instead of an empty screen.
-    private func noteError(_ e: Error) { error = (e as? AppError) ?? .network(e) }
+    /// A load cancelled by a tab remount must NOT record an error — otherwise Home shows
+    /// a failure banner over content that loaded perfectly well on the next attempt.
+    private func noteError(_ e: Error) {
+        guard !Task.isCancelled else { return }
+        error = (e as? AppError) ?? .network(e)
+    }
 
     func startHeroTimer() {
         heroTimer?.invalidate() // avoid stacking timers on every onAppear
@@ -693,7 +698,8 @@ struct HomeView: View {
             .frame(maxWidth: hSize == .regular ? 900 : .infinity)
             .frame(maxWidth: .infinity)
         }
-        .refreshable { await vm.load() }
+        // force: without it `loaded == true` makes pull-to-refresh a silent no-op.
+        .refreshable { await vm.load(force: true) }
         // Drive the floating menu (collapse on scroll) + the top bar glass (frost on scroll).
         .reportsScrollToTabBar()
         // Hero runs full-bleed UNDER the status bar; the top bar is a top OVERLAY
@@ -1315,37 +1321,10 @@ struct HomeView: View {
     }
 }
 
-// MARK: - Dedicated post-login content loader (elegant, full-screen, no tab bar)
-struct ContentBootView: View {
-    let onComplete: () -> Void
-    @StateObject private var vm = HomeVM.shared
-    @State private var logoPulse = false
-
-    var body: some View {
-        ZStack {
-            Color.s8kBlack.ignoresSafeArea()
-            RadialGradient(colors: [Color.s8kGoldMid.opacity(0.12), .clear],
-                           center: .center, startRadius: 0, endRadius: 340).ignoresSafeArea()
-
-            // Big-app minimal (owner spec): the brand mark + a single standard loading
-            // circle — NO status text ("preparing your library"), NO section checklist.
-            // Just the usual spinner, like X / YouTube / Netflix.
-            VStack(spacing: 26) {
-                Image("Logo").resizable().scaledToFit().frame(width: 96, height: 96)
-                    .shadow(color: .s8kGoldHigh.opacity(0.45), radius: 24)
-                    .scaleEffect(logoPulse ? 1.05 : 0.96)
-                    .animation(.easeInOut(duration: 1.3).repeatForever(autoreverses: true), value: logoPulse)
-                ProgressView().progressViewStyle(.circular).tint(.s8kGoldHigh)
-            }
-        }
-        .onAppear { logoPulse = true }
-        .task {
-            await vm.bootLoad()
-            try? await Task.sleep(nanoseconds: 150_000_000)  // brief settle; disk cache makes content instant
-            onComplete()
-        }
-    }
-}
+// NOTE: `ContentBootView` — the full-screen post-login loading page — was REMOVED.
+// Sign-in now lands on the app instantly and the catalog fills in behind the tabs'
+// own skeletons (BlankTVApp: `tabView.id(router.contentGen)`). `HomeVM.bootLoad()`
+// is kept because it is the parallel loader HomeView's own `.task` can still use.
 
 // MARK: - Alerts / Notifications Sheet
 struct AlertsView: View {

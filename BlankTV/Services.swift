@@ -127,7 +127,11 @@ final class AuthService: ObservableObject {
             let pl = SavedPlaylist(name: u, kind: .m3u, url: url)
             Store.shared.activePlaylistID = Store.shared.upsertPlaylist(pl)   // stable scope id
             reloadScopedCaches()
-            AppRouter.shared.contentReady = false   // ensure the boot screen runs (fetches this line)
+            // MUST reset the shared VMs: this method also runs from "add account" while
+            // ALREADY signed in, where the view models still hold the previous line's
+            // catalog and `loaded == true` would make every load() early-return.
+            ContentCache.reset()
+            AppRouter.shared.contentReady = false   // remount the tabs → fetch this line
             loggedIn = true
         } catch let e as AppError {
             error = e; Store.shared.m3uURL = nil
@@ -183,7 +187,8 @@ final class AuthService: ObservableObject {
             let p = SavedPlaylist(name: Self.playlistName(from: trimmed), kind: .m3u, url: trimmed)
             Store.shared.activePlaylistID = Store.shared.upsertPlaylist(p)   // stable scope id
             reloadScopedCaches()
-            AppRouter.shared.contentReady = false   // ensure the boot screen runs (fetches this line)
+            ContentCache.reset()                    // see loginXtream — same reason
+            AppRouter.shared.contentReady = false   // remount the tabs → fetch this line
             loggedIn = true
         } catch let e as AppError {
             error = e

@@ -43,8 +43,12 @@ final class LiveTVVM: ObservableObject {
             filtered   = ch
             rebuildGroups()
             loaded = true
-        } catch let e as AppError { error = e }
-          catch { self.error = .network(error) }
+        // A load cancelled by a tab remount (playlist switch / refresh) still resumes and
+        // would write its URLError(.cancelled) into `error` — AFTER the fresh load had
+        // already cleared it. The view checks `error` before content, so the tab would
+        // sit on the error page over perfectly good data. A cancelled task must be silent.
+        } catch let e as AppError { guard !Task.isCancelled else { return }; error = e }
+          catch { guard !Task.isCancelled else { return }; self.error = .network(error) }
         isLoading = false
     }
 
@@ -123,7 +127,11 @@ struct LiveTVView: View {
                     if vm.isLoading {
                         S8KListSkeleton()
                     } else if let e = vm.error {
-                        ErrorView(message: e.errorDescription ?? L("loading.error")) { Task { await vm.load() } }
+                        // force: a plain load() early-returns when `loaded` is already
+                        // true, so Retry would do nothing and the tab would be stuck on
+                        // the error page (reachable when a load is cancelled mid-flight
+                        // by a tab remount).
+                        ErrorView(message: e.errorDescription ?? L("loading.error")) { Task { await vm.load(force: true) } }
                     } else if useSplit(geo.size.width) { padBrowser(geo.size.width) } else { browser }
                 }
             }
@@ -705,8 +713,12 @@ final class MoviesVM: ObservableObject {
             let (c, m) = try await (cats, movs)
             categories = [.all] + c; movies = m
             rebuildGroups(); applyFilter(); rebuildEditorial(); loaded = true
-        } catch let e as AppError { error = e }
-          catch { self.error = .network(error) }
+        // A load cancelled by a tab remount (playlist switch / refresh) still resumes and
+        // would write its URLError(.cancelled) into `error` — AFTER the fresh load had
+        // already cleared it. The view checks `error` before content, so the tab would
+        // sit on the error page over perfectly good data. A cancelled task must be silent.
+        } catch let e as AppError { guard !Task.isCancelled else { return }; error = e }
+          catch { guard !Task.isCancelled else { return }; self.error = .network(error) }
         isLoading = false
     }
 
@@ -1424,7 +1436,11 @@ struct MoviesView: View {
                     Color.s8kBlack.ignoresSafeArea()
                     if vm.isLoading { S8KPosterGridSkeleton()
                     } else if let e = vm.error {
-                        ErrorView(message: e.errorDescription ?? L("loading.error")) { Task { await vm.load() } }
+                        // force: a plain load() early-returns when `loaded` is already
+                        // true, so Retry would do nothing and the tab would be stuck on
+                        // the error page (reachable when a load is cancelled mid-flight
+                        // by a tab remount).
+                        ErrorView(message: e.errorDescription ?? L("loading.error")) { Task { await vm.load(force: true) } }
                     } else if useSplit(geo.size.width) { padBrowser(geo.size.width) } else { browser }
                 }
             }
@@ -1812,8 +1828,12 @@ final class SeriesVM: ObservableObject {
             let (c, s) = try await (cats, sers)
             categories = [.all] + c; series = s
             rebuildGroups(); applyFilter(); rebuildEditorial(); loaded = true
-        } catch let e as AppError { error = e }
-          catch { self.error = .network(error) }
+        // A load cancelled by a tab remount (playlist switch / refresh) still resumes and
+        // would write its URLError(.cancelled) into `error` — AFTER the fresh load had
+        // already cleared it. The view checks `error` before content, so the tab would
+        // sit on the error page over perfectly good data. A cancelled task must be silent.
+        } catch let e as AppError { guard !Task.isCancelled else { return }; error = e }
+          catch { guard !Task.isCancelled else { return }; self.error = .network(error) }
         isLoading = false
     }
 
@@ -1877,7 +1897,11 @@ struct SeriesListView: View {
                     Color.s8kBlack.ignoresSafeArea()
                     if vm.isLoading { S8KPosterGridSkeleton()
                     } else if let e = vm.error {
-                        ErrorView(message: e.errorDescription ?? L("loading.error")) { Task { await vm.load() } }
+                        // force: a plain load() early-returns when `loaded` is already
+                        // true, so Retry would do nothing and the tab would be stuck on
+                        // the error page (reachable when a load is cancelled mid-flight
+                        // by a tab remount).
+                        ErrorView(message: e.errorDescription ?? L("loading.error")) { Task { await vm.load(force: true) } }
                     } else if useSplit(geo.size.width) { padBrowser(geo.size.width) } else { browser }
                 }
             }
@@ -2374,8 +2398,12 @@ final class SeriesDetailVM: ObservableObject {
             // M3U: seasons are parsed locally; Xtream: fetched from API
             seasons  = try await ContentService.seasons(of: series)
             selected = seasons.first
-        } catch let e as AppError { error = e }
-          catch { self.error = .network(error) }
+        // A load cancelled by a tab remount (playlist switch / refresh) still resumes and
+        // would write its URLError(.cancelled) into `error` — AFTER the fresh load had
+        // already cleared it. The view checks `error` before content, so the tab would
+        // sit on the error page over perfectly good data. A cancelled task must be silent.
+        } catch let e as AppError { guard !Task.isCancelled else { return }; error = e }
+          catch { guard !Task.isCancelled else { return }; self.error = .network(error) }
         isLoading = false
     }
 }

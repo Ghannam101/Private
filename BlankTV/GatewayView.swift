@@ -136,23 +136,16 @@ private struct GWNoTouchDelay: UIViewRepresentable {
     }
 }
 
-// `.defaultScrollAnchor(.bottom)` on iOS 17 sets THREE behaviours at once: alignment of
-// short content, the initial offset, and the response to size changes. We only want the
-// first — otherwise, whenever the form is taller than the screen, the gateway opens
-// already scrolled to the bottom and the user is looking at "Terms · Privacy" instead of
-// the login fields. iOS 18 can separate the roles; on iOS 17 bottom-alignment is the
-// more important of the two, so it keeps the combined behaviour.
-private struct GWScrollAnchor: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(iOS 18.0, *) {
-            content
-                .defaultScrollAnchor(.bottom, for: .alignment)
-                .defaultScrollAnchor(.top, for: .initialOffset)
-        } else {
-            content.defaultScrollAnchor(.bottom)
-        }
-    }
-}
+// NOTE: there is deliberately NO `defaultScrollAnchor` here any more.
+// It caused the reported "the keyboard is very far away and the screen jumps up" bug.
+// Mechanism: keyboard avoidance shrinks the scroll view's FRAME by the keyboard height,
+// and a bottom anchor re-pins the content to the bottom of that frame — so the whole
+// login block translated upward by the FULL keyboard height as a rigid body, on top of
+// (and independently of) UIKit's own "scroll the focused field into view". With no
+// anchor, the frame still shrinks but the content stays put and only the minimum
+// necessary scrolling happens — which is exactly "the field sits just above the
+// keyboard". The resting composition is kept low by padding instead (see loginBlock),
+// because padding does not react to the viewport.
 
 // MARK: - Xtream / M3U switcher
 // Rebuilt for INSTANT feel (owner: "switching between Xtream and M3U is slow"). Three
@@ -253,6 +246,10 @@ struct GatewayView: View {
     // `Store.shared.savedPlaylists` straight from `body` looks fine but nothing observes
     // it, so adding an account elsewhere would not refresh this screen.
     @State private var accounts: [SavedPlaylist] = Store.shared.savedPlaylists
+    /// Full screen height, read from a probe in the background (see `body`). Keyboard-
+    /// immune, rotation-aware. Drives `topInset` only — never a width, so it can never
+    /// collapse the layout the way the old GeometryReader root did.
+    @State private var winH: CGFloat = 0
 
     // Poster size follows BOTH size classes: only a genuinely large canvas (iPad /
     // Mac, not a Pro Max in landscape) gets the big cards. Keeping it out of the
@@ -285,22 +282,42 @@ struct GatewayView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 loginBlock.background(GWNoTouchDelay().frame(width: 0, height: 0))
             }
-            .modifier(GWScrollAnchor())
-            .scrollBounceBehavior(.basedOnSize)   // no rubber-band when it already fits
+            // 20pt of breathing room under the content: iOS scrolls a focused field
+            // FLUSH against the viewport edge, which puts it right on the keyboard.
+            .contentMargins(.bottom, 20, for: .scrollContent)
+            // `.always` (not `.basedOnSize`): when the form fits there is otherwise no
+            // scroll gesture at all, and then `.interactively` has nothing to hook into
+            // — the user cannot swipe the keyboard away.
+            .scrollBounceBehavior(.always)
             .scrollDismissesKeyboard(.interactively)
         }
         .background {
             ZStack {
                 Color.s8kBlack
                 GatewayPosterWall(cardW: gwCardW).equatable()
+                // The scrim reaches SOLID black by 42% of the screen (was 56%). The card
+                // is no longer bottom-anchored, so on a short phone its top edge lands at
+                // roughly a third of the way down — at the old stops the poster wall was
+                // still ~65% visible straight through the translucent fields.
                 LinearGradient(stops: [
                     .init(color: .clear,                       location: 0.00),
-                    .init(color: Color.s8kBlack.opacity(0.15), location: 0.26),
-                    .init(color: Color.s8kBlack.opacity(0.55), location: 0.40),
-                    .init(color: Color.s8kBlack.opacity(0.90), location: 0.49),
-                    .init(color: Color.s8kBlack,               location: 0.56),
+                    .init(color: Color.s8kBlack.opacity(0.15), location: 0.16),
+                    .init(color: Color.s8kBlack.opacity(0.55), location: 0.26),
+                    .init(color: Color.s8kBlack.opacity(0.90), location: 0.36),
+                    .init(color: Color.s8kBlack,               location: 0.42),
                     .init(color: Color.s8kBlack,               location: 1.00),
                 ], startPoint: .top, endPoint: .bottom)
+                // Window-height probe. It lives in the BACKGROUND (which cannot affect
+                // layout) and inside `.ignoresSafeArea()` — so it reports the full screen
+                // height and, crucially, does NOT shrink when the keyboard appears. That
+                // makes `topInset` stable while typing yet correct after an iPad rotation,
+                // which changes neither the size class nor the safe area and would
+                // otherwise leave a stale inset pushing the fields below the fold.
+                GeometryReader { g in
+                    Color.clear
+                        .onAppear { winH = g.size.height }
+                        .onChange(of: g.size.height) { _, h in if h > 1 { winH = h } }
+                }
             }
             .ignoresSafeArea()
         }
@@ -330,9 +347,23 @@ struct GatewayView: View {
         // `min(geo.width - 44, 430)` — it can never go negative.
         .frame(maxWidth: 400)
         .padding(.horizontal, 24)
-        .padding(.top, 24)
+        .padding(.top, topInset)
         .padding(.bottom, 16)
         .frame(maxWidth: .infinity)
+    }
+
+    // Keeps the card sitting LOW over the poster wall now that the scroll view is no
+    // longer bottom-anchored — without reintroducing the jump. The inset is derived from
+    // the WINDOW height, which (unlike the scroll viewport) does NOT shrink when the
+    // keyboard appears, so the layout is stable while typing.
+    // Budget: ~150pt of chrome (safe areas + top bar) + ~600pt of card ⇒ every point of
+    // window above ~766 is slack that belongs ABOVE the block. A flat 72 left the form
+    // stranded in the upper third of an iPad, on the transparent part of the scrim, with
+    // posters showing through the translucent fields.
+    private var topInset: CGFloat {
+        if vSize == .compact { return 16 }          // short window: give the form the room
+        let h = winH > 1 ? winH : s8kWindowSize().height   // probe first, singleton as seed
+        return max(16, h - 766)
     }
 
     // MARK: Top bar — close (optional) + language pill
@@ -515,17 +546,17 @@ struct GatewayView: View {
     // MARK: Brand — the app's OWN logo + wordmark (no tagline)
     // Owner-approved lockup: a SMALL mark above a LARGE wordmark, aligned to the side
     // rather than centred — an editorial signature, deliberately unlike the centred
-    // ornamental brand block of the sibling app. Two engineering notes:
-    //  • It aligns to the LOGIN CARD's edge (it lives inside the same 400pt column), not
-    //    to the screen edge — otherwise a side-pinned brand over a centred form gives the
-    //    page two competing axes.
-    //  • The app forces layoutDirection .leftToRight globally, so "leading" would be the
-    //    physical LEFT even in Arabic. Alignment is driven by the LANGUAGE instead, so
-    //    the lockup mirrors to the right side for Arabic.
+    // ornamental brand block of the sibling app.
+    //
+    // THE BRAND IS FIXED. It does NOT mirror with the language (owner: "it must not
+    // change no matter what the language is — it is the app's identity"). A logo lockup
+    // is an identity mark, not UI chrome: real brands keep the same lockup in every
+    // locale. Only the surrounding UI mirrors. It aligns to the LOGIN CARD's edge (it
+    // lives inside the same 400pt column), never the screen edge, so the page keeps a
+    // single axis.
     private var brand: some View {
         let compactH = (vSize == .compact)
-        let align: HorizontalAlignment = LocalizationManager.current.isRTL ? .trailing : .leading
-        return VStack(alignment: align, spacing: compactH ? 8 : 10) {
+        return VStack(alignment: .leading, spacing: compactH ? 8 : 10) {
             BrandLogo(size: compactH ? 36 : 44)
             S8KWordmark(size: compactH ? 22 : 28)
             // A thin accent rule under the wordmark. Deliberately 2pt and WITHOUT the
@@ -535,7 +566,7 @@ struct GatewayView: View {
                 .frame(width: 28, height: 2)
                 .padding(.top, 2)
         }
-        .frame(maxWidth: .infinity, alignment: align == .leading ? .leading : .trailing)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.bottom, 4)
     }
 
@@ -548,13 +579,20 @@ struct GatewayView: View {
                     S8KTextField(placeholder: L("login.server_or_code"), icon: "server.rack", text: $serverOrCode,
                                  ltr: true, keyboard: .URL, contentType: .URL, disableAutocorrect: true, capitalization: .never)
                 }
+                // `.asciiCapable`: IPTV credentials are ASCII. With `.default` a user
+                // whose keyboard is set to Arabic can type non-ASCII into a credential
+                // field and the login just fails.
                 S8KTextField(placeholder: L("login.username"), icon: "person.fill", text: $username,
-                             ltr: true, contentType: .username, disableAutocorrect: true, capitalization: .never)
+                             ltr: true, keyboard: .asciiCapable, contentType: .username,
+                             disableAutocorrect: true, capitalization: .never)
                 // `contentType: .password` is REQUIRED for iOS Password AutoFill: a
                 // .username field with no paired .password field breaks the heuristic
                 // outright — saved credentials never fill and iOS never offers to save.
+                // `ltr: true` was MISSING: without it this field alone laid out
+                // right-to-left while its two siblings were left-to-right.
                 S8KTextField(placeholder: L("login.password"), icon: "lock.fill", text: $password,
-                             isSecure: true, contentType: .password,
+                             isSecure: true, ltr: true, keyboard: .asciiCapable,
+                             contentType: .password,
                              disableAutocorrect: true, capitalization: .never)
                     .transition(.opacity)
             } else {
@@ -605,6 +643,17 @@ struct GatewayView: View {
                     .lineLimit(1).minimumScaleFactor(0.85)
             }
             .buttonStyle(S8KButtonStyle()).padding(.top, 14)
+            // Reseller support — this lived on the retired SubscriptionsGateView, and
+            // without it a customer whose line has expired has no way to reach their
+            // reseller from the login screen.
+            if let support = activation.supportURL, let u = URL(string: support) {
+                Button { UIApplication.shared.open(u) } label: {
+                    Text(L("login.need_help")).font(S8KFont.caption1.weight(.semibold))
+                        .foregroundColor(.s8kTextSecondary)
+                        .lineLimit(1).minimumScaleFactor(0.85)
+                }
+                .buttonStyle(S8KButtonStyle())
+            }
             HStack(spacing: 5) {
                 Button(L("set.terms"))   { showTerms = true }.foregroundColor(.s8kTextTertiary)
                 Text("·").foregroundColor(.s8kTextDisabled)

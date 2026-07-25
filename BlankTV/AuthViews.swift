@@ -177,8 +177,13 @@ struct LoginView: View {
                                     .frame(maxWidth: .infinity, alignment: .trailing)
                             }
                             S8KTextField(placeholder: L("login.username"), icon: "person.fill", text: $username, ltr: true,
+                                         keyboard: .asciiCapable,
                                          contentType: .username, disableAutocorrect: true, capitalization: .never)
+                            // `ltr: true` + `.password` were missing: the field laid out
+                            // right-to-left unlike its sibling, and without a paired
+                            // .password content type iOS Password AutoFill never engages.
                             S8KTextField(placeholder: L("login.password"), icon: "lock.fill", text: $password, isSecure: true,
+                                         ltr: true, keyboard: .asciiCapable, contentType: .password,
                                          disableAutocorrect: true, capitalization: .never)
                         } else {
                             S8KTextField(placeholder: "http://server.com/playlist.m3u",
@@ -459,7 +464,6 @@ struct SubscriptionsGateView: View {
     @State private var entering: String? = nil    // id currently being entered
     @State private var appear    = false
     @State private var logoFloat = false
-    @State private var showGatewayPreview = false   // TEMP: preview the new gateway in isolation
 
     var body: some View {
         ZStack {
@@ -490,9 +494,6 @@ struct SubscriptionsGateView: View {
         // successful add it flips auth.loggedIn → the whole gate unmounts.
         .sheet(isPresented: $showAdd, onDismiss: { accounts = Store.shared.savedPlaylists }) {
             LoginView()
-        }
-        .fullScreenCover(isPresented: $showGatewayPreview) {
-            GatewayView(onClose: { showGatewayPreview = false })
         }
     }
 
@@ -618,13 +619,6 @@ struct SubscriptionsGateView: View {
                 .frame(maxWidth: .infinity, minHeight: 48)
                 .overlay(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
                     .strokeBorder(Color.s8kBorder, lineWidth: 1))
-            }
-            .buttonStyle(S8KButtonStyle())
-
-            // TEMP: preview the new poster-wall gateway (isolated; live login untouched).
-            Button { showGatewayPreview = true } label: {
-                Label("معاينة بوّابة الدخول الجديدة", systemImage: "sparkles")
-                    .font(S8KFont.caption1.weight(.semibold)).foregroundColor(.s8kGoldMid)
             }
             .buttonStyle(S8KButtonStyle())
 

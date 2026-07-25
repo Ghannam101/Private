@@ -14,8 +14,21 @@ final class AppRouter: ObservableObject {
     static let shared = AppRouter()
     private init() {}
     @Published var tab: AppTab = .home
-    /// False until the post-login content boot loader has finished.
-    @Published var contentReady = false
+    /// Legacy signal, kept so the eight flows in Services.swift that mean "the catalog
+    /// must be rebuilt" did not have to change. It is COMPUTED, not stored: writing
+    /// `false` bumps `contentGen`, which is what actually remounts the tab stack.
+    ///
+    /// It must not be a stored `@Published Bool`. Those call sites write `false` over an
+    /// already-`false` value, so an `.onChange` observer would never fire — the remount
+    /// would silently never happen and a playlist switch or a refresh would leave every
+    /// tab on a skeleton forever.
+    var contentReady: Bool {
+        get { true }
+        set { if !newValue { contentGen &+= 1 } }
+    }
+    /// Content generation. Bumping it remounts the whole tab stack, which re-runs every
+    /// tab's `.task { await vm.load() }` against freshly reset view models.
+    @Published var contentGen = 0
 
     /// Home top-bar presentations (search / notifications). Hosted here — at the
     /// app-level singleton — and presented from the STABLE tabView, NOT from
@@ -171,21 +184,30 @@ struct BlankTVApp: App {
             // allowed (active/trial) before it can reach login or the tabs.
             ActivationGate {
                 if auth.loggedIn {
-                    if router.contentReady {
-                        tabView.transition(.opacity)
-                    } else {
-                        // Dedicated full-screen content loader (no tab bar)
-                        ContentBootView { router.contentReady = true }
-                            .transition(.opacity)
-                    }
+                    // INSTANT ENTRY (owner spec): pressing Sign In lands on the app
+                    // immediately — no full-screen loading page. Every tab already owns
+                    // a skeleton for its first load, so the shell paints at once and the
+                    // catalog fills in underneath, the way the big streaming apps do.
+                    //
+                    // `.id(contentGen)` is what replaces the old unmount/remount: the
+                    // eight flows that used to set `contentReady = false` (login, switch
+                    // playlist, refresh, add playlist, logout, delete account…) relied on
+                    // the boot screen swapping the tabs out to re-run every tab's
+                    // `.task { await vm.load() }`. Bumping the generation remounts them
+                    // just the same — but instantly, and with skeletons instead of a
+                    // blocking page.
+                    tabView
+                        .id(router.contentGen)
+                        .transition(.opacity)
                 } else {
-                    // NEW: multi-subscription entry gate (lists saved accounts +
-                    // switch/add/demo). LoginView is now the "add subscription" form.
-                    SubscriptionsGateView()
+                    // The poster-wall gateway is now the real login screen (it carries
+                    // the Xtream/M3U form, saved accounts with one-tap entry, language
+                    // and demo). The old SubscriptionsGateView is retired.
+                    GatewayView()
                         .transition(.opacity)
                 }
             }
-            .animation(.easeInOut(duration: 0.4), value: router.contentReady)
+            .animation(.easeInOut(duration: 0.35), value: auth.loggedIn)
         }
     }
 
