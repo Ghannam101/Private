@@ -321,12 +321,19 @@ final class AVPlayerVM: BasePlayerVM {
         guard let url = BasePlayerVM.resolvedURL(for: item) else {
             errorMsg = L("player.err.no_url"); isLoading = false; return
         }
-        // Identify as VLC so strict IPTV panels don't reject the stream.
-        let asset = AVURLAsset(url: url, options: [
-            "AVURLAssetHTTPHeaderFieldsKey": ["User-Agent": "VLC/3.0.20 LibVLC/3.0.20"]
-        ])
-        let pItem = AVPlayerItem(asset: asset)
-        if !isLive { pItem.preferredForwardBufferDuration = 4 }    // VOD: modest forward buffer
+        // Adopt a warm, already-buffering item if the detail page prewarmed this VOD
+        // (near-instant start); otherwise build a fresh one. Identify as VLC so strict
+        // IPTV panels don't reject the stream.
+        let pItem: AVPlayerItem
+        if let warm = MediaPrefetcher.shared.take(for: item) {
+            pItem = warm
+        } else {
+            let asset = AVURLAsset(url: url, options: [
+                "AVURLAssetHTTPHeaderFieldsKey": ["User-Agent": "VLC/3.0.20 LibVLC/3.0.20"]
+            ])
+            pItem = AVPlayerItem(asset: asset)
+            if !isLive { pItem.preferredForwardBufferDuration = 4 }    // VOD: modest forward buffer
+        }
         pItem.canUseNetworkResourcesForLiveStreamingWhilePaused = false
         observe(pItem)
         avPlayer.replaceCurrentItem(with: pItem)

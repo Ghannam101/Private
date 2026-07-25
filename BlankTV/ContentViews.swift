@@ -2161,6 +2161,7 @@ struct MovieDetailView: View {
             }
         }
         .task {
+            MediaPrefetcher.shared.prefetch(.movie(movie))   // warm the stream while the page loads
             enriched = try? await ContentService.movieDetail(movie)
             loadingInfo = false
         }
