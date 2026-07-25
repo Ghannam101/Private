@@ -142,10 +142,34 @@ switch felt slow. Root causes and fixes (build 63 → **v65**, build 64 → **v6
 defects in the previous round's work (including a `ViewThatFits` that would have destroyed
 text-field focus the moment the keyboard appeared). Do not skip it.
 
+## 5d. GATEWAY ADOPTED + INSTANT SIGN-IN (build 65 → **v67**)
+- **`GatewayView()` is now the real not-logged-in root** (BlankTVApp). `SubscriptionsGateView`
+  is retired (still compiles, unreferenced); the temp preview button is gone; the reseller
+  support link was moved onto the gateway footer.
+- **`ContentBootView` deleted.** Sign-in lands on the app instantly; the tabs' own skeletons
+  cover the first load. **The mechanism:** `AppRouter.contentReady` is now a COMPUTED
+  property whose setter bumps `@Published contentGen`, and the tab stack carries
+  `.id(router.contentGen)`. The eight `contentReady = false` writers in Services.swift are
+  unchanged. **Do NOT turn `contentReady` back into a stored `@Published Bool` with an
+  `.onChange` observer** — those sites write `false` over `false`, the observer never fires,
+  and every switch/refresh leaves the tabs on a skeleton forever (this exact bug was caught
+  in review before it shipped).
+- `loginXtream`/`loginM3U` now call `ContentCache.reset()` (they also run from "add account"
+  while signed in). Cancelled loads no longer record errors (`guard !Task.isCancelled` in
+  every VM catch). `ErrorView` retry and Home pull-to-refresh pass `force: true`.
+- **Keyboard:** `defaultScrollAnchor(.bottom)` was the cause of "the keyboard is very far
+  away and the screen jumps". Keyboard avoidance shrinks the scroll view's FRAME; a bottom
+  anchor re-pins content to it, so the block translated by the full keyboard height on top
+  of UIKit's own scroll-into-view. **Never re-add a bottom scroll anchor to a form.** The
+  card is kept low by a top inset derived from the WINDOW height (probe inside the
+  `.background`, which ignores the safe area and so never shrinks for the keyboard).
+- Field fixes: password field was missing `ltr: true` (+`contentType: .password` in
+  AuthViews — without a paired password field iOS AutoFill never engages); username/password
+  use `.asciiCapable`; the reveal toggle re-asserts focus on the next runloop.
+
 ## 6. Remaining tasks (priority order)
-1. ~~Fix the gateway foreground-disappears bug~~ **DONE** (§5) — owner device-verifies → then adopt it
-   (swap `GatewayView()` in for `SubscriptionsGateView()`) + remove the temp preview button.
-2. **Post-login instant flow** (owner: "no blocking pages after login"): remove/rework `ContentBootView` (HomeView.swift) so login → Home immediately with skeletons, no full-screen loader. CAUTION: `router.contentReady` is wired into ~8 flows in Services.swift (login/switch/refresh/logout set it false to re-fetch). This is a careful re-architecture, not a delete — show tabView immediately and drive `HomeVM.bootLoad()` via `.task(id: contentReady)` in the background. NOT done.
+1. ~~Fix the gateway bug → adopt it → remove the preview button~~ **DONE** (§5, §5d, v67).
+2. ~~**Post-login instant flow**~~ **DONE** (§5d, v67).
 3. **TMDB posters via the owner's central server** (safe/legal, App-Store-accepted, with mandatory TMDB attribution): BLANK currently points to `strong8k.app/api/v1` (APIConfig, Core.swift:571) but was DELIBERATELY SEVERED from the central `/v2/*` endpoints (ActivationService.swift:5). Strong8K's server has TMDB enrichment (`CentralVOD /v2/vod/info`) + central EPG (`CentralEPG /v2/epg/*`) + `CatalogCentral`, gated by `X-App-Key`. **Owner decision needed:** does his server serve BLANK on `/v2` + issue an app key + expose a "gateway posters" endpoint? Then build the client (fetch TMDB poster URLs → marquee via S8KImage + attribution + bundled fallback). No TMDB key in the app.
 4. **Central EPG brain** (after #3): port `CentralEPG` (sync→match to a rich global EPG, now/next + full guide) + on-device `epg_cache` (add a table to CatalogDB, we already own it) for instant guide paint.
 5. **Complete catalog-store population for the pure-Xtream-credentials path** (currently only M3U/Xtream-direct shadow-write; add the Xtream path so FTS/store benefit all users).
