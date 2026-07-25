@@ -54,7 +54,20 @@ Owner wants a muvy-style login screen (design ref = the WhatsApp image `WhatsApp
 - Posters = the owner's 6 studio posters, BUNDLED as `Assets.xcassets/gwposter1…6.imageset` (load instantly). **Copyright caveat flagged** (studio art, no license) — owner accepts for now; the professional/safe path is **TMDB posters via the owner's central server** (see §6).
 - Marquee is SEAMLESS: `GatewayMarqueeRow` repeats the 6-poster set `reps` times and animates the offset by EXACTLY one base-set width (`gwBaseWidth = 6*(cardW+spacing)`) — item[6]==item[0], uniform stride → no jump. Fixed `reps = 6` (no width dependency). This part WORKS.
 
-### THE BUG (must fix first)
+### ✅ THE BUG IS FIXED (2026-07-25, commit `d9652e2`, build index 62 → TestFlight v64)
+The root cause below was confirmed and the measurement was **removed entirely** — there is no
+`GeometryReader` anywhere in `GatewayView` now:
+- Root = plain `ZStack(alignment:.bottom)`; login block = `.frame(maxWidth: 400)` +
+  `.padding(.horizontal, 24)` → can never overflow, can never go negative.
+- Language pill + close button moved into `.safeAreaInset(edge:.top) { topBar }` → always clear of the
+  notch / Dynamic Island on every device.
+- Foreground wrapped in `ScrollView` + `.defaultScrollAnchor(.bottom)` +
+  `.scrollBounceBehavior(.basedOnSize)` → bottom-pinned when it fits, scrollable with the keyboard up,
+  in landscape, or at large text sizes.
+- Poster card size switches on `horizontalSizeClass` (112pt compact / 152pt regular) instead of measuring.
+**Awaiting the owner's device verification (iPhone + iPad). Then: swap it in + delete the temp preview button.**
+
+### THE BUG — original diagnosis (kept for the record)
 The **foreground (login card + brand + language button) DISAPPEARS on device — only the poster wall shows** — whenever `GatewayView`'s root is a **`GeometryReader`**. Confirmed twice:
 - v60 (GeometryReader + ScrollView + Spacer + `.frame(minHeight: geo.height)`) → foreground gone.
 - v63 (GeometryReader + ZStack + `.frame(width: min(geo.size.width-44, 430))`) → foreground gone.
@@ -71,8 +84,34 @@ Then: owner verifies on iPhone + iPad. Once approved → **swap `GatewayView()` 
 
 An approved HTML mockup of the intended design exists at the Artifact URL the owner has (poster wall + gold lang pill + capsule toggle + bottom login card).
 
+## 5b. Device-compatibility pass (2026-07-25, same commit `d9652e2`)
+Owner requirement: "the app must fit EVERY device and version, professionally." Screen metrics were
+researched from Apple's HIG/docs and written up permanently in **`DEVICE_MATRIX.md`** (repo root) —
+every iOS 17+ iPhone size, every iPad, multitasking widths, safe-area insets, the four hard extremes to
+test, the approved adaptive APIs, and the **banned patterns** list. Read it before any layout work.
+
+Fixed in this pass (full audit of all view files):
+- **CRITICAL** `MaintenanceView` / `UpdateRequiredView` (ActivationView.swift): non-scrollable full-screen
+  gates with a *server-supplied* message → Retry/Update could be pushed off-screen, **trapping the user**.
+- **CRITICAL** reseller-code sheet + `AddPlaylistView`: the keyboard covered the only action button on a
+  `.medium` detent → now scrollable + `[.medium, .large]`.
+- `ChannelInfoSheet` (long IPTV names), `PINEntryView`, sleep-timer sheet → scrollable.
+- Settings hub + **every** settings sub-page: bottom spacer 30 → 110 (logout + last row were under the
+  floating tab bar).
+- New `s8kWindowSize()` (DesignSystem.swift) replaces `UIScreen.main.bounds` for hero heights and the VLC
+  crop fallback — the screen is not the window under Split View / Stage Manager / Mac.
+- `S8KPosterGridSkeleton` → adaptive columns (was a fixed 3 → 440pt "posters" on iPad).
+- `S8KTextField` → `minHeight` instead of a fixed 52 (clipped at accessibility text sizes).
+- Tab bar spacing 4 → 2 (the 6-circle bar clipped in a 320pt iPad Slide Over pane); `FlowLayout`
+  zero-width probe guard; `CategoryReorderView` 0-height first-pass clamp.
+
+**Deliberately NOT changed — needs owner approval (changes approved visuals):** the 13 hard-coded
+`.padding(.top, 50…70)` sites, converting `AppTabBar` to a `.safeAreaInset(edge:.bottom)`, and full
+Dynamic Type adoption in `S8KFont`. All three are listed in `DEVICE_MATRIX.md` §6.
+
 ## 6. Remaining tasks (priority order)
-1. **Fix the gateway foreground-disappears bug** (§5) → then adopt it + remove the preview button.
+1. ~~Fix the gateway foreground-disappears bug~~ **DONE** (§5) — owner device-verifies → then adopt it
+   (swap `GatewayView()` in for `SubscriptionsGateView()`) + remove the temp preview button.
 2. **Post-login instant flow** (owner: "no blocking pages after login"): remove/rework `ContentBootView` (HomeView.swift) so login → Home immediately with skeletons, no full-screen loader. CAUTION: `router.contentReady` is wired into ~8 flows in Services.swift (login/switch/refresh/logout set it false to re-fetch). This is a careful re-architecture, not a delete — show tabView immediately and drive `HomeVM.bootLoad()` via `.task(id: contentReady)` in the background. NOT done.
 3. **TMDB posters via the owner's central server** (safe/legal, App-Store-accepted, with mandatory TMDB attribution): BLANK currently points to `strong8k.app/api/v1` (APIConfig, Core.swift:571) but was DELIBERATELY SEVERED from the central `/v2/*` endpoints (ActivationService.swift:5). Strong8K's server has TMDB enrichment (`CentralVOD /v2/vod/info`) + central EPG (`CentralEPG /v2/epg/*`) + `CatalogCentral`, gated by `X-App-Key`. **Owner decision needed:** does his server serve BLANK on `/v2` + issue an app key + expose a "gateway posters" endpoint? Then build the client (fetch TMDB poster URLs → marquee via S8KImage + attribution + bundled fallback). No TMDB key in the app.
 4. **Central EPG brain** (after #3): port `CentralEPG` (sync→match to a rich global EPG, now/next + full guide) + on-device `epg_cache` (add a table to CatalogDB, we already own it) for instant guide paint.
