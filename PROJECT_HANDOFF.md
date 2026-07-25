@@ -1,0 +1,102 @@
+# Blank Prime — Session Handoff Report
+_For the next chief engineer. Written 2026-07-25. Exhaustive by request._
+
+---
+
+## 1. Project identity
+- **App:** "Blank Prime" (was "BLANK TV"), a **luxury iOS IPTV player** (SwiftUI, iPhone/iPad/Mac), sold commercially.
+- **Owner:** Ghannam (Arabic-speaking, gr7.alajmi@gmail.com). Communicates in Arabic; reply in Arabic.
+- **Repo:** `C:\Users\user\Strong8K-App\blankstor` (git, branch `main`, remote `github.com/Ghannam101/Private`).
+- **Bundle id:** `com.blanktv.player` (do NOT change).
+- **Target:** iOS 17 min, iOS 26 SDK, Xcode 26.3 (pinned in codemagic.yaml).
+- **Reference app:** `C:\Users\user\Strong8K-App\Strong8K\iOS` — the owner's OTHER published app "Strong8K". **READ-ONLY.** Port its ENGINEERING, never its LOOK. Blank Prime must be **180° visually different** from Strong8K so Apple accepts it as a distinct, non-cloned app.
+
+## 2. Build & verify pipeline (CRITICAL — read before touching code)
+- **Cannot compile locally** (Windows, no Xcode). Verify EVERY change with this 3-step loop:
+  1. `python chk.py` (repo root) — brace-balance sanity.
+  2. **Agent compile-review** — spawn a `general-purpose` agent to read the diff for Swift compile errors + runtime traps. (Note: agents read code; they CANNOT see rendered SwiftUI — layout/visual bugs still slip through. See §5.)
+  3. **Codemagic build** → TestFlight. Owner taps Update on-device, tests, sends feedback.
+- **Codemagic REST API** (owner provides the token each session — ask for it):
+  - Header `x-auth-token: <TOKEN>`. appId `6a51950410f7ed8a9c8867d6`, workflowId `ios-release`, branch `main`.
+  - Trigger: `POST https://api.codemagic.io/builds {"appId","workflowId","branch"}` → returns `{buildId}`.
+  - Status: `GET https://api.codemagic.io/builds/{id}` → `.build.status` (preparing→building→publishing→finished/failed) + `.build.index`.
+  - **TestFlight version = Codemagic build `index` + 2** (an `agvtool` step in codemagic.yaml).
+- **App Store Connect DAILY UPLOAD LIMIT:** Apple caps TestFlight uploads/app/day (~hit it after ~9 builds). A "publishing"-step failure with `409 Upload limit reached` ≠ code failure (the IPA built fine). BATCH several reviewed changes per build when iterating fast. `chk`+agent = fast inner loop; Codemagic = rate-limited outer loop.
+- **Safe-rollout pattern the owner likes:** build a redesign as an ISOLATED view reached via a temporary preview button (never on the launch-critical path), verify on-device, THEN swap it in + remove the preview button. Used for Settings V2 and the login Gateway.
+
+## 3. Governing constraints (non-negotiable)
+- **No hardcoded API keys** (e.g. TMDB key must come from the server/config, never in code).
+- **Strong8K reference = READ-ONLY**, engineering only (see §1).
+- **project.pbxproj has NO synchronized groups** → EVERY new `.swift` file needs **4 manual entries**: PBXBuildFile, PBXFileReference, PBXGroup children, PBXSourcesBuildPhase. Hand-added IDs use the `1A1A1A1A000000000000FXXX` scheme (F001–F014 used so far — next free is F015+). Asset catalogs (`.xcassets`) are compiled wholesale → new imagesets need NO pbxproj edit.
+- **NEVER `ForEach(0..<someVariable)`** (variable-count Range ForEach) — traps at runtime on the value change. Use `ForEach(Array(0..<n), id: \.self)` or `ForEach(items)` (Identifiable). This crashed a launch build before.
+- **Never sort by raw `Double(rating)`** — `Double("nan")==.nan` breaks strict-weak-ordering → `sorted` traps. Use `s8kRating(...)`/`.isFinite`.
+- **TabView evaluates ALL tab bodies at launch** — a runtime trap in ANY tab body = launch crash. Heavy view rewrites on the tab path MUST be build-tested.
+- **Top/nav bars via `.safeAreaInset(edge:.top)`**, never a ScrollView child (scroll content captures taps → dead buttons).
+- Review after each task (owner insists). Keep the "blast radius" small.
+
+## 4. What shipped this session (all on TestFlight unless noted)
+Chronological, newest last. TestFlight version in brackets.
+
+1. **Rebrand** BLANK TV → "Blank Prime" (display name + `S8KWordmark` + defaults). [v44/45]
+2. **Settings V2 redesign** — navigation hub (`SettingsProV2` in SettingsView.swift): cinematic header (tappable → `AccountSwitcherView`), dark section rows each opening its own sub-page (`SetConnectionPage`/`SetPlayerPage`/`SetAppPage`/`SetAboutPage`), shared `SetUI` builders + `SetScaffold`, redesigned parental flow. Adopted as the live settings tab; old accordion deleted. [v44/45]
+3. **Player engine "brain"** (final decision after verified research — see [[player-engine-ksplayer]] memory): kept AVPlayer+VLC (KSPlayer rejected: GPL-default/paid-LGPL/single-maintainer). Added `StreamRouter.swift` (routing), `EngineDecisionCache.swift` (persistent per-content last-good engine), `EngineStats.swift` + a Settings→Connection "Playback Engine Diagnostics" numbers panel. [v47]
+4. **GRDB/SQLite catalog store** (`CatalogDB.swift`, ported from Strong8K): pod `GRDB.swift ~> 6.24`; schema + FTS5 (unicode61 remove_diacritics 2) + keyset paging + migrations. Off-main shadow-write population in `PlaylistService` (Core.swift, both M3U + Xtream-direct fetch sites) — NOTE: pure-Xtream-credentials path NOT yet populated (fallback covers it). First read consumer = FTS-accelerated `SearchVM.search()` (gated by `isSearchable`, full in-memory fallback). See [[catalog-store-grdb]]. [v48–51]
+5. **ThumbHash** (`ThumbHash.swift`, verbatim MIT port): `image_hash` table (CatalogDB migration v2) + encode-on-decode in `S8KImageCache.fetch` (off-main, idempotent) + instant blurred placeholder + crossfade in `S8KImage`. [v52–54]
+6. **Warm player** (`MediaPrefetcher.swift`): pooled muted AVPlayer pre-buffers a VOD on `MovieDetailView.task`; `AVPlayerVM.setup` adopts it via `take(for:)`. [v56]
+7. **Loading feel** (owner: big-app minimal): `ContentBootView` stripped to logo+spinner; `LoadingView` text removed; NEW `S8KPosterGridSkeleton`/`S8KListSkeleton` on Movies/Series/Live loaders (page-drawn shimmer, no "loading…" text). [v57–58]
+8. **Tab-bar search-cancel bug** fixed (stale debounce could re-filter after close). **Instant-start** tuning (`AVPlayerVM`: preferredForwardBufferDuration 1 + `playImmediately`). [v57]
+
+## 5. THE LOGIN GATEWAY — IN PROGRESS, HAS AN UNRESOLVED VISUAL BUG
+Owner wants a muvy-style login screen (design ref = the WhatsApp image `WhatsApp Image 2026-07-25 at 5.39.20 PM.jpeg`): a full-bleed animated **poster wall** (3 rows, alternating directions, seamless) behind the app logo/wordmark (no tagline) + a compact **Xtream/M3U** login card + language toggle + a **multi-account "switch account"** button. Built as `BlankTV/GatewayView.swift`, reached via a TEMP "معاينة بوّابة الدخول الجديدة" button in `SubscriptionsGateView` (AuthViews.swift) — **live login is untouched.**
+
+### Decisions locked
+- Brand = the app's own `BrandLogo` + `S8KWordmark`, centered. No Arabic tagline.
+- Posters = the owner's 6 studio posters, BUNDLED as `Assets.xcassets/gwposter1…6.imageset` (load instantly). **Copyright caveat flagged** (studio art, no license) — owner accepts for now; the professional/safe path is **TMDB posters via the owner's central server** (see §6).
+- Marquee is SEAMLESS: `GatewayMarqueeRow` repeats the 6-poster set `reps` times and animates the offset by EXACTLY one base-set width (`gwBaseWidth = 6*(cardW+spacing)`) — item[6]==item[0], uniform stride → no jump. Fixed `reps = 6` (no width dependency). This part WORKS.
+
+### THE BUG (must fix first)
+The **foreground (login card + brand + language button) DISAPPEARS on device — only the poster wall shows** — whenever `GatewayView`'s root is a **`GeometryReader`**. Confirmed twice:
+- v60 (GeometryReader + ScrollView + Spacer + `.frame(minHeight: geo.height)`) → foreground gone.
+- v63 (GeometryReader + ZStack + `.frame(width: min(geo.size.width-44, 430))`) → foreground gone.
+- v61/v62 (simple `ZStack(alignment:.bottom)`, NO GeometryReader) → foreground SHOWED (but 2 lesser bugs: buttons wider than screen, and language pill hidden under the notch).
+
+**Diagnosis:** a `GeometryReader` as the root of the `.fullScreenCover` content appears to report a bad/zero size in this context, so `contentW = min(geo.size.width - 44, 430)` goes NEGATIVE (`min(-44,430) = -44`) → `.frame(width: -44)` collapses the login VStack to nothing. The `.ignoresSafeArea()` poster/scrim layers don't depend on `geo`, so they still render → "only posters." (Two agent reviews wrongly blessed the GeometryReader — agents can't see rendered layout. Lesson: for layout, trust device tests over agent reasoning.)
+
+### RECOMMENDED FIX (for the new engineer)
+Go back to the **simple `ZStack(alignment:.bottom)` (v61/v62 base that SHOWED the foreground)** and fix its two lesser bugs WITHOUT a root GeometryReader:
+1. **Overflow** ("buttons wider than screen"): cap the login block with `.frame(maxWidth: 400)` (a value clearly < the narrowest screen minus margins), NOT `.frame(width: …)`, and keep `.padding(.horizontal, 24)`. Avoid the self-contradictory `maxWidth(440).frame(maxWidth:.infinity)` chain. If a specific control still overflows, it's the mode toggle text — labels are now short ("Xtream"/"M3U").
+2. **Language pill hidden under notch**: the v62 `.overlay(alignment:.top){…}.padding(.top,6)` put it under the Dynamic Island. Fix WITHOUT GeometryReader — use `.safeAreaInset(edge: .top)` for a top bar (the guardrail-blessed API, reserves space in the safe area) OR a fixed `.padding(.top, 54)` that clears the notch on all phones. Keep it a high-contrast gold pill (already styled).
+3. Keep everything else from v63 (elegant capsule toggle, stronger scrim, the multi-account switch button + `accountSheet` + `enter(acc)` reusing `auth.switchPlaylist`).
+Then: owner verifies on iPhone + iPad. Once approved → **swap `GatewayView()` in place of `SubscriptionsGateView()`** (or wire it as the not-logged-in screen) + **remove the temp preview button** (AuthViews.swift: `showGatewayPreview`, the `.fullScreenCover`, and the footer preview Button).
+
+An approved HTML mockup of the intended design exists at the Artifact URL the owner has (poster wall + gold lang pill + capsule toggle + bottom login card).
+
+## 6. Remaining tasks (priority order)
+1. **Fix the gateway foreground-disappears bug** (§5) → then adopt it + remove the preview button.
+2. **Post-login instant flow** (owner: "no blocking pages after login"): remove/rework `ContentBootView` (HomeView.swift) so login → Home immediately with skeletons, no full-screen loader. CAUTION: `router.contentReady` is wired into ~8 flows in Services.swift (login/switch/refresh/logout set it false to re-fetch). This is a careful re-architecture, not a delete — show tabView immediately and drive `HomeVM.bootLoad()` via `.task(id: contentReady)` in the background. NOT done.
+3. **TMDB posters via the owner's central server** (safe/legal, App-Store-accepted, with mandatory TMDB attribution): BLANK currently points to `strong8k.app/api/v1` (APIConfig, Core.swift:571) but was DELIBERATELY SEVERED from the central `/v2/*` endpoints (ActivationService.swift:5). Strong8K's server has TMDB enrichment (`CentralVOD /v2/vod/info`) + central EPG (`CentralEPG /v2/epg/*`) + `CatalogCentral`, gated by `X-App-Key`. **Owner decision needed:** does his server serve BLANK on `/v2` + issue an app key + expose a "gateway posters" endpoint? Then build the client (fetch TMDB poster URLs → marquee via S8KImage + attribution + bundled fallback). No TMDB key in the app.
+4. **Central EPG brain** (after #3): port `CentralEPG` (sync→match to a rich global EPG, now/next + full guide) + on-device `epg_cache` (add a table to CatalogDB, we already own it) for instant guide paint.
+5. **Complete catalog-store population for the pure-Xtream-credentials path** (currently only M3U/Xtream-direct shadow-write; add the Xtream path so FTS/store benefit all users).
+6. **Paged-list VM rewrite** (task deferred): convert MoviesVM (then Series/Live) to windowed keyset reads from CatalogDB behind `isPopulated` + full in-memory fallback. Hot path, big — owner sign-off first.
+7. **KSPlayer** — optional/deferred (NOT the core, see [[player-engine-ksplayer]]): only if owner buys the LGPL license, as an additive `.ks` engine for AV1/DoVi/HDR10+.
+
+## 7. Architecture map (key files under BlankTV/)
+- `BlankTVApp.swift` — app entry, `AppRouter`, the launch flow: `SplashView` → `ActivationGate` → (loggedIn ? `contentReady ? tabView : ContentBootView` : `SubscriptionsGateView`). tabView = TabView with the 5 tabs; custom `AppTabBar` overlay.
+- `Core.swift` — `L()` localization dictionary (ar/en/fr/tr/es), `Store` (UserDefaults), `APIConfig`/`APIClient`, `M3UContent`/`M3UParser`, `CatalogDiskCache` (legacy JSON cache), `CatalogDB` (new SQLite store), `PlaylistService`/`XtreamService` actors, `DemoContent` (Blender CC posters).
+- `Services.swift` — `AuthService` (login/logout/switchPlaylist/enterDemo, `loggedIn`/`error`/`isLoading`), `ConfigService`, `ActivationService`.
+- `PlayerEngine.swift` — `BasePlayerVM`, `AVPlayerVM`, `PlayerEngineSelector` (`initialKind` → user pref → EngineDecisionCache → StreamRouter), `MediaPrefetcher`, `KeepAwake`. `VLCPlayer.swift` = `VLCPlayerVM`. `PlayerView.swift` = the player UI + engine failover.
+- `ContentViews.swift` — `LiveTVVM`/`MoviesVM`/`SeriesVM` + their views, `SearchVM` (FTS), detail views, `UnifiedReorderView`.
+- `HomeView.swift` — `HomeVM` (`bootLoad`), Home editorial feed, `ContentBootView`, `AlertsView`.
+- `SettingsView.swift` — `SettingsProV2` hub + sub-pages + `SetUI`/`SetScaffold` + `EngineStatsView` + `AccountSwitcherView` + `PlaylistsView` + `ParentalControlView`.
+- `AuthViews.swift` — `SplashView`, `LoginView` (Xtream/M3U form + reseller-code logic), `SubscriptionsGateView` (pre-login account list; hosts the TEMP gateway preview button).
+- `DesignSystem.swift` — tokens (`s8k*` colors = a GREEN/lime palette; `S8KGradient.goldFlat` = lime; `S8KFont`, `S8KRadius`, `S8KSpace`, `S8KButtonStyle`), `S8KImageCache`/`S8KImage` (+ ThumbHash), `SkeletonBlock`/`S8KPosterGridSkeleton`/`S8KListSkeleton`, `LoadingView`, `AppTab`/`AppTabBar`, `S8KTextField`, `GoldButton`, `BrandLogo`, `S8KWordmark`, `S8KConfirm`, glass helpers.
+- `GatewayView.swift` — the new login gateway (§5). `Models.swift` — `Channel`/`Movie`/`Series`/`Category`/`Episode`/`ContentItem`/`SavedPlaylist`/`LoginMode`/`StreamQuality`/`AppError`. `Downloads.swift`, `ActivationService.swift`, `ActivationView.swift`, `Diagnostics.swift`, `RailEngine.swift`.
+
+## 8. Gotchas & lessons
+- **I cannot see rendered SwiftUI.** Visual/layout bugs (the whole gateway saga) only surface on device. For layout: prefer the SIMPLEST reliable pattern, avoid clever GeometryReader/ScrollView combos in fullScreenCovers, and get an HTML mockup approved BEFORE building. Trust device tests over agent "it will render" reasoning.
+- `ContentItem.id` = `"live_…"/"movie_…"/"ep_…"` (namespaced string) — safe cache/ForEach key.
+- Scope key for CatalogDB/CatalogDiskCache = `Store.shared.m3uURL` (the saved playlist URL).
+- The app forces `.environment(\.layoutDirection, .leftToRight)` globally (BlankTVApp) — Arabic text still shows RTL via per-view modifiers, but layout is LTR (so "leading"=left, "trailing"=right).
+- Memory files at `…/memory/` auto-load each session (MEMORY.md index): blank-tv-project, owner-ghannam, build-verify-constraints, player-engine-ksplayer, catalog-store-grdb, design-distinct-from-strong8k, filmm-reference, etc. Read them first.
+
+_End of handoff. Current live TestFlight = build index 61 → version 63 (gateway preview has the foreground bug; everything else is good)._
