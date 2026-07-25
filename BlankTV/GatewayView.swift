@@ -1,72 +1,72 @@
 // ============================================================
 // BLANK TV — GatewayView.swift
-// The login GATEWAY (muvy-style, owner design ref) — a 3-row animated poster wall
-// behind the brand mark + a compact Xtream/M3U login card. Deliberately its OWN
-// look (not the Strong8K reference) so the app reads as a distinct product.
+// The login GATEWAY (owner-approved muvy-style design, distinct from the Strong8K
+// reference for App Store distinctiveness): a full-bleed 3-row poster wall that
+// scrolls SEAMLESSLY in alternating directions, behind the app's own logo/wordmark
+// and a compact Xtream/M3U login card. Responsive across iPhone / iPad / Mac.
 //
-// Posters are Creative-Commons / open-movie art (Blender / Wikimedia / Internet
-// Archive — the SAME safe, free-to-ship source the reference uses for demo art),
-// loaded through S8KImage (cached + ThumbHash) so they are legal to distribute.
-//
-// STEP 8a (isolated): reached via a temporary preview button on the current gate,
-// so it never risks the live login until approved, then swapped in.
+// Posters are BUNDLED (Assets: gwposter1…6) so they paint instantly (no network).
+// Reuses the proven LoginView auth logic verbatim.
 // ============================================================
 
 import SwiftUI
 
-// CC-safe poster set (verified-200 open-movie / Wikimedia assets). Swap freely —
-// this is just data; the gateway code is independent of which posters are used.
-private let gatewayPosters: [String] = [
-    "https://commons.wikimedia.org/wiki/Special:FilePath/Big_buck_bunny_poster_big.jpg",
-    "https://commons.wikimedia.org/wiki/Special:FilePath/Sintel_poster.jpg",
-    "https://commons.wikimedia.org/wiki/Special:FilePath/Tos-poster.png",
-    "https://commons.wikimedia.org/wiki/Special:FilePath/Sintel_Poster_Paintover_clean.jpg",
-    "https://archive.org/services/img/ElephantsDream",
-]
+// Bundled poster asset names (owner-supplied art). Swap freely — just data.
+private let gatewayPosters = ["gwposter1", "gwposter2", "gwposter3", "gwposter4", "gwposter5", "gwposter6"]
 
-// MARK: - One infinite, seamless marquee row (posters repeated ×3, offset loops)
+private let gwCardW: CGFloat = 112
+private let gwCardH: CGFloat = 168
+private let gwSpacing: CGFloat = 12
+private var gwBaseWidth: CGFloat { CGFloat(gatewayPosters.count) * (gwCardW + gwSpacing) }
+
+// MARK: - One SEAMLESS infinite marquee row
+// The base 6-poster set is repeated `reps` times; the offset animates by EXACTLY
+// one base-set width (gwBaseWidth). Because poster[6] is identical to poster[0] and
+// the item stride is uniform (cardW+spacing), the loop is perfectly seamless — no
+// jump, no gap, never ends. `reps` is sized to the screen so wide screens stay full.
 private struct GatewayMarqueeRow: View {
     let posters: [String]
     let reversed: Bool
-    let cardW: CGFloat
-    let cardH: CGFloat
-    let speed: Double        // points per second (calm ≈ 20–26)
+    let reps: Int
+    let speed: Double            // points per second (calm ≈ 16–24)
     @State private var offset: CGFloat = 0
-    private let spacing: CGFloat = 12
-    private var setWidth: CGFloat { CGFloat(posters.count) * (cardW + spacing) }
 
     var body: some View {
-        HStack(spacing: spacing) {
-            ForEach(0 ..< (max(posters.count, 1) * 3), id: \.self) { i in
-                S8KImage(url: posters[i % max(posters.count, 1)], placeholder: "film", maxPixel: 400)
-                    .frame(width: cardW, height: cardH)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.06), lineWidth: 1))
+        HStack(spacing: gwSpacing) {
+            // Explicit [Int] (NOT a variable-count Range ForEach, which traps when
+            // `reps` changes on resize/rotation — see the launch-crash guardrail).
+            ForEach(Array(0 ..< (posters.count * reps)), id: \.self) { i in
+                Image(posters[i % posters.count])
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: gwCardW, height: gwCardH)
+                    .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
             }
         }
         .offset(x: offset)
         .onAppear {
-            offset = reversed ? -setWidth : 0
-            withAnimation(.linear(duration: Double(setWidth) / max(speed, 1)).repeatForever(autoreverses: false)) {
-                offset = reversed ? 0 : -setWidth
+            offset = reversed ? -gwBaseWidth : 0
+            withAnimation(.linear(duration: Double(gwBaseWidth) / max(speed, 1)).repeatForever(autoreverses: false)) {
+                offset = reversed ? 0 : -gwBaseWidth
             }
         }
     }
 }
 
-// MARK: - The 3-row poster wall (rows drift in ALTERNATING directions, calm)
+// MARK: - 3-row poster wall (alternating directions, seamless, screen-sized)
 private struct GatewayPosterWall: View {
-    private let cardW: CGFloat = 116
-    private let cardH: CGFloat = 174
+    let width: CGFloat
+    private var reps: Int { max(3, Int((width * 2.0 / max(gwBaseWidth, 1)).rounded(.up))) }
     var body: some View {
-        VStack(spacing: 12) {
-            GatewayMarqueeRow(posters: rotate(0), reversed: false, cardW: cardW, cardH: cardH, speed: 22)
-            GatewayMarqueeRow(posters: rotate(2), reversed: true,  cardW: cardW, cardH: cardH, speed: 26)
-            GatewayMarqueeRow(posters: rotate(4), reversed: false, cardW: cardW, cardH: cardH, speed: 20)
+        VStack(spacing: gwSpacing) {
+            GatewayMarqueeRow(posters: rotate(0), reversed: false, reps: reps, speed: 20)
+            GatewayMarqueeRow(posters: rotate(2), reversed: true,  reps: reps, speed: 16)
+            GatewayMarqueeRow(posters: rotate(4), reversed: false, reps: reps, speed: 22)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .padding(.top, 6)
+        .padding(.top, 30)
     }
     private func rotate(_ n: Int) -> [String] {
         let a = gatewayPosters
@@ -81,6 +81,7 @@ struct GatewayView: View {
     var onClose: (() -> Void)? = nil
     @StateObject private var auth = AuthService.shared
     @StateObject private var activation = ActivationService.shared
+    @StateObject private var loc = LocalizationManager.shared
 
     @State private var loginMode = LoginMode.xtream
     @State private var serverOrCode = ""
@@ -89,34 +90,55 @@ struct GatewayView: View {
     @State private var m3uURL = ""
     @State private var showPrivacy = false
     @State private var showTerms = false
-    @Environment(\.horizontalSizeClass) private var hSize
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            Color.s8kBlack.ignoresSafeArea()
-            GatewayPosterWall().opacity(0.92).ignoresSafeArea(edges: .top)
-            // Clear at the top (posters read sharply) → solid black at the bottom
-            // (login contrast). Owner: "وضوح في الخلفية" — a light, elegant dim.
-            LinearGradient(stops: [
-                .init(color: .clear,                       location: 0.0),
-                .init(color: Color.s8kBlack.opacity(0.45), location: 0.40),
-                .init(color: Color.s8kBlack.opacity(0.92), location: 0.66),
-                .init(color: Color.s8kBlack,               location: 1.0),
-            ], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
+        GeometryReader { geo in
+            ZStack {
+                Color.s8kBlack.ignoresSafeArea()
 
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    Color.clear.frame(height: 300)   // let the poster wall breathe above
-                    brand
-                    loginCard
-                    footer
+                // Full-bleed poster wall (top), seamless.
+                GatewayPosterWall(width: geo.size.width)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .ignoresSafeArea()
+
+                // Scrim: clear at the top (posters read sharply) → solid at the bottom.
+                LinearGradient(stops: [
+                    .init(color: .clear,                       location: 0.00),
+                    .init(color: Color.s8kBlack.opacity(0.12), location: 0.30),
+                    .init(color: Color.s8kBlack.opacity(0.72), location: 0.50),
+                    .init(color: Color.s8kBlack.opacity(0.97), location: 0.62),
+                    .init(color: Color.s8kBlack,               location: 0.74),
+                    .init(color: Color.s8kBlack,               location: 1.00),
+                ], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
+
+                // Foreground — bottom-anchored, width-capped (iPad/Mac), keyboard-safe.
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        Spacer(minLength: 0)                  // pushes content to the bottom
+                        VStack(spacing: 18) {
+                            brand
+                            loginCard
+                            footer
+                        }
+                        .frame(maxWidth: 440)                 // cap on iPad / Mac
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 22)
+                        .padding(.bottom, 8)
+                    }
+                    .frame(minHeight: geo.size.height)        // fill → Spacer bottom-anchors
                 }
-                .frame(maxWidth: hSize == .regular ? 520 : .infinity)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 22)
-            }
-            .scrollBounceBehavior(.basedOnSize)
+                .scrollDismissesKeyboard(.interactively)
 
+                topBar
+            }
+        }
+        .sheet(isPresented: $showPrivacy) { PrivacyView() }
+        .sheet(isPresented: $showTerms)   { TermsView() }
+    }
+
+    // MARK: Top bar — close (preview only) + language toggle
+    private var topBar: some View {
+        HStack {
             if onClose != nil {
                 Button { onClose?() } label: {
                     Image(systemName: "xmark").font(.system(size: 15, weight: .bold)).foregroundColor(.white)
@@ -124,26 +146,45 @@ struct GatewayView: View {
                         .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
                 }
                 .buttonStyle(S8KButtonStyle())
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .padding(.leading, 18).padding(.top, 6)
             }
+            Spacer()
+            langMenu
         }
-        .sheet(isPresented: $showPrivacy) { PrivacyView() }
-        .sheet(isPresented: $showTerms)   { TermsView() }
+        .padding(.horizontal, 16).padding(.top, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
-    // Brand: the app's OWN logo + wordmark (no tagline — owner spec).
+    private var langMenu: some View {
+        Menu {
+            ForEach(AppLang.allCases) { l in
+                Button { loc.set(l) } label: {
+                    if loc.lang == l { Label(l.display, systemImage: "checkmark") } else { Text(l.display) }
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "globe").font(.system(size: 13, weight: .semibold))
+                Text(loc.lang.display).font(S8KFont.caption1.weight(.bold))
+            }
+            .foregroundColor(.s8kTextPrimary)
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .background(Capsule().fill(Color.white.opacity(0.08)))
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.14), lineWidth: 1))
+        }
+    }
+
+    // MARK: Brand — the app's OWN logo + wordmark (no tagline)
     private var brand: some View {
         VStack(spacing: 12) {
-            BrandLogo(size: 72)
+            BrandLogo(size: 66)
             S8KWordmark(size: 30)
         }
-        .padding(.bottom, 22)
+        .padding(.bottom, 2)
     }
 
-    // MARK: Login card (Xtream / M3U toggle + fields + button)
+    // MARK: Login card
     private var loginCard: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 11) {
             modeSwitcher
             if loginMode == .xtream {
                 if Store.shared.resellerHost?.isEmpty != false {
@@ -179,9 +220,8 @@ struct GatewayView: View {
         }
     }
 
-    // A gateway-native segmented toggle (distinct look from the reference form).
     private var modeSwitcher: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 5) {
             modeTab(.xtream, "Xtream Codes", "person.badge.key.fill")
             modeTab(.m3u, L("login.mode_m3u"), "link")
         }
@@ -197,31 +237,28 @@ struct GatewayView: View {
                 Text(title).font(S8KFont.subhead.weight(.bold)).lineLimit(1)
             }
             .foregroundColor(on ? .s8kBlack : .s8kTextSecondary)
-            .frame(maxWidth: .infinity).padding(.vertical, 11)
+            .frame(maxWidth: .infinity).padding(.vertical, 12)
             .background(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
                 .fill(on ? AnyShapeStyle(S8KGradient.goldFlat) : AnyShapeStyle(Color.clear)))
         }
         .buttonStyle(S8KButtonStyle())
     }
 
-    // MARK: Footer — demo + terms (App Store review needs a demo path)
+    // MARK: Footer — demo + legal
     private var footer: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 13) {
             Button { auth.enterDemo() } label: {
-                Text(L("login.demo"))
-                    .font(S8KFont.subhead.weight(.semibold)).foregroundColor(.s8kGoldMid)
+                Text(L("login.demo")).font(S8KFont.subhead.weight(.semibold)).foregroundColor(.s8kGoldMid)
             }
-            .buttonStyle(S8KButtonStyle())
-            .padding(.top, 16)
-
-            HStack(spacing: 4) {
+            .buttonStyle(S8KButtonStyle()).padding(.top, 14)
+            HStack(spacing: 5) {
                 Button(L("set.terms"))   { showTerms = true }.foregroundColor(.s8kTextTertiary)
                 Text("·").foregroundColor(.s8kTextDisabled)
                 Button(L("set.privacy")) { showPrivacy = true }.foregroundColor(.s8kTextTertiary)
             }
             .font(S8KFont.caption2)
         }
-        .padding(.top, 6).padding(.bottom, 30)
+        .padding(.bottom, 22)
     }
 
     // MARK: Login action (faithful to the proven LoginView logic)
