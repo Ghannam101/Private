@@ -91,57 +91,137 @@ struct GatewayView: View {
     @State private var m3uURL = ""
     @State private var showPrivacy = false
     @State private var showTerms = false
+    @State private var showAccounts = false          // multi-account picker
+    @State private var entering: String? = nil        // account being entered
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            Color.s8kBlack.ignoresSafeArea()
+        // GeometryReader ADAPTS to every device automatically (iPhone SE → iPad → Mac)
+        // via its size + safe-area insets — no hard-coded per-device measurements.
+        GeometryReader { geo in
+            // Login block width: EXPLICIT and capped, so it can NEVER be wider than the
+            // screen (≥22pt margin each side) yet stays a tidy 430 max on big screens.
+            let contentW = min(geo.size.width - 44, 430)
 
-            // Full-bleed poster wall (rows pinned to the top), seamless.
-            GatewayPosterWall().ignoresSafeArea()
+            ZStack(alignment: .bottom) {
+                Color.s8kBlack.ignoresSafeArea()
+                GatewayPosterWall().ignoresSafeArea()
 
-            // Scrim — the bottom ~half is fully dark so the login area reads clean on
-            // EVERY screen, regardless of the posters behind it.
-            LinearGradient(stops: [
-                .init(color: .clear,                       location: 0.00),
-                .init(color: Color.s8kBlack.opacity(0.15), location: 0.26),
-                .init(color: Color.s8kBlack.opacity(0.55), location: 0.40),
-                .init(color: Color.s8kBlack.opacity(0.90), location: 0.49),
-                .init(color: Color.s8kBlack,               location: 0.56),
-                .init(color: Color.s8kBlack,               location: 1.00),
-            ], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
+                LinearGradient(stops: [
+                    .init(color: .clear,                       location: 0.00),
+                    .init(color: Color.s8kBlack.opacity(0.15), location: 0.26),
+                    .init(color: Color.s8kBlack.opacity(0.55), location: 0.40),
+                    .init(color: Color.s8kBlack.opacity(0.90), location: 0.49),
+                    .init(color: Color.s8kBlack,               location: 0.56),
+                    .init(color: Color.s8kBlack,               location: 1.00),
+                ], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
 
-            // Foreground — bottom-anchored, width-capped + centered on iPad/Mac,
-            // with real breathing room. Keyboard avoidance shifts it up.
-            VStack(spacing: 20) {
-                brand
-                loginCard
-                footer
+                VStack(spacing: 20) {
+                    brand
+                    if !Store.shared.savedPlaylists.isEmpty { switchAccountButton }
+                    loginCard
+                    footer
+                }
+                .frame(width: contentW)     // explicit → never overflows the screen
+                .padding(.bottom, 16)
             }
-            .frame(maxWidth: 440)
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 24)
-            .padding(.bottom, 16)
+            // The ZStack is bounded by `geo` (which RESPECTS the safe area), so these
+            // overlays align to the SAFE-AREA top — the language pill sits BELOW the
+            // notch/Dynamic Island and is ALWAYS visible, on every device.
+            .overlay(alignment: .topTrailing) {
+                langMenu.padding(.trailing, 18).padding(.top, 8)
+            }
+            .overlay(alignment: .topLeading) {
+                if onClose != nil {
+                    Button { onClose?() } label: {
+                        Image(systemName: "xmark").font(.system(size: 15, weight: .bold)).foregroundColor(.white)
+                            .frame(width: 40, height: 40).background(.ultraThinMaterial, in: Circle())
+                            .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
+                    }
+                    .buttonStyle(S8KButtonStyle())
+                    .padding(.leading, 16).padding(.top, 8)
+                }
+            }
         }
-        .overlay(alignment: .top) { topBar }   // respects the safe area (below the notch)
         .sheet(isPresented: $showPrivacy) { PrivacyView() }
         .sheet(isPresented: $showTerms)   { TermsView() }
+        .sheet(isPresented: $showAccounts) { accountSheet }
     }
 
-    // MARK: Top bar — close (preview only) + a CLEARLY-VISIBLE language toggle
-    private var topBar: some View {
-        HStack {
-            if onClose != nil {
-                Button { onClose?() } label: {
-                    Image(systemName: "xmark").font(.system(size: 15, weight: .bold)).foregroundColor(.white)
-                        .frame(width: 40, height: 40).background(.ultraThinMaterial, in: Circle())
-                        .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
-                }
-                .buttonStyle(S8KButtonStyle())
+    // MARK: Multi-account — a professional "switch account" entry + picker sheet.
+    // Reuses the proven switchPlaylist login so a returning user picks a saved
+    // subscription instead of re-typing (owner: avoid entry errors).
+    private var switchAccountButton: some View {
+        Button { showAccounts = true } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "person.2.fill").font(.system(size: 13, weight: .semibold))
+                Text("\(L("accounts.switch")) · \(Store.shared.savedPlaylists.count)")
+                    .font(S8KFont.subhead.weight(.bold)).lineLimit(1)
+                Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold))
             }
-            Spacer()
-            langMenu
+            .foregroundColor(.s8kGoldMid)
+            .padding(.horizontal, 16).padding(.vertical, 11)
+            .frame(maxWidth: .infinity)
+            .background(Capsule().fill(Color.s8kGoldMid.opacity(0.12)))
+            .overlay(Capsule().strokeBorder(Color.s8kBorderGold, lineWidth: 1))
         }
-        .padding(.horizontal, 16).padding(.top, 6)
+        .buttonStyle(S8KButtonStyle())
+    }
+
+    private var accountSheet: some View {
+        NavigationStack {
+            ZStack {
+                Color.s8kBlack.ignoresSafeArea()
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 12) {
+                        ForEach(Store.shared.savedPlaylists) { acc in accountRow(acc) }
+                    }
+                    .padding(20)
+                }
+            }
+            .navigationTitle(L("accounts.title"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) {
+                Button(L("common.close")) { showAccounts = false }.foregroundColor(.s8kGoldMid)
+            } }
+            .toolbarBackground(Color.s8kBlack, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+        }
+    }
+
+    private func accountRow(_ acc: SavedPlaylist) -> some View {
+        let isEntering = entering == acc.id
+        return Button { enter(acc) } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
+                        .fill(S8KGradient.goldFlat).frame(width: 50, height: 50)
+                    Image(systemName: acc.kind == .xtream ? "person.badge.key.fill" : "link")
+                        .font(.system(size: 19, weight: .bold)).foregroundColor(.s8kBlack)
+                }
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text(acc.name).font(S8KFont.headline).foregroundColor(.s8kTextPrimary).lineLimit(1)
+                    Text(acc.subtitle).font(S8KFont.caption1).foregroundColor(.s8kTextTertiary).lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                if isEntering { ProgressView().tint(.s8kGoldHigh) }
+                else { Image(systemName: "chevron.left").font(.system(size: 14, weight: .bold)).foregroundColor(.s8kTextTertiary) }
+            }
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous).fill(Color.s8kCard))
+            .overlay(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous).strokeBorder(Color.s8kBorder, lineWidth: 1))
+        }
+        .buttonStyle(S8KButtonStyle())
+    }
+
+    private func enter(_ acc: SavedPlaylist) {
+        guard entering == nil else { return }
+        entering = acc.id
+        Task {
+            await auth.switchPlaylist(acc)
+            auth.loggedIn = true
+            entering = nil
+        }
     }
 
     // A high-contrast GOLD pill so the user always sees the language switch before login.
@@ -214,8 +294,8 @@ struct GatewayView: View {
 
     private var modeSwitcher: some View {
         HStack(spacing: 0) {
-            modeTab(.xtream, "Xtream Codes", "person.badge.key.fill")
-            modeTab(.m3u, L("login.mode_m3u"), "link")
+            modeTab(.xtream, "Xtream", "person.badge.key.fill")
+            modeTab(.m3u, "M3U", "link")
         }
         .padding(5)
         .background(Capsule(style: .continuous).fill(Color.white.opacity(0.06)))
