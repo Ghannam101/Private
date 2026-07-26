@@ -30,12 +30,235 @@ import UIKit
     return g
 }()
 
+/// The CURRENT window's safe-area insets, read from the window scene rather than from a
+/// GeometryReader — because a reader placed inside a container that already ignored the
+/// safe area reports zero, which would make a notch phone look inset-free.
+@MainActor func s8kWindowInsets() -> EdgeInsets {
+    let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+    let active = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+    let i = active?.keyWindow?.safeAreaInsets ?? .zero
+    return EdgeInsets(top: i.top, leading: i.left, bottom: i.bottom, trailing: i.right)
+}
+
 @MainActor func s8kWindowSize() -> CGSize {
     let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
     let active = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
     if let s = active?.keyWindow?.bounds.size, s.width > 1, s.height > 1 { return s }
     if let s = active?.screen.bounds.size, s.width > 1, s.height > 1 { return s }
     return UIScreen.main.bounds.size
+}
+
+// ============================================================
+// MARK: - S8KMetrics — THE canonical layout system
+// ============================================================
+// Every layout number in the app should be either an S8KSpace/S8KRadius token or a
+// member of this type. It exists because the same numbers were being re-derived
+// per page and patched device-by-device: there were THREE near-identical hero
+// formulas that disagreed, eleven different width caps, five grid rules and three
+// different bottom spacers.
+//
+// The rule that makes it safe: it is derived from the WINDOW (via `s8kWindowSize()`,
+// which is keyboard-immune) and the size classes — it NEVER measures a width from a
+// nested GeometryReader. That is what makes the "min(geo.width - 44, 430) went
+// negative and the screen collapsed" class of bug unrepresentable.
+
+/// The device classes the app reasons about. Branch on THIS, never on a raw width
+/// and never on `UIDevice.current.userInterfaceIdiom`.
+enum S8KDeviceClass: Int, Comparable {
+    case compactNarrow      // compact, w < 390   — 320pt iPad pane, 375 SE / mini
+    case compactRegular     // compact, 390…413   — 390 / 393 / 402
+    case compactWide        // compact, w ≥ 414   — 414…440, 566pt split, phone landscape
+    case regularMedium      // regular, w < 720   — small Mac window, 2/3 panes
+    case regularLarge       // regular, 720…1099  — every iPad portrait
+    case regularXL          // regular, w ≥ 1100  — iPad landscape, large Mac
+
+    static func < (l: Self, r: Self) -> Bool { l.rawValue < r.rawValue }
+
+    static func classify(width w: CGFloat, hClass: UserInterfaceSizeClass?) -> S8KDeviceClass {
+        if hClass == .regular {
+            if w < 720  { return .regularMedium }
+            if w < 1100 { return .regularLarge }
+            return .regularXL
+        }
+        if w < 390 { return .compactNarrow }
+        if w < 414 { return .compactRegular }
+        return .compactWide
+    }
+    var isCompact: Bool { self <= .compactWide }
+}
+
+struct S8KMetrics: Equatable {
+    let size: CGSize                 // the WINDOW, never the screen
+    let safeArea: EdgeInsets
+    let hClass: UserInterfaceSizeClass?
+    let vClass: UserInterfaceSizeClass?
+    let cls: S8KDeviceClass
+
+    init(size: CGSize, safeArea: EdgeInsets = EdgeInsets(),
+         hClass: UserInterfaceSizeClass?, vClass: UserInterfaceSizeClass?) {
+        // max(_, 1): the very first layout pass can report .zero, and every derived
+        // value would then be NaN or negative.
+        let s = CGSize(width: max(size.width, 1), height: max(size.height, 1))
+        self.size = s; self.safeArea = safeArea
+        self.hClass = hClass; self.vClass = vClass
+        self.cls = S8KDeviceClass.classify(width: s.width, hClass: hClass)
+    }
+
+    /// Merge in a page's measured safe area (from its page-root GeometryReader).
+    func withSafeArea(_ i: EdgeInsets) -> S8KMetrics {
+        S8KMetrics(size: size, safeArea: i, hClass: hClass, vClass: vClass)
+    }
+
+    var safeTop: CGFloat    { max(0, safeArea.top) }
+    var safeBottom: CGFloat { max(0, safeArea.bottom) }
+
+    private func pick<T>(_ cn: T, _ cr: T, _ cw: T, _ rm: T, _ rl: T, _ rx: T) -> T {
+        switch cls {
+        case .compactNarrow:  return cn
+        case .compactRegular: return cr
+        case .compactWide:    return cw
+        case .regularMedium:  return rm
+        case .regularLarge:   return rl
+        case .regularXL:      return rx
+        }
+    }
+
+    // ---- Margins ----
+    var gutter: CGFloat      { pick(16, 20, 20, 24, 28, 32) }
+    var gridSpacing: CGFloat { pick(12, 14, 14, 16, 16, 18) }
+
+    // ---- Width caps: three ROLES instead of eleven numbers ----
+    /// Feeds, rails, poster grids.
+    var contentMaxWidth: CGFloat { pick(.infinity, .infinity, .infinity, 760, 900, 1040) }
+    /// Anything read line by line. Apple's readable width tops out ≈672pt.
+    var readableMaxWidth: CGFloat { cls.isCompact ? .infinity : 640 }
+    /// Every form in the app (login, add playlist, PIN).
+    var formMaxWidth: CGFloat { 440 }
+
+    /// The width content actually gets after the cap and both gutters.
+    var contentWidth: CGFloat { max(1, min(size.width, contentMaxWidth) - gutter * 2) }
+
+    // ---- Chrome ----
+    /// The pinned page-identity bar, EXCLUDING the safe area.
+    var topBarHeight: CGFloat { cls.isCompact ? 62 : 68 }
+    /// What a full-bleed scroll reserves so content clears that bar.
+    var topBarReserve: CGFloat { safeTop + topBarHeight }
+    /// The floating AppTabBar's footprint: the 58pt puck + its 10pt bottom padding.
+    var tabBarFootprint: CGFloat { 68 }
+    /// What a scroll running to the PHYSICAL bottom must reserve. Replaces the
+    /// hand-written 110 / 100 / 130 — which over-reserved 42pt on an SE and
+    /// under-reserved the comfort gap on a Dynamic Island phone.
+    var bottomClearance: CGFloat { tabBarFootprint + S8KSpace.md + safeBottom }
+
+    // ---- Hero ----
+    /// How much of the NEXT row must stay visible under the hero: a rail heading
+    /// (21pt heavy + 3pt underline + 8pt gap) plus 56pt of the first card.
+    var heroPeek: CGFloat { 88 }
+    var heroMaxHeight: CGFloat { cls.isCompact ? 660 : 560 }
+
+    /// ONE hero formula for the whole app, full-bleed (it already spans the area
+    /// under the status bar — call sites must NOT add `+ topInset`).
+    ///
+    /// Width × a shape-derived aspect, then clamped by the viewport. The `ceiling`
+    /// term is what the old per-page formulas were missing, and its absence is
+    /// exactly why an iPhone SE got a hero 78% as tall as the screen and why every
+    /// phone in landscape got a hero TALLER than its own viewport.
+    var heroHeight: CGFloat {
+        let r = size.height / size.width                 // page shape
+        let t = min(max((r - 1.15) / 1.15, 0), 1)        // 0 = landscape-ish, 1 = very tall
+        let aspect = 0.56 + 0.90 * t                     // 16:9 → tall cinematic crop
+        let ideal = size.width * aspect
+        let ceiling = size.height - bottomClearance - heroPeek   // the peek guarantee
+        let capped = min(ideal, heroMaxHeight, ceiling, size.height * 0.80)
+        // FLOOR = the hero card's own incompressible copy stack (tag row + a 2-line
+        // title + rule + rating + a 52pt button row + page dots ≈ 248pt). Below that the
+        // card cannot lay out: the copy would overflow upward — and the carousel is
+        // deliberately un-clipped for the stretch, so it would draw off the top of the
+        // screen under the pinned title. The `0.80` keeps the floor itself honest in a
+        // pathologically short window.
+        return max(capped, min(248, size.height * 0.80))
+    }
+
+    @MainActor static var fallback: S8KMetrics {
+        S8KMetrics(size: s8kWindowSize(), hClass: nil, vClass: nil)
+    }
+}
+
+private struct S8KMetricsKey: EnvironmentKey {
+    static let defaultValue = S8KMetrics(size: CGSize(width: 393, height: 852),
+                                         hClass: .compact, vClass: .regular)
+}
+extension EnvironmentValues {
+    var s8kMetrics: S8KMetrics {
+        get { self[S8KMetricsKey.self] }
+        set { self[S8KMetricsKey.self] = newValue }
+    }
+}
+
+/// Install ONCE, around the TabView. The window size is read by a GeometryReader
+/// that lives in a `.background` and ignores the safe area — the only measurement
+/// this codebase trusts: a background can never inflate its host, and ignoring the
+/// safe area makes the reading keyboard-immune. Seeded from `s8kWindowSize()` so
+/// the very first frame is already correct.
+struct S8KMetricsRoot<Content: View>: View {
+    @Environment(\.horizontalSizeClass) private var h
+    @Environment(\.verticalSizeClass) private var v
+    @State private var window: CGSize = .zero
+    @State private var insets: EdgeInsets = EdgeInsets()
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        let size = window.width > 1 ? window : s8kWindowSize()
+        // Merge PER EDGE, not all-or-nothing. Probe 2 sits inside a container the TabView
+        // has already stripped of its BOTTOM safe area, so the realistic failure is a
+        // PARTIAL zero — e.g. (top: 0, bottom: 34) — which an `== EdgeInsets()` guard
+        // would happily accept, reporting a notch phone as having no top inset.
+        let w = s8kWindowInsets()
+        let ins = EdgeInsets(top: max(insets.top, w.top),
+                             leading: max(insets.leading, w.leading),
+                             bottom: max(insets.bottom, w.bottom),
+                             trailing: max(insets.trailing, w.trailing))
+        content()
+            .environment(\.s8kMetrics,
+                         S8KMetrics(size: size, safeArea: ins, hClass: h, vClass: v))
+            .background {
+                ZStack {
+                    // Probe 1 — SIZE. Ignores the safe area (and therefore the keyboard),
+                    // so the window size never shrinks while typing.
+                    GeometryReader { g in
+                        Color.clear
+                            .onAppear { if g.size.width > 1 { window = g.size } }
+                            .onChange(of: g.size) { _, s in if s.width > 1 { window = s } }
+                    }
+                    .ignoresSafeArea()
+                    // Probe 2 — INSETS. Does NOT ignore the safe area, so it reports the
+                    // real notch / home-indicator insets. Read separately because a view
+                    // that ignores the safe area reports its insets as zero.
+                    GeometryReader { g in
+                        Color.clear
+                            .onAppear { insets = g.safeAreaInsets }
+                            .onChange(of: g.safeAreaInsets) { _, i in insets = i }
+                    }
+                }
+                .allowsHitTesting(false)
+            }
+    }
+}
+
+/// Publish a page's measured safe area to the metrics in its subtree. Use from a
+/// page-root GeometryReader — the ONE placement of GeometryReader this codebase
+/// allows — and only ever for insets, never for a width.
+extension View {
+    func s8kSafeArea(_ insets: EdgeInsets) -> some View {
+        modifier(S8KSafeAreaInjector(insets: insets))
+    }
+}
+private struct S8KSafeAreaInjector: ViewModifier {
+    let insets: EdgeInsets
+    @Environment(\.s8kMetrics) private var m
+    func body(content: Content) -> some View {
+        content.environment(\.s8kMetrics, m.withSafeArea(insets))
+    }
 }
 
 // MARK: - Stretchy full-bleed hero header

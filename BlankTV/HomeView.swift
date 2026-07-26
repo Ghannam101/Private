@@ -568,6 +568,7 @@ struct RankRail: View {
 // the corner-menu search is active (scope = .all). The search FIELD itself lives
 // in the tab bar above this overlay; here we just render + open the matches.
 private struct HomeSearchResults: View {
+    @Environment(\.s8kMetrics) private var metrics
     @ObservedObject var vm: SearchVM
     let onMovie:   (Movie) -> Void
     let onSeries:  (Series) -> Void
@@ -597,7 +598,7 @@ private struct HomeSearchResults: View {
                         }
                     }
                     .padding(.top, 66)
-                    Color.clear.frame(height: 130)
+                    Color.clear.frame(height: metrics.bottomClearance)
                 }
             }
         }
@@ -642,6 +643,9 @@ struct HomeView: View {
     @ObservedObject private var router = AppRouter.shared     // global in-place search (Home = all)
     @StateObject private var searchVM = SearchVM()            // Home all-content search results
     @Environment(\.horizontalSizeClass) private var hSize
+    /// The canonical layout metrics (window + size classes), injected once by
+    /// S8KMetricsRoot around the TabView. Never re-derive a size locally.
+    @Environment(\.s8kMetrics) private var metrics
 
     // Single enum-driven presentation each — SwiftUI only honors one
     // .sheet / one .fullScreenCover per view reliably.
@@ -782,7 +786,7 @@ struct HomeView: View {
                     supportButtons
                     // 110 = the app-wide spacer that clears the floating bar (58 + 10 +
                     // the home indicator). 100 left the support buttons under the puck.
-                    Color.clear.frame(height: 110)
+                    Color.clear.frame(height: metrics.bottomClearance)
                 }
                 // Cap + center only the RAILS on iPad so the page isn't a blown-up phone
                 // screen stretched edge-to-edge.
@@ -1077,21 +1081,12 @@ struct HomeView: View {
 
     // Responsive hero height — enlarged DOWNWARD so the full poster shows on all
     // phones (full-bleed under the notch/Dynamic Island; the top bar overlays a scrim).
-    private var heroHeight: CGFloat {
-        // WINDOW height, not screen height — otherwise an iPad Slide Over pane (320pt
-        // wide, compact) or a small Mac window gets a 660pt hero built for a Pro Max.
-        // The regular-class value was a bare CONSTANT: in a small Mac / Stage Manager
-        // window (700×500) a 560pt hero is TALLER THAN THE VIEWPORT — nothing below it
-        // is reachable and there is no peek at all. Clamped to 55% of the window.
-        // The compact branch also takes a WIDTH-derived cap: in a 320pt iPad Slide Over
-        // pane the height rule produced a 660×320 hero (ratio 0.48), which crops ~71% of
-        // a 16:9 backdrop and upscales the remainder ~2.6×. Neither term binds on any
-        // iPhone (375×1.5 = 562 > 520 … 440×1.5 = 660 > 593) or any full-screen iPad.
-        hSize == .regular
-            ? min(560, s8kWindowSize().height * 0.55)
-            : min(max(s8kWindowSize().height * 0.62, 520), 660,
-                    s8kWindowSize().width * 1.5, s8kWindowSize().height * 0.8)
-    }
+    /// The ONE hero formula, from the canonical layout system. Home, Movies and Series
+    /// used to carry three near-identical copies that disagreed with each other — and
+    /// two of them produced a hero TALLER THAN THE VIEWPORT (iPhone SE portrait at 78%
+    /// of the screen, and every phone in landscape). `S8KMetrics.heroHeight` adds the
+    /// term they were all missing: a ceiling that guarantees the next row still peeks.
+    private var heroHeight: CGFloat { metrics.heroHeight }
 
     // MARK: - Hero Section — isolated swipeable cinematic carousel.
     // The carousel lives in its own `HeroCarouselView` (above) so its 5s

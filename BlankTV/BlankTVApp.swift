@@ -216,6 +216,11 @@ struct BlankTVApp: App {
     // visible page renders) — switching is instant. The native bar is hidden
     // (UITabBar.appearance().isHidden) and replaced by our custom AppTabBar.
     private var tabView: some View {
+        // S8KMetricsRoot is the app's SINGLE layout-metrics injection point. Every
+        // page reads `@Environment(\.s8kMetrics)` instead of re-deriving sizes, which
+        // is how three disagreeing hero formulas and eleven width caps happened.
+        // Do not add a second one.
+        S8KMetricsRoot {
         ZStack(alignment: .bottom) {
             TabView(selection: $router.tab) {
                 HomeView().tag(AppTab.home)
@@ -240,9 +245,10 @@ struct BlankTVApp: App {
             AppTabBar(selected: $router.tab)
                 .zIndex(1)   // always above content so its taps never fall through
         }
-        // Top-bar presentations live HERE (stable host) so they present
-        // identically in demo and real playlist mode and can never be lost
-        // by a HomeView re-render. See AppRouter.homeSheet.
+        // Top-bar presentations live HERE (stable host) so they present identically in
+        // demo and real playlist mode and can never be lost by a HomeView re-render.
+        // Attached INSIDE S8KMetricsRoot so these covers inherit the real layout metrics
+        // — outside it they would silently get the hardcoded 393×852 default.
         .fullScreenCover(item: $router.homeSheet) { sheet in
             switch sheet {
             case .search:    SearchView()
@@ -254,6 +260,7 @@ struct BlankTVApp: App {
             if auth.loggedIn {
                 await auth.validateSession()
             }
+        }
         }
     }
 

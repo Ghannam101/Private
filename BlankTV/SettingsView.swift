@@ -106,6 +106,7 @@ enum SetUI {
 // parental are first-class sections. Presented isolated via a full-screen cover.
 // ============================================================
 struct SettingsProV2: View {
+    @Environment(\.s8kMetrics) private var metrics
     var onClose: (() -> Void)? = nil
     @StateObject private var auth   = AuthService.shared
     @StateObject private var theme  = AppTheme.shared
@@ -154,7 +155,7 @@ struct SettingsProV2: View {
                             sections
                             logoutButton
                             footer
-                            Color.clear.frame(height: 110)   // clear the floating AppTabBar (was 30 → logout sat under it)
+                            Color.clear.frame(height: metrics.bottomClearance)   // clear the floating AppTabBar (was 30 → logout sat under it)
                         }
                         .frame(maxWidth: hSize == .regular ? 640 : .infinity)
                         .frame(maxWidth: .infinity)
@@ -325,6 +326,7 @@ struct SettingsProV2: View {
 
 // MARK: - Detail scaffold (dark page + inline nav title, width-capped for iPad/Mac)
 struct SetScaffold<C: View>: View {
+    @Environment(\.s8kMetrics) private var metrics
     let title: String
     @Environment(\.horizontalSizeClass) private var hSize
     @ViewBuilder var content: () -> C
@@ -335,7 +337,7 @@ struct SetScaffold<C: View>: View {
                 // 110 = the app-wide spacer that clears the floating AppTabBar, which
                 // overlays pushed pages too (was 30 → the last row of every settings
                 // sub-page was covered by the bar).
-                VStack(spacing: 20) { content(); Color.clear.frame(height: 110) }
+                VStack(spacing: 20) { content(); Color.clear.frame(height: metrics.bottomClearance) }
                     .padding(.top, 14)
                     .frame(maxWidth: hSize == .regular ? 640 : .infinity)
                     .frame(maxWidth: .infinity)

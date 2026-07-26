@@ -98,6 +98,8 @@ struct LiveTVView: View {
     @StateObject private var parental = ParentalService.shared
     @ObservedObject private var router = AppRouter.shared   // global in-place search
     @Environment(\.horizontalSizeClass) private var hSize
+    /// Canonical layout metrics — injected once by S8KMetricsRoot (BlankTVApp).
+    @Environment(\.s8kMetrics) private var metrics
     @State private var playerItem: ContentItem? = nil
     @State private var showCategories = false
     @State private var showReorder = false
@@ -220,7 +222,7 @@ struct LiveTVView: View {
                         }
                     }
                 }
-                Color.clear.frame(height: 110)   // clear the floating AppTabBar
+                Color.clear.frame(height: metrics.bottomClearance)   // clear the floating AppTabBar
             }
         }
     }
@@ -308,7 +310,7 @@ struct LiveTVView: View {
                     } else {
                         tabContent
                     }
-                    Color.clear.frame(height: 110)
+                    Color.clear.frame(height: metrics.bottomClearance)
                 }
             }
             .scrollBounceBehavior(.always)
@@ -682,6 +684,7 @@ struct EPGNowNext: View {
 }
 
 struct ChannelListScreen: View {
+    @Environment(\.s8kMetrics) private var metrics
     let title: String
     let channels: [Channel]
     let onTap: (Channel) -> Void
@@ -700,7 +703,7 @@ struct ChannelListScreen: View {
                     SearchField(text: $search, placeholder: "\(L("common.search_in")) \(title)…")
                         .padding(.horizontal, S8KSpace.xl).padding(.bottom, S8KSpace.lg)
                     ChannelList(channels: shown) { onTap($0) }
-                    Color.clear.frame(height: 110)
+                    Color.clear.frame(height: metrics.bottomClearance)
                 }
             }
         }
@@ -1358,6 +1361,7 @@ struct FolderCard: View {
 
 // MARK: - iPad category sidebar (master pane for split layouts)
 struct CategorySidebar: View {
+    @Environment(\.s8kMetrics) private var metrics
     let title: String
     let folders: [Category]
     @Binding var selected: Category?     // nil = All, Category.favorites = Favorites
@@ -1399,7 +1403,7 @@ struct CategorySidebar: View {
                         row(cat.name, count(cat), selected?.id == cat.id) { selected = cat }
                     }
                 }
-                .padding(.horizontal, S8KSpace.md).padding(.bottom, 110)  // clear the floating AppTabBar
+                .padding(.horizontal, S8KSpace.md).padding(.bottom, metrics.bottomClearance)  // clear the floating AppTabBar
             }
         }
         .frame(maxHeight: .infinity)
@@ -1448,6 +1452,8 @@ struct MoviesView: View {
     @StateObject private var parental = ParentalService.shared
     @ObservedObject private var router = AppRouter.shared   // global in-place search
     @Environment(\.horizontalSizeClass) private var hSize
+    /// Canonical layout metrics — injected once by S8KMetricsRoot (BlankTVApp).
+    @Environment(\.s8kMetrics) private var metrics
     @State private var selected: Movie? = nil
     @State private var tab: ContentTab = .all
     @State private var showCategories = false
@@ -1462,18 +1468,11 @@ struct MoviesView: View {
     private func useSplit(_ width: CGFloat) -> Bool { isPad && width >= 720 }
 
     // Editorial hero height (mirrors Home, a touch shorter so the Top-10 peeks).
-    private var heroHeight: CGFloat {
-        // WINDOW height, not screen height (see s8kWindowSize) — correct in iPad
-        // Split View / Slide Over / Stage Manager and in a resized Mac window.
-        // See HomeView.heroHeight for the reasoning: the regular-class value must be
-        // clamped to the WINDOW (a small Mac window made the hero taller than the
-        // viewport), and the compact branch needs a width-derived cap so a 320pt iPad
-        // pane does not get a 600×320 hero that crops 71% of the artwork away.
-        hSize == .regular
-            ? min(520, s8kWindowSize().height * 0.55)
-            : min(max(s8kWindowSize().height * 0.58, 460), 600,
-                  s8kWindowSize().width * 1.4, s8kWindowSize().height * 0.8)
-    }
+    /// The ONE hero formula — see `S8KMetrics.heroHeight`. It is FULL-BLEED (it already
+    /// spans the area under the status bar), so call sites must NOT add `+ topInset`
+    /// the way they used to; that was why "hero height" meant two different things on
+    /// Home versus here.
+    private var heroHeight: CGFloat { metrics.heroHeight }
     private func openHero(_ item: HomeVM.HeroItem) {
         if case .movie(let m) = item.kind { selected = m }
     }
@@ -1564,7 +1563,7 @@ struct MoviesView: View {
                     .padding(.horizontal, S8KSpace.lg).padding(.top, 50)
                 PosterGrid(movies: vm.search.isEmpty ? items : vm.searchResults,
                            empty: empty) { selected = $0 }
-                Color.clear.frame(height: 110)   // clear the floating AppTabBar (iPad grid)
+                Color.clear.frame(height: metrics.bottomClearance)   // clear the floating AppTabBar (iPad grid)
             }
         }
     }
@@ -1591,7 +1590,7 @@ struct MoviesView: View {
                 } else {
                     tabContent(topInset)
                 }
-                Color.clear.frame(height: 110)
+                Color.clear.frame(height: metrics.bottomClearance)
             }
         }
         // `.always`: without a bounce there is no over-scroll, and with no over-scroll
@@ -1711,12 +1710,12 @@ struct MoviesView: View {
             // the working row → Top-10 → the user's own category shelves.
             LazyVStack(spacing: 0) {
                 if !vm.heroItems.isEmpty {
-                    HeroCarouselView(items: vm.heroItems, height: heroHeight + topInset,
+                    HeroCarouselView(items: vm.heroItems, height: heroHeight,
                                      paused: selected != nil || router.tab != .movies,
                                      onOpen: openHero)
                         // Fixed height so LazyVStack measures the header correctly. The
                         // stretch lives inside the hero card, on the ARTWORK only.
-                        .frame(height: heroHeight + topInset)
+                        .frame(height: heroHeight)
                     toolRow
                 } else {
                     Color.clear.frame(height: topInset + 62)
@@ -1870,6 +1869,7 @@ struct MoviePosterCell: View {
 }
 
 struct MoviePosterScreen: View {
+    @Environment(\.s8kMetrics) private var metrics
     let title: String
     let movies: [Movie]
     let onSelect: (Movie) -> Void
@@ -1888,7 +1888,7 @@ struct MoviePosterScreen: View {
                     SearchField(text: $search, placeholder: "\(L("common.search_in")) \(title)…")
                         .padding(.horizontal, S8KSpace.xl).padding(.bottom, S8KSpace.lg)
                     PosterGrid(movies: shown) { onSelect($0) }
-                    Color.clear.frame(height: 110)
+                    Color.clear.frame(height: metrics.bottomClearance)
                 }
             }
         }
@@ -1979,6 +1979,8 @@ struct SeriesListView: View {
     @StateObject private var parental = ParentalService.shared
     @ObservedObject private var router = AppRouter.shared   // global in-place search
     @Environment(\.horizontalSizeClass) private var hSize
+    /// Canonical layout metrics — injected once by S8KMetricsRoot (BlankTVApp).
+    @Environment(\.s8kMetrics) private var metrics
     @State private var selected: Series? = nil
     @State private var tab: ContentTab = .all
     @State private var showCategories = false
@@ -1993,18 +1995,11 @@ struct SeriesListView: View {
     private func useSplit(_ width: CGFloat) -> Bool { isPad && width >= 720 }
 
     // Editorial hero height (mirrors Home, a touch shorter so the Top-10 peeks).
-    private var heroHeight: CGFloat {
-        // WINDOW height, not screen height (see s8kWindowSize) — correct in iPad
-        // Split View / Slide Over / Stage Manager and in a resized Mac window.
-        // See HomeView.heroHeight for the reasoning: the regular-class value must be
-        // clamped to the WINDOW (a small Mac window made the hero taller than the
-        // viewport), and the compact branch needs a width-derived cap so a 320pt iPad
-        // pane does not get a 600×320 hero that crops 71% of the artwork away.
-        hSize == .regular
-            ? min(520, s8kWindowSize().height * 0.55)
-            : min(max(s8kWindowSize().height * 0.58, 460), 600,
-                  s8kWindowSize().width * 1.4, s8kWindowSize().height * 0.8)
-    }
+    /// The ONE hero formula — see `S8KMetrics.heroHeight`. It is FULL-BLEED (it already
+    /// spans the area under the status bar), so call sites must NOT add `+ topInset`
+    /// the way they used to; that was why "hero height" meant two different things on
+    /// Home versus here.
+    private var heroHeight: CGFloat { metrics.heroHeight }
     private func openHero(_ item: HomeVM.HeroItem) {
         if case .series(let s) = item.kind { selected = s }
     }
@@ -2088,7 +2083,7 @@ struct SeriesListView: View {
                     .padding(.horizontal, S8KSpace.lg).padding(.top, 50)
                 SeriesGrid(series: vm.search.isEmpty ? items : vm.searchResults,
                            empty: empty) { selected = $0 }
-                Color.clear.frame(height: 110)   // clear the floating AppTabBar (iPad grid)
+                Color.clear.frame(height: metrics.bottomClearance)   // clear the floating AppTabBar (iPad grid)
             }
         }
     }
@@ -2108,7 +2103,7 @@ struct SeriesListView: View {
                 } else {
                     tabContent(topInset)
                 }
-                Color.clear.frame(height: 110)
+                Color.clear.frame(height: metrics.bottomClearance)
             }
         }
         .scrollBounceBehavior(.always)   // no bounce → no over-scroll → no stretch
@@ -2216,10 +2211,10 @@ struct SeriesListView: View {
             // the working row → Top-10 → the user's own category shelves.
             LazyVStack(spacing: 0) {
                 if !vm.heroItems.isEmpty {
-                    HeroCarouselView(items: vm.heroItems, height: heroHeight + topInset,
+                    HeroCarouselView(items: vm.heroItems, height: heroHeight,
                                      paused: selected != nil || router.tab != .series,
                                      onOpen: openHero)
-                        .frame(height: heroHeight + topInset)
+                        .frame(height: heroHeight)
                     toolRow
                 } else {
                     Color.clear.frame(height: topInset + 62)
@@ -2340,6 +2335,7 @@ struct SeriesGrid: View {
 }
 
 struct SeriesPosterScreen: View {
+    @Environment(\.s8kMetrics) private var metrics
     let title: String
     let series: [Series]
     let onSelect: (Series) -> Void
@@ -2358,7 +2354,7 @@ struct SeriesPosterScreen: View {
                     SearchField(text: $search, placeholder: "\(L("common.search_in")) \(title)…")
                         .padding(.horizontal, S8KSpace.xl).padding(.bottom, S8KSpace.lg)
                     SeriesGrid(series: shown) { onSelect($0) }
-                    Color.clear.frame(height: 110)
+                    Color.clear.frame(height: metrics.bottomClearance)
                 }
             }
         }
