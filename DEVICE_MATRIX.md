@@ -104,6 +104,71 @@ Any hard-coded landscape offset tuned before iOS 26 is now 20pt off.
    unreachable and the user is trapped (this bricked the maintenance/update gates and the code sheet).
 6. **`.presentationDetents([.medium])` alone** on a sheet with a text field — always offer `.large` too.
 
+## 6b. iPad multitasking — measured pane widths (researched 2026-07-26)
+
+The Split View divider is **10pt**, confirmed by two independent verbatim data points
+(8.3" mini landscape: narrow 375 + wide 748 = 1123 = 1133 − 10; portrait: 320 + 414 = 734 =
+744 − 10). So `⅔ pane = screenW − 10 − narrow` and `½ pane = (screenW − 10) / 2`.
+
+| Device (landscape W) | Slide Over / ⅓ | ½ | ⅔ | size class at ½ |
+|---|---|---|---|---|
+| 12.9"/13" Pro (1366) | **375** | 678 | 981 | **regular** |
+| 11" Pro (1194) | **375** | 592 | 809 | **regular** |
+| 10.5" Pro (1112) | **320** | 551 | 782 | compact |
+| 10.2" (1080) | **320** | 535 | 750 | compact |
+| 9.7" (1024) | **320** | 507 | 694 | compact |
+| 8.3" mini (1133) | **375** | **561.5** ⚠ | 748 | compact |
+
+**Portrait: the narrow pane is 320pt on EVERY iPad.**
+
+Three facts that matter more than the table:
+1. **Widths are not guaranteed integral** — the 8.3" mini's 50/50 landscape pane is 561.5pt.
+   Never compare a width with `==`, never assume a whole number.
+2. **320pt was never a documented floor** — it is empirically universal in the classic model,
+   but Apple publishes no minimum. Under **iPadOS 26 free-form windowing** Split View/Slide
+   Over are gone as modes, windows resize continuously, and `sizeRestrictions.minimumSize` is
+   explicitly *"a preference… not guaranteed"* (Apple DTS). Design for a **continuous** width.
+3. **The compact→regular flip has no published threshold.** Measured: 561.5pt is compact,
+   592pt is regular — so it lies in (561.5, 592]. The commonly-quoted "640" is wrong. Never
+   hard-code it; read `horizontalSizeClass`.
+
+## 6c. What the audits actually found (2026-07-26)
+
+A quantitative pass over all four content pages, plus a layout-system design review:
+
+- **Three near-identical hero formulas** that disagreed (Home / Movies / Series), and
+  "hero height" meant two different things because Movies/Series added `+ topInset`.
+  **Two of the three produced a hero TALLER THAN THE VIEWPORT** — iPhone SE portrait (520pt
+  in a 667pt screen) and every phone in landscape (300pt in a 274pt usable area).
+- **Eleven different content-width caps**, **five grid rules**, **three bottom spacers**
+  (110/100/130 against a real footprint of 68+safeBottom), and **thirteen hard-coded top
+  paddings** stacked on top of the real safe area.
+- **Four controls below Apple's 44pt tap minimum** (38–42pt).
+- The poster grid was **2-up from 375pt to 414pt and 3-up from 420pt** — the same page was a
+  different product on an iPhone 15 and a 15 Plus.
+
+## 7. THE LAYOUT SYSTEM (mandatory)
+
+`S8KMetrics` in `DesignSystem.swift` is the single source of truth. The rules:
+
+1. **Every layout number** comes from `S8KMetrics`, `S8KSpace` or `S8KRadius`. A bare numeric
+   literal in `.frame(` / `.padding(` / `.adaptive(minimum:` is a bug, not a style choice.
+2. **Adapt via `metrics.cls`** (`S8KDeviceClass`) — never a raw width, never
+   `UIDevice.current.userInterfaceIdiom`.
+3. `S8KMetricsRoot` is installed **once**, around the TabView in `BlankTVApp`. Never add a second.
+4. It derives everything from the **WINDOW** (`s8kWindowSize()`, keyboard-immune) and the size
+   classes. It NEVER measures a width from a nested proxy — that is what makes the
+   "`min(geo.width − 44, 430)` went negative and the screen collapsed" bug unrepresentable.
+5. Safe-area insets come from the window scene (`s8kWindowInsets()`) or a **page-root**
+   GeometryReader, and are used for insets **only** — never to derive a width.
+6. Any interactive element is **≥ 44pt**, expressed as `minHeight:`, never `height:`.
+7. The hero has **one** implementation: `metrics.heroHeight`. It is **full-bleed** — never add
+   `+ topInset`. It carries a hard invariant:
+   **`hero + heroPeek(88) + bottomClearance ≤ window height`**, so the next row always peeks.
+   Its floor is the hero card's own incompressible copy stack (248pt).
+8. A page whose content runs to the physical bottom reserves `metrics.bottomClearance`
+   (= 68pt bar footprint + 12 + the real home-indicator inset). Nothing else.
+
 ## 6. Known-open items (need owner approval — they change approved visuals)
 - 13 sites use a hard-coded `.padding(.top, 50…70)` on top of the real safe area (`AuthViews:306/511/661`,
   `ActivationView:257`, `ContentViews:200/231/314/1331/1476/1552/1925`, `HomeView:1466`,

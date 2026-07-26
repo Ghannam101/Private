@@ -167,6 +167,27 @@ text-field focus the moment the keyboard appeared). Do not skip it.
   AuthViews — without a paired password field iOS AutoFill never engages); username/password
   use `.asciiCapable`; the reveal toggle re-asserts focus on the next runloop.
 
+## 5e. THE LAYOUT SYSTEM — `S8KMetrics` (2026-07-26)
+Owner asked for "one studied engineering design across every screen, with fixed standards".
+An architecture review found the real problem: layout numbers were re-derived per page and
+patched device-by-device. `S8KMetrics` (in `DesignSystem.swift`) is now the single source of
+truth. **Read `DEVICE_MATRIX.md` §6b/§6c/§7 before touching any layout.**
+
+- `S8KDeviceClass` — six classes (compactNarrow/Regular/Wide, regularMedium/Large/XL) with
+  boundaries at 390 / 414 / 720 / 1100. Branch on THIS, never on a raw width.
+- `S8KMetrics` — derived from the WINDOW + size classes + safe area. Exposes `gutter`,
+  `gridSpacing`, `contentMaxWidth`, `readableMaxWidth`, `formMaxWidth`, `topBarReserve`,
+  `bottomClearance`, `heroHeight`…
+- `S8KMetricsRoot` — installed ONCE around the TabView; injects `\.s8kMetrics`.
+- **`heroHeight` is the one hero formula**, full-bleed, with the invariant
+  `hero + 88 + bottomClearance ≤ window height`. It replaced three disagreeing per-page
+  formulas, two of which produced a hero taller than the viewport.
+
+**Adopted so far:** the three hero sites, and `bottomClearance` at 13 spacer sites.
+**Not yet adopted (deliberate — they change approved visuals, owner sign-off needed):** the
+width caps, the grid/rail metrics, and the 13 hard-coded top paddings. Until they are, the
+old literals still live alongside the system — do not assume a number in a view is canonical.
+
 ## 6. Remaining tasks (priority order)
 1. ~~Fix the gateway bug → adopt it → remove the preview button~~ **DONE** (§5, §5d, v67).
 2. ~~**Post-login instant flow**~~ **DONE** (§5d, v67).
