@@ -303,6 +303,173 @@ extension View {
     }
 }
 
+// ============================================================
+// MARK: - DETAIL PAGE LANGUAGE — "pinned canvas + editorial plinth"
+// ============================================================
+// The detail pages are built from these pieces and nothing else. The structure is
+// deliberately NOT the universal streaming stack (full-bleed backdrop → title-logo
+// PNG on the artwork → full-width Play bar → icon-triplet → 2-line synopsis), which
+// every major service ships and which therefore reads as a clone of all of them.
+//
+// Here the artwork is a FIXED canvas that the content rises over, and the title is
+// LIVE TYPE on an opaque plinth — never an image composited onto the artwork. That
+// one decision is what makes the page distinct, and it also solves contrast,
+// Dynamic Type, RTL and missing artwork at the same time: a title that lives on a
+// solid surface cannot become illegible over someone else's poster, and a page
+// whose identity is type still works when the catalogue has no backdrop at all
+// (the metadata-agnostic rule).
+
+/// Language-driven alignment. The app forces `layoutDirection = .leftToRight`
+/// globally, so "leading" is the physical left even in Arabic — text has to be
+/// aligned by the LANGUAGE instead.
+@MainActor var s8kIsRTL: Bool { LocalizationManager.current.isRTL }
+
+/// Episode numerals, formatted by LOCALE. In Arabic locales this renders ١ ٢ ٣ —
+/// which is both correct and an identity marker a Latin-only app cannot reproduce.
+/// Never hand-format a number: digit ORDER never reverses in RTL, only the glyphs
+/// change, and `NumberFormatter` is the only thing that gets that right.
+private let s8kNumberFormatter: NumberFormatter = {
+    let f = NumberFormatter(); f.numberStyle = .none; return f
+}()
+@MainActor func s8kEpisodeNumeral(_ n: Int) -> String {
+    s8kNumberFormatter.locale = Locale(identifier: LocalizationManager.current.rawValue)
+    return s8kNumberFormatter.string(from: NSNumber(value: n)) ?? "\(n)"
+}
+@MainActor var s8kTextAlign: HorizontalAlignment { s8kIsRTL ? .trailing : .leading }
+@MainActor var s8kFrameAlign: Alignment { s8kIsRTL ? .trailing : .leading }
+@MainActor var s8kMultiline: TextAlignment { s8kIsRTL ? .trailing : .leading }
+
+/// The opaque surface the page content rides on. It scrolls UP over the fixed
+/// artwork canvas and covers it. Opaque by requirement: Apple's own guidance is
+/// that glass belongs to the navigation layer, never to a content background.
+struct S8KPlinth<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) { content() }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                UnevenRoundedRectangle(topLeadingRadius: 28, bottomLeadingRadius: 0,
+                                       bottomTrailingRadius: 0, topTrailingRadius: 28,
+                                       style: .continuous)
+                    .fill(Color.s8kBlack)
+                    .shadow(color: .black.opacity(0.55), radius: 20, y: -8)
+            )
+    }
+}
+
+/// The primary action. A capsule sized to its CONTENT — not a full-width bar, which
+/// is the single most-copied element in the category — with an inset progress rule
+/// along its bottom edge when the title is partly watched.
+struct S8KPlayCapsule: View {
+    let title: String
+    var progress: Double = 0
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                // The ▶ glyph must NOT mirror in Arabic — media transport controls
+                // keep their direction. Only the capsule's POSITION in the row flips.
+                Image(systemName: "play.fill").font(.system(size: 15, weight: .bold))
+                Text(title).font(.system(size: 16, weight: .semibold))
+                    .lineLimit(1).minimumScaleFactor(0.8)
+            }
+            .foregroundColor(.s8kBlack)
+            .padding(.horizontal, 26)
+            .frame(minHeight: 54)
+            .background(Capsule(style: .continuous).fill(Color.s8kGoldHigh))
+            .overlay(alignment: .bottom) {
+                if progress > 0.02 && progress < 0.98 {
+                    GeometryReader { g in
+                        Capsule().fill(Color.s8kBlack.opacity(0.30))
+                            .frame(width: max(0, (g.size.width - 28) * min(max(progress, 0), 1)),
+                                   height: 2)
+                            .frame(maxWidth: .infinity, alignment: s8kIsRTL ? .trailing : .leading)
+                            .padding(.horizontal, 14)
+                    }
+                    .frame(height: 2).padding(.bottom, 9)
+                    .allowsHitTesting(false)
+                }
+            }
+            .contentShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(S8KButtonStyle())
+    }
+}
+
+/// A secondary action: a 48pt circular glass satellite. Same object as the tool-row
+/// buttons on the main pages, so the app has ONE control vocabulary.
+struct S8KSatellite: View {
+    let icon: String
+    var tint: Color = .s8kGoldHigh
+    var label: String = ""
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 17, weight: .semibold)).foregroundColor(tint)
+                .frame(width: 48, height: 48)
+                .background(Circle().fill(Color.white.opacity(0.07)))
+                .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                    .allowsHitTesting(false))
+                .contentShape(Circle())
+        }
+        .buttonStyle(S8KButtonStyle())
+        .accessibilityLabel(label)
+    }
+}
+
+/// A synopsis that clamps to four lines and expands IN PLACE. Four, not two: at ~41
+/// characters per line on a phone, four lines is one whole thought — and a two-line
+/// clamp is another service's signature. Expanding in place (rather than opening a
+/// sheet) keeps the scroll position, which is the whole point of the pattern.
+struct S8KExpandableText: View {
+    let text: String
+    var lineLimit: Int = 4
+    @State private var expanded = false
+    var body: some View {
+        VStack(alignment: s8kTextAlign, spacing: 8) {
+            Text(text)
+                .font(.system(size: 16))
+                .lineSpacing(9)                       // 1.55 leading: a phone measure is
+                .foregroundColor(.s8kTextSecondary)   // short, so compensate with leading
+                .multilineTextAlignment(s8kMultiline)
+                .lineLimit(expanded ? nil : lineLimit)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: s8kFrameAlign)
+            // Only offer the toggle when there is something to reveal — ~160 characters
+            // is four lines at the ~41 characters a phone measure actually fits.
+            // Otherwise a one-line synopsis got a "More" chevron that did nothing.
+            if text.count > 160 {
+                HStack(spacing: 5) {
+                    Text(expanded ? L("common.less") : L("common.more"))
+                        .font(S8KFont.caption1.weight(.bold))
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 9, weight: .bold))
+                }
+                .foregroundColor(.s8kGoldHigh)
+                .frame(maxWidth: .infinity, alignment: s8kFrameAlign)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { withAnimation(.easeOut(duration: 0.3)) { expanded.toggle() } }
+    }
+}
+
+/// A section heading in the app's OWN motif: heavy title with a short accent rule
+/// BENEATH it — the same object as `SectionHeader` on the main pages. (The detail
+/// pages used to carry a right-aligned title with a vertical bar beside it, which is
+/// the other app's motif and contradicted our own approved pages inside one binary.)
+struct S8KDetailHeading: View {
+    let title: String
+    var body: some View {
+        VStack(alignment: s8kTextAlign, spacing: 7) {
+            Text(title).font(.system(size: 19, weight: .black)).foregroundColor(.s8kTextPrimary)
+            RoundedRectangle(cornerRadius: 2).fill(Color.s8kGoldHigh).frame(width: 30, height: 3)
+        }
+        .frame(maxWidth: .infinity, alignment: s8kFrameAlign)
+    }
+}
+
 // MARK: - Pinned page identity bar (Movies / Series)
 /// The section's name, in the WORDMARK's typeface, inside a frosted capsule beside the
 /// app mark — so the page identifies itself over any artwork and stays legible while the

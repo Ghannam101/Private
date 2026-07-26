@@ -2368,7 +2368,9 @@ struct SeriesPosterScreen: View {
 struct MovieDetailView: View {
     let movie: Movie
     @StateObject private var favs = FavoritesService.shared
+    @StateObject private var hist = HistoryService.shared
     @Environment(\.dismiss) var dismiss
+    @Environment(\.s8kMetrics) private var metrics
     @State private var playItem: ContentItem? = nil
     @State private var enriched: Movie? = nil
     @State private var loadingInfo = true
@@ -2376,28 +2378,34 @@ struct MovieDetailView: View {
     // The movie shown — enriched with full metadata once fetched
     private var m: Movie { enriched ?? movie }
 
+    // The artwork canvas is FIXED and the content rises over it. 44% of the window,
+    // clamped so it is never taller than half a short window.
+    private var canvasHeight: CGFloat {
+        // max(180, …): with iPad multitasking enabled a window can be 320pt tall, where
+        // h - 300 goes to 20 and the plinth spacer (canvasHeight - 34) went NEGATIVE.
+        max(180, min(metrics.size.height * 0.44, metrics.size.height - 300))
+    }
+
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.s8kBlack.ignoresSafeArea()
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        backdrop
-                        actions
-                        info
-                        Color.clear.frame(height: 40)
-                    }
+        // NO NavigationStack: its bar is what forced the borrowed chrome (an inline
+        // title plus a bare xmark). Identity here is the artwork and the plinth.
+        ZStack(alignment: .top) {
+            Color.s8kBlack.ignoresSafeArea()
+            canvas
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    // Transparent window onto the fixed canvas. The plinth starts
+                    // below it and scrolls up over the artwork.
+                    Color.clear.frame(height: canvasHeight - 34)
+                    S8KPlinth { plinthContent }
                 }
+                .frame(maxWidth: metrics.contentMaxWidth)
+                .frame(maxWidth: .infinity)
             }
-            .navigationTitle(m.name)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "xmark").foregroundColor(.s8kGoldMid)
-                    }
-                }
-            }
+            .scrollBounceBehavior(.always)
+            .ignoresSafeArea(edges: .top)
+            .s8kNoScrollEdgeEffect()
+            closeBar
         }
         .task {
             MediaPrefetcher.shared.prefetch(.movie(movie))   // warm the stream while the page loads
@@ -2407,163 +2415,128 @@ struct MovieDetailView: View {
         .fullScreenCover(item: $playItem) { PlayerView(item: $0) }
     }
 
-    private var backdrop: some View {
-        ZStack(alignment: .bottom) {
-            // Taller, cinematic full-bleed backdrop with a layered scrim.
-            Color.clear
-                .frame(maxWidth: .infinity).frame(height: 330)
-                .overlay { S8KImage(url: m.backdropURL ?? m.posterURL, placeholder: "film") }
-                .clipped()
-                .overlay(LinearGradient(
-                    stops: [
-                        .init(color: .s8kBlack,                 location: 0.0),
-                        .init(color: .s8kBlack.opacity(0.55),   location: 0.34),
-                        .init(color: .clear,                    location: 0.72),
-                        .init(color: .s8kBlack.opacity(0.35),   location: 1.0)
-                    ],
-                    startPoint: .bottom, endPoint: .top))
-
-            HStack(alignment: .bottom, spacing: 14) {
-                // Floating poster with a soft drop shadow.
-                S8KImage(url: m.posterURL, placeholder: "film")
-                    .frame(width: 100, height: 145)
-                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.15), lineWidth: 1))
-                    .shadow(color: .black.opacity(0.6), radius: 12, y: 6)
-
-                VStack(alignment: .trailing, spacing: 8) {
-                    Text(m.name).font(.system(size: 24, weight: .black)).foregroundColor(.s8kTextPrimary)
-                        .multilineTextAlignment(.trailing)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .shadow(color: .black.opacity(0.5), radius: 4)
-                    // Editorial lime underline
-                    RoundedRectangle(cornerRadius: 1.5)
-                        .fill(S8KGradient.goldFlat)
-                        .frame(width: 34, height: 3)
-                    HStack(spacing: 6) {
-                        if let y = m.year  { infoTag(y) }
-                        if let g = m.genre { infoTag(g) }
-                        if let d = m.duration { infoTag(d) }
-                    }
-                    if let r = m.rating, let rv = Double(r), rv > 0 {
-                        HStack(spacing: 3) {
-                            Image(systemName: "star.fill").font(.system(size: 10)).foregroundColor(.s8kGoldHigh)
-                            Text(String(format: "%.1f", rv)).font(S8KFont.caption1.weight(.bold))
-                                .foregroundColor(.s8kGoldHigh)
-                        }
-                    }
-                }
-                Spacer()
+    // MARK: The fixed artwork canvas
+    private var canvas: some View {
+        Color.clear
+            .frame(maxWidth: .infinity).frame(height: canvasHeight)
+            .overlay(alignment: .top) {
+                S8KImage(url: m.backdropURL ?? m.posterURL, placeholder: "film", maxPixel: 1400)
             }
-            .padding(.horizontal, S8KSpace.xl).padding(.bottom, S8KSpace.lg)
-        }
-        // Swipe the header down to dismiss (in addition to the close button)
-        .highPriorityGesture(DragGesture(minimumDistance: 20).onEnded { v in
-            if v.translation.height > 80 && abs(v.translation.width) < 120 { dismiss() }
-        })
+            .clipped()
+            // A dark wash over the artwork so the status bar and the close control stay
+            // legible over ANY poster, and the plinth's edge reads as a lift, not a seam.
+            .overlay(LinearGradient(stops: [
+                .init(color: .black.opacity(0.55), location: 0.00),
+                .init(color: .black.opacity(0.10), location: 0.28),
+                .init(color: .clear,               location: 0.55),
+                .init(color: .s8kBlack.opacity(0.65), location: 1.00),
+            ], startPoint: .top, endPoint: .bottom))
+            .ignoresSafeArea(edges: .top)
+            .allowsHitTesting(false)
     }
 
-    private var actions: some View {
-        HStack(spacing: 10) {
-            GoldButton(title: "▶  " + L("detail.play_movie")) {
-                playItem = .movie(m)
+    // MARK: Close — the same circular glass object as the tool rows on the main pages
+    private var closeBar: some View {
+        S8KPinnedPageBar(topInset: metrics.safeTop) {
+            HStack {
+                if s8kIsRTL { Spacer(minLength: 0) }
+                S8KSatellite(icon: "xmark", tint: .white, label: L("common.close")) { dismiss() }
+                if !s8kIsRTL { Spacer(minLength: 0) }
             }
-            Button(action: { favs.toggleMovie(m.id) }) {
-                Image(systemName: favs.isMovieFav(m.id) ? "heart.fill" : "heart")
-                    .font(.system(size: 20))
-                    .foregroundColor(favs.isMovieFav(m.id) ? .s8kRed : .s8kTextSecondary)
-                    .frame(width: 52, height: 52)
-                    .background(Color.s8kSurface)
-                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md))
-                    .overlay(RoundedRectangle(cornerRadius: S8KRadius.md)
-                        .strokeBorder(Color.s8kBorder, lineWidth: 1))
-            }
-            .buttonStyle(S8KButtonStyle())
-            // Download for offline viewing (shows live %)
-            DownloadControl(target: .movie(m), size: 20, showPercent: true)
-                .frame(width: 64, height: 52)
-                .background(Color.s8kSurface)
-                .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md))
-                .overlay(RoundedRectangle(cornerRadius: S8KRadius.md)
-                    .strokeBorder(Color.s8kBorder, lineWidth: 1))
+            .padding(.horizontal, metrics.gutter)
+            .padding(.top, 4)
         }
-        .padding(.horizontal, S8KSpace.xl).padding(.vertical, S8KSpace.xl)
     }
 
-    private var info: some View {
-        VStack(alignment: .trailing, spacing: 18) {
-            // Plot
+    // MARK: The plinth — live type, never an image of a title
+    private var plinthContent: some View {
+        VStack(alignment: s8kTextAlign, spacing: 18) {
+            Text(m.name)
+                .font(.system(size: 30, weight: .black))
+                .foregroundColor(.s8kTextPrimary)
+                .multilineTextAlignment(s8kMultiline)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: s8kFrameAlign)
+            RoundedRectangle(cornerRadius: 2).fill(Color.s8kGoldHigh).frame(width: 52, height: 4)
+
+            metaLine
+            actionRow
+
             if let plot = m.plot, !plot.isEmpty {
-                MetaSection(title: L("detail.story")) {
-                    Text(plot).font(S8KFont.callout).foregroundColor(.s8kTextSecondary)
-                        .lineSpacing(5).multilineTextAlignment(.trailing)
-                        // fixedSize(horizontal:false) stops the Text from reporting
-                        // its full single-line width (which expanded the container
-                        // past the screen and clipped the text); it now wraps.
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+                VStack(alignment: s8kTextAlign, spacing: 12) {
+                    S8KDetailHeading(title: L("detail.story"))
+                    S8KExpandableText(text: plot)
                 }
             } else if loadingInfo {
-                HStack { Spacer(); ProgressView().tint(.s8kGoldMid); Spacer() }.padding(.vertical, 8)
+                HStack { Spacer(); ProgressView().tint(.s8kGoldHigh); Spacer() }.padding(.vertical, 8)
             }
 
-            // Clean info card (only rows that have a value)
-            let rows: [(String, String?)] = [
-                (L("detail.year"), m.year), (L("detail.duration"), m.duration),
-                (L("detail.rating"), ratingText), (L("detail.genre"), m.genre), (L("detail.director"), m.director)
-            ].filter { $0.1?.isEmpty == false }
-            if !rows.isEmpty {
-                MetaSection(title: L("detail.info")) {
-                    VStack(spacing: 0) {
-                        ForEach(Array(rows.enumerated()), id: \.offset) { idx, row in
-                            HStack(alignment: .firstTextBaseline) {
-                                Text(row.1 ?? "").font(S8KFont.callout).foregroundColor(.s8kTextPrimary)
-                                    .multilineTextAlignment(.trailing)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                Spacer(minLength: 12)
-                                Text(row.0).font(S8KFont.caption1).foregroundColor(.s8kTextTertiary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            .padding(.vertical, 11)
-                            if idx < rows.count - 1 { GoldDivider() }
-                        }
-                    }
-                    .padding(.horizontal, S8KSpace.lg)
-                    .background(Color.s8kSurface)
-                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
-                        .strokeBorder(Color.s8kBorder, lineWidth: 1))
-                }
-            }
-
-            // Cast — chips
             if let cast = m.cast, !cast.isEmpty {
-                MetaSection(title: L("detail.cast")) {
-                    FlexWrap(items: castList(cast)) { name in
-                        Text(name).font(S8KFont.caption1)
-                            .foregroundColor(.s8kTextSecondary)
-                            .padding(.horizontal, 12).padding(.vertical, 7)
-                            .background(Color.s8kSurface).clipShape(Capsule())
-                            .overlay(Capsule().strokeBorder(Color.s8kBorder, lineWidth: 1))
-                    }
+                VStack(alignment: s8kTextAlign, spacing: 12) {
+                    S8KDetailHeading(title: L("detail.cast"))
+                    // Flat text, no bordered chips — bordered micro-chips are the other
+                    // app's vocabulary and this page no longer speaks it.
+                    Text(castList(cast).joined(separator: "  ·  "))
+                        .font(S8KFont.callout).foregroundColor(.s8kTextSecondary)
+                        .lineSpacing(6)
+                        .multilineTextAlignment(s8kMultiline)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: s8kFrameAlign)
                 }
+            }
+            // A cover has no floating tab bar to clear -- only the home indicator.
+            Color.clear.frame(height: metrics.safeBottom + S8KSpace.xxl)
+        }
+        .padding(.horizontal, metrics.gutter)
+        .padding(.top, 26)
+    }
+
+    /// One flat interpunct line instead of a row of bordered micro-chips.
+    private var metaLine: some View {
+        let parts = [m.year, m.genre, m.duration, m.director].compactMap { $0 }.filter { !$0.isEmpty }
+        return HStack(spacing: 10) {
+            if let r = m.rating, let rv = Double(r), rv > 0, rv.isFinite {
+                Text(String(format: "%.1f", rv))
+                    .font(S8KFont.caption1.weight(.heavy)).foregroundColor(.s8kBlack)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(Capsule().fill(Color.s8kGoldHigh))
+            }
+            if !parts.isEmpty {
+                Text(parts.joined(separator: "  ·  "))
+                    .font(S8KFont.subhead).foregroundColor(.s8kTextSecondary)
+                    .lineLimit(2).minimumScaleFactor(0.85)
             }
         }
-        .padding(.horizontal, S8KSpace.xl)
+        .frame(maxWidth: .infinity, alignment: s8kFrameAlign)
     }
 
-    private func infoTag(_ t: String) -> some View {
-        Text(t).font(S8KFont.caption3).foregroundColor(.s8kTextTertiary)
-            .padding(.horizontal, 8).padding(.vertical, 4).background(Color.s8kElevated)
-            .clipShape(RoundedRectangle(cornerRadius: S8KRadius.xs))
-            .overlay(RoundedRectangle(cornerRadius: S8KRadius.xs).strokeBorder(Color.s8kBorder, lineWidth: 1))
+    /// A content-sized play capsule with circular glass satellites — NOT a full-width
+    /// bar plus two rounded squares, which is the single most-copied strip in the
+    /// category and was identical to the reference app line for line.
+    private var actionRow: some View {
+        let progress = hist.progress(for: m.id)
+        return HStack(spacing: 12) {
+            // Mirror by LANGUAGE: an unconditional trailing Spacer makes the HStack fill,
+            // so a trailing .frame(alignment:) can never move anything.
+            if s8kIsRTL { Spacer(minLength: 0) }
+            S8KPlayCapsule(title: progress > 0.02 && progress < 0.98
+                                  ? L("detail.resume") : L("detail.play_movie"),
+                           progress: progress) {
+                playItem = .movie(m)
+            }
+            S8KSatellite(icon: favs.isMovieFav(m.id) ? "heart.fill" : "heart",
+                         tint: favs.isMovieFav(m.id) ? .s8kRed : .s8kTextSecondary,
+                         label: favs.isMovieFav(m.id) ? L("detail.fav_added") : L("detail.fav_add")) { favs.toggleMovie(m.id) }
+            DownloadControl(target: .movie(m), size: 18, showPercent: false)
+                .frame(width: 48, height: 48)
+                .background(Circle().fill(Color.white.opacity(0.07)))
+                .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                    .allowsHitTesting(false))
+            if !s8kIsRTL { Spacer(minLength: 0) }
+        }
+        .frame(maxWidth: .infinity)
     }
 
-    private var ratingText: String? {
-        guard let r = m.rating, let rv = Double(r), rv > 0 else { return nil }
-        return "★ " + String(format: "%.1f", rv)
-    }
     private func castList(_ s: String) -> [String] {
         s.components(separatedBy: CharacterSet(charactersIn: ",،"))
             .map { $0.trimmingCharacters(in: .whitespaces) }
@@ -2571,22 +2544,12 @@ struct MovieDetailView: View {
     }
 }
 
-// MARK: - Detail section wrapper (gold-accent title + content)
-struct MetaSection<Content: View>: View {
-    let title: String
-    @ViewBuilder let content: () -> Content
-    var body: some View {
-        VStack(alignment: .trailing, spacing: 10) {
-            HStack(spacing: 8) {
-                Spacer()
-                Text(title).font(S8KFont.title3).foregroundColor(.s8kTextPrimary)
-                RoundedRectangle(cornerRadius: 2).fill(S8KGradient.goldFlat).frame(width: 3, height: 16)
-            }
-            content()
-        }
-        .frame(maxWidth: .infinity, alignment: .trailing)
-    }
-}
+// NOTE: `MetaSection` — a right-aligned section title with a 3×16 vertical accent bar
+// beside it — was DELETED. It was byte-identical to the sibling app's section header,
+// and it contradicted this app's own approved motif (a heavy title with a short accent
+// rule BENEATH it, `SectionHeader` / `S8KDetailHeading`) inside one binary. Deleting it
+// rather than leaving it unused is deliberate: an unused view is an invitation to
+// reintroduce the borrowed motif.
 
 // MARK: ═══════════════════════════════════════
 // SERIES DETAIL
@@ -2620,165 +2583,289 @@ struct SeriesDetailView: View {
     @StateObject private var favs = FavoritesService.shared
     @StateObject private var hist = HistoryService.shared
     @Environment(\.dismiss) var dismiss
+    @Environment(\.s8kMetrics) private var metrics
     @State private var playItem: ContentItem? = nil
 
+    private var canvasHeight: CGFloat {
+        // max(180, …): with iPad multitasking enabled a window can be 320pt tall, where
+        // h - 300 goes to 20 and the plinth spacer (canvasHeight - 34) went NEGATIVE.
+        max(180, min(metrics.size.height * 0.44, metrics.size.height - 300))
+    }
+
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.s8kBlack.ignoresSafeArea()
-                if vm.isLoading { LoadingView() }
-                else if let e = vm.error { ErrorView(message: e.errorDescription ?? L("loading.error")) { Task { await vm.load(series: series) } } }
-                else {
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 0) {
-                            seriesHeader
-                            if vm.seasons.count > 1 { seasonPicker }
-                            episodeList
-                            Color.clear.frame(height: 100)
-                        }
-                    }
+        ZStack(alignment: .top) {
+            Color.s8kBlack.ignoresSafeArea()
+            canvas
+            if let e = vm.error {
+                ErrorView(message: e.errorDescription ?? L("loading.error")) {
+                    Task { await vm.load(series: series) }
                 }
-            }
-            .navigationTitle(series.name)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "xmark").foregroundColor(.s8kGoldMid)
+            } else {
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        Color.clear.frame(height: canvasHeight - 34)
+                        S8KPlinth { plinthContent }
                     }
+                    .frame(maxWidth: metrics.contentMaxWidth)
+                    .frame(maxWidth: .infinity)
                 }
+                .scrollBounceBehavior(.always)
+                .ignoresSafeArea(edges: .top)
+                .s8kNoScrollEdgeEffect()
             }
+            closeBar
         }
         .task { await vm.load(series: series) }
         .fullScreenCover(item: $playItem) { PlayerView(item: $0, queue: vm.selected?.episodes ?? []) }
     }
 
-    private var seriesHeader: some View {
-        ZStack(alignment: .bottom) {
-            Color.clear
-                .frame(maxWidth: .infinity).frame(height: 330)
-                .overlay { S8KImage(url: series.backdropURL ?? series.coverURL, placeholder: "tv") }
-                .clipped()
-                .overlay(LinearGradient(
-                    stops: [
-                        .init(color: .s8kBlack,               location: 0.0),
-                        .init(color: .s8kBlack.opacity(0.55), location: 0.34),
-                        .init(color: .clear,                  location: 0.72),
-                        .init(color: .s8kBlack.opacity(0.35), location: 1.0)
-                    ],
-                    startPoint: .bottom, endPoint: .top))
-            HStack(alignment: .bottom, spacing: 14) {
-                S8KImage(url: series.coverURL, placeholder: "tv")
-                    .frame(width: 100, height: 145)
-                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.15), lineWidth: 1))
-                    .shadow(color: .black.opacity(0.6), radius: 12, y: 6)
-                VStack(alignment: .trailing, spacing: 8) {
-                    Text(series.name).font(.system(size: 24, weight: .black)).foregroundColor(.s8kTextPrimary)
-                        .multilineTextAlignment(.trailing)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .shadow(color: .black.opacity(0.5), radius: 4)
-                    RoundedRectangle(cornerRadius: 1.5)
-                        .fill(S8KGradient.goldFlat)
-                        .frame(width: 34, height: 3)
-                    if let y = series.year { Text(y).font(S8KFont.caption1).foregroundColor(.s8kTextTertiary) }
-                    Button(action: { favs.toggleSeries(series.id) }) {
-                        HStack(spacing: 5) {
-                            Image(systemName: favs.isSeriesFav(series.id) ? "heart.fill" : "heart")
-                                .font(.system(size: 13))
-                            Text(favs.isSeriesFav(series.id) ? L("detail.fav_added") : L("detail.fav_add"))
-                                .font(S8KFont.caption1.weight(.semibold))
+    private var canvas: some View {
+        Color.clear
+            .frame(maxWidth: .infinity).frame(height: canvasHeight)
+            .overlay(alignment: .top) {
+                S8KImage(url: series.backdropURL ?? series.coverURL, placeholder: "tv", maxPixel: 1400)
+            }
+            .clipped()
+            .overlay(LinearGradient(stops: [
+                .init(color: .black.opacity(0.55), location: 0.00),
+                .init(color: .black.opacity(0.10), location: 0.28),
+                .init(color: .clear,               location: 0.55),
+                .init(color: .s8kBlack.opacity(0.65), location: 1.00),
+            ], startPoint: .top, endPoint: .bottom))
+            .ignoresSafeArea(edges: .top)
+            .allowsHitTesting(false)
+    }
+
+    private var closeBar: some View {
+        S8KPinnedPageBar(topInset: metrics.safeTop) {
+            HStack {
+                if s8kIsRTL { Spacer(minLength: 0) }
+                S8KSatellite(icon: "xmark", tint: .white, label: L("common.close")) { dismiss() }
+                if !s8kIsRTL { Spacer(minLength: 0) }
+            }
+            .padding(.horizontal, metrics.gutter)
+            .padding(.top, 4)
+        }
+    }
+
+    private var plinthContent: some View {
+        VStack(alignment: s8kTextAlign, spacing: 18) {
+            Text(series.name)
+                .font(.system(size: 30, weight: .black))
+                .foregroundColor(.s8kTextPrimary)
+                .multilineTextAlignment(s8kMultiline)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: s8kFrameAlign)
+            RoundedRectangle(cornerRadius: 2).fill(Color.s8kGoldHigh).frame(width: 52, height: 4)
+
+            metaLine
+            actionRow
+
+            if let plot = series.plot, !plot.isEmpty {
+                VStack(alignment: s8kTextAlign, spacing: 12) {
+                    S8KDetailHeading(title: L("detail.story"))
+                    S8KExpandableText(text: plot)
+                }
+            }
+
+            seasonBar
+            episodeList
+            // A cover has no floating tab bar to clear -- only the home indicator.
+            Color.clear.frame(height: metrics.safeBottom + S8KSpace.xxl)
+        }
+        .padding(.horizontal, metrics.gutter)
+        .padding(.top, 26)
+    }
+
+    private var metaLine: some View {
+        let parts = [series.year, series.genre].compactMap { $0 }.filter { !$0.isEmpty }
+        return HStack(spacing: 10) {
+            if let r = series.rating, let rv = Double(r), rv > 0, rv.isFinite {
+                Text(String(format: "%.1f", rv))
+                    .font(S8KFont.caption1.weight(.heavy)).foregroundColor(.s8kBlack)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(Capsule().fill(Color.s8kGoldHigh))
+            }
+            if !parts.isEmpty {
+                Text(parts.joined(separator: "  ·  "))
+                    .font(S8KFont.subhead).foregroundColor(.s8kTextSecondary)
+                    .lineLimit(2).minimumScaleFactor(0.85)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: s8kFrameAlign)
+    }
+
+    /// Play resolves to the NEXT unwatched episode of the selected season, so the
+    /// primary action is never "which episode?" — the page answers it.
+    private var nextEpisode: Episode? {
+        guard let s = vm.selected else { return nil }
+        return s.episodes.first { hist.progress(for: $0.id) < 0.9 } ?? s.episodes.first
+    }
+
+    private var actionRow: some View {
+        let ep = nextEpisode
+        let progress = ep.map { hist.progress(for: $0.id) } ?? 0
+        return HStack(spacing: 12) {
+            // Mirror by LANGUAGE — see MovieDetailView.actionRow.
+            if s8kIsRTL { Spacer(minLength: 0) }
+            if let ep {
+                S8KPlayCapsule(title: "\(L("episode.number")) \(s8kEpisodeNumeral(ep.episodeNumber))",
+                               progress: progress) {
+                    playItem = .episode(ep, series)
+                }
+            }
+            S8KSatellite(icon: favs.isSeriesFav(series.id) ? "heart.fill" : "heart",
+                         tint: favs.isSeriesFav(series.id) ? .s8kRed : .s8kTextSecondary,
+                         label: favs.isSeriesFav(series.id) ? L("detail.fav_added") : L("detail.fav_add")) { favs.toggleSeries(series.id) }
+            if !s8kIsRTL { Spacer(minLength: 0) }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// ONE control, not a scrolling strip of season chips: the season is a Menu, the
+    /// same object as the filter control on the Movies/Series pages.
+    @ViewBuilder
+    private var seasonBar: some View {
+        if let sel = vm.selected {
+            HStack(spacing: 12) {
+                if s8kIsRTL { Spacer(minLength: 0) }
+                Menu {
+                    Picker("", selection: Binding(get: { sel.id },
+                                                  set: { id in vm.selected = vm.seasons.first { $0.id == id } })) {
+                        ForEach(vm.seasons) { s in
+                            Text("\(L("season.number")) \(s.seasonNumber)").tag(s.id)
                         }
-                        .foregroundColor(favs.isSeriesFav(series.id) ? .s8kRed : .s8kTextSecondary)
                     }
-                    .buttonStyle(S8KButtonStyle())
+                } label: {
+                    HStack(spacing: 7) {
+                        Text("\(L("season.number")) \(sel.seasonNumber)")
+                            .font(S8KFont.subhead.weight(.bold))
+                            .lineLimit(1).minimumScaleFactor(0.8)
+                        Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
+                    }
+                    .foregroundColor(.s8kTextPrimary)
+                    .padding(.horizontal, 14).frame(height: 42)
+                    .background(Capsule(style: .continuous).fill(Color.white.opacity(0.07)))
+                    .overlay(Capsule(style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                        .allowsHitTesting(false))
+                    .contentShape(Rectangle())
                 }
-                Spacer()
+                .buttonStyle(S8KButtonStyle())
+                .disabled(vm.seasons.count < 2)
+                Text("\(s8kEpisodeNumeral(sel.episodes.count)) \(L("detail.episodes_n"))")
+                    .font(S8KFont.caption1).foregroundColor(.s8kTextTertiary)
+                if !s8kIsRTL { Spacer(minLength: 0) }
             }
-            .padding(.horizontal, S8KSpace.xl).padding(.bottom, S8KSpace.lg)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 4)
+        } else if vm.isLoading {
+            HStack { Spacer(); ProgressView().tint(.s8kGoldHigh); Spacer() }.padding(.vertical, 20)
         }
-        .highPriorityGesture(DragGesture(minimumDistance: 20).onEnded { v in
-            if v.translation.height > 80 && abs(v.translation.width) < 120 { dismiss() }
-        })
     }
 
-    private var seasonPicker: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(spacing: 8) {
-                ForEach(vm.seasons) { season in
-                    FilterPill(title: "\(L("season.number")) \(season.seasonNumber)", isOn: vm.selected?.id == season.id) {
-                        vm.selected = season
-                    }
-                }
-            }
-            .padding(.horizontal, S8KSpace.xl)
-        }
-        .padding(.vertical, S8KSpace.lg)
-    }
-
+    /// NUMBER-LED rows: an oversized episode numeral in its own gutter, the thumbnail
+    /// on the OPPOSITE side, and the resume state as a rule along the thumbnail's
+    /// bottom edge. This is the deliberate inversion of the universal anatomy
+    /// (120x68 thumbnail leading + circular play badge + trailing chevron), which the
+    /// reference app and every mainstream service ship identically.
+    /// The numeral also renders as ١٢٣ in Arabic locales via NumberFormatter — an
+    /// identity marker a Latin-only app cannot reproduce.
     private var episodeList: some View {
-        LazyVStack(spacing: 8) {
+        LazyVStack(spacing: 10) {
             if let season = vm.selected {
                 ForEach(season.episodes) { ep in
-                    let progress = hist.progress(for: ep.id)
-                    let watched  = progress >= 0.9
-                    Button(action: { playItem = .episode(ep, series) }) {
-                        VStack(spacing: 0) {
-                            HStack(spacing: 12) {
-                                ZStack {
-                                    // Stable thumbnail — falls back to series art (#5)
-                                    S8KImage(url: ep.posterURL ?? series.backdropURL ?? series.coverURL,
-                                             placeholder: "play.tv.fill")
-                                        .frame(width: 120, height: 68)
-                                        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm))
-                                        .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm)
-                                            .strokeBorder(Color.s8kBorder, lineWidth: 1))
-                                    Image(systemName: watched ? "checkmark" : "play.fill")
-                                        .font(.system(size: 14, weight: .bold))
-                                        .foregroundColor(watched ? .s8kGoldHigh : .white.opacity(0.9))
-                                        .frame(width: 32, height: 32)
-                                        .background(Color.black.opacity(0.5)).clipShape(Circle())
-                                }
-                                VStack(alignment: .trailing, spacing: 4) {
-                                    Text("\(L("episode.number")) \(ep.episodeNumber)")
-                                        .font(S8KFont.subhead).foregroundColor(.s8kTextPrimary)
-                                        .frame(maxWidth: .infinity, alignment: .trailing)
-                                    if !ep.title.isEmpty {
-                                        Text(ep.title).font(S8KFont.caption1).foregroundColor(.s8kTextTertiary)
-                                            .lineLimit(1).frame(maxWidth: .infinity, alignment: .trailing)
-                                    }
-                                    if let d = ep.duration {
-                                        Text(d).font(S8KFont.caption2).foregroundColor(.s8kTextDisabled)
-                                            .frame(maxWidth: .infinity, alignment: .trailing)
-                                    }
-                                }
-                                // Download this episode for offline viewing (shows %)
-                                DownloadControl(target: .episode(ep, series), size: 20, showPercent: true)
-                                Image(systemName: "chevron.left")
-                                    .font(.system(size: 12)).foregroundColor(.s8kTextDisabled)
-                            }
-                            .padding(12)
-
-                            // Simple resume bar underneath — shows where you stopped (#1)
-                            if progress > 0.02 {
-                                S8KProgressBar(fraction: progress, track: Color.white.opacity(0.08))
-                            }
-                        }
-                        .background(Color.s8kSurface)
-                        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm))
-                    }
-                    .buttonStyle(S8KButtonStyle())
-                    .padding(.horizontal, S8KSpace.lg)
+                    episodeRow(ep)
                 }
             }
         }
-        // Give the episode list a FRESH identity per season, so switching seasons
-        // rebuilds it as a new subtree instead of recycling the row Buttons. Without
-        // this, tapping a season pill mutates vm.selected and rebuilds this LazyVStack
-        // *during the same touch cycle* — a recycled episode Button could then fire
-        // mid-rebuild, making a season tap "open an episode" (the reported iPad bug).
+        // Fresh identity per season so switching seasons rebuilds the subtree instead
+        // of recycling row Buttons mid-touch (that recycling made a season tap open an
+        // episode on iPad).
         .id(vm.selected?.id)
+    }
+
+    private func episodeRow(_ ep: Episode) -> some View {
+        let progress = hist.progress(for: ep.id)
+        let watched  = progress >= 0.9
+        return HStack(spacing: 8) {
+        Button(action: { playItem = .episode(ep, series) }) {
+            HStack(spacing: 14) {
+                // The row MIRRORS: in Arabic the numeral gutter is on the right and the
+                // thumbnail on the left, so the gutter always sits on the same side as
+                // the text it numbers. (The app forces layoutDirection .leftToRight, so
+                // child ORDER has to be flipped by hand.)
+                if s8kIsRTL { episodeThumb(ep, progress: progress, watched: watched) }
+                if !s8kIsRTL { episodeNumeral(ep, watched: watched) }
+
+                VStack(alignment: s8kTextAlign, spacing: 4) {
+                    Text(ep.title.isEmpty
+                         ? "\(L("episode.number")) \(s8kEpisodeNumeral(ep.episodeNumber))"
+                         : ep.title)
+                        .font(S8KFont.headline).foregroundColor(.s8kTextPrimary)
+                        .lineLimit(2).multilineTextAlignment(s8kMultiline)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let d = ep.duration, !d.isEmpty {
+                        Text(d).font(S8KFont.caption1).foregroundColor(.s8kTextTertiary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: s8kFrameAlign)
+
+                if !s8kIsRTL { episodeThumb(ep, progress: progress, watched: watched) }
+                if s8kIsRTL { episodeNumeral(ep, watched: watched) }
+            }
+            .padding(.vertical, 10)
+            .frame(minHeight: 84)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(S8KButtonStyle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(L("episode.number")) \(s8kEpisodeNumeral(ep.episodeNumber)), \(ep.title)")
+        // A SIBLING of the row button, never a child: a Button inside a Button never
+        // receives its own taps. The rebuild had dropped this control entirely, which
+        // silently made every series episode in the app undownloadable.
+        DownloadControl(target: .episode(ep, series), size: 18, showPercent: false)
+            .frame(width: 40)
+        }
+    }
+
+    /// The oversized numeral in its own gutter — replaced by a check once watched, so
+    /// the state is a GLYPH, not just a tint (colour alone is not an accessible signal).
+    private func episodeNumeral(_ ep: Episode, watched: Bool) -> some View {
+        ZStack {
+            if watched {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 18, weight: .black))
+                    .foregroundColor(.s8kGoldHigh)
+            } else {
+                Text(s8kEpisodeNumeral(ep.episodeNumber))
+                    .font(.system(size: 22, weight: .heavy, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundColor(.s8kTextPrimary.opacity(0.45))
+            }
+        }
+        .frame(width: 44)
+    }
+
+    /// The thumbnail, with the resume state as a rule along ITS bottom edge — not a
+    /// separate bar across the whole row.
+    private func episodeThumb(_ ep: Episode, progress: Double, watched: Bool) -> some View {
+        Color.clear
+            .frame(width: 112, height: 63)
+            .overlay {
+                S8KImage(url: ep.posterURL ?? series.backdropURL ?? series.coverURL,
+                         placeholder: "play.tv.fill")
+            }
+            .overlay(alignment: .bottom) {
+                if progress > 0.02 && !watched {
+                    // S8KProgressBar, not a GeometryReader: this codebase records that a
+                    // GeometryReader per cell forced an extra layout pass on every
+                    // visible episode row — real cost with dozens on screen.
+                    S8KProgressBar(fraction: progress, track: Color.black.opacity(0.35), height: 3)
+                        .allowsHitTesting(false)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
     }
 }
 
