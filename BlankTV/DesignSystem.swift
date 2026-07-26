@@ -21,6 +21,15 @@ import UIKit
 // (a freely resized window). Any layout derived from the screen instead of the window
 // renders a phone-sized page inside a small pane, or a giant one inside a big screen.
 // Falls back to the screen only if no window scene is available (e.g. very early launch).
+/// One pre-warmed selection haptic for the whole app. `UISelectionFeedbackGenerator`
+/// needs `prepare()` to spin up the Taptic Engine; a fresh instance per view body is
+/// always cold, so the first tap after any idle period feels unacknowledged.
+@MainActor let s8kSelectionHaptic: UISelectionFeedbackGenerator = {
+    let g = UISelectionFeedbackGenerator()
+    g.prepare()
+    return g
+}()
+
 @MainActor func s8kWindowSize() -> CGSize {
     let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
     let active = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
@@ -1202,7 +1211,8 @@ final class BarVisibility: ObservableObject {
     @Published var scrolled = false
     private var lastOffset: CGFloat = 0
 
-    /// Feed the current vertical content offset.
+    /// Feed the current vertical content offset (already normalised to "distance
+    /// scrolled from rest" — see `reportsScrollToTabBar`).
     func report(offsetY newY: CGFloat) {
         // Top bar glass once scrolled past a small threshold.
         let s = newY > 30
@@ -1211,6 +1221,17 @@ final class BarVisibility: ObservableObject {
         let delta = newY - lastOffset
         lastOffset = newY
         if abs(delta) > 6 { collapse() }
+    }
+
+    /// Switching tabs must not look like a scroll. `lastOffset` and `scrolled` are
+    /// single shared fields, so without this the NEXT page's first geometry report is
+    /// compared against the PREVIOUS page's offset — an instant fake "scroll" that
+    /// closed the menu (it only did so on Movies, the one page whose top bar is a
+    /// safe-area inset and therefore rests at a non-zero offset) and left the Home top
+    /// bar frosted at rest after scrolling any other tab.
+    func pageChanged() {
+        lastOffset = 0
+        if scrolled { withAnimation(.easeInOut(duration: 0.2)) { scrolled = false } }
     }
 
     /// Tap the corner puck → open the menu leftward.
@@ -1230,7 +1251,12 @@ extension View {
     @ViewBuilder
     func reportsScrollToTabBar() -> some View {
         if #available(iOS 18.0, *) {
-            self.onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y }
+            // `contentOffset.y + contentInsets.top` = distance scrolled FROM REST.
+            // Raw contentOffset is 0 on a plain ScrollView but ≈ −174 on a page whose
+            // top bar is a `.safeAreaInset` (Movies), so the raw value made simply
+            // OPENING that tab register as a 174pt scroll — which slammed the corner
+            // menu shut the instant you pressed "Movies", and only there.
+            self.onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top }
                 action: { _, newY in BarVisibility.shared.report(offsetY: newY) }
         } else {
             self
@@ -1256,7 +1282,11 @@ struct AppTabBar: View {
     // catalog filter can't stall the main thread and make typing lag.
     @State private var searchDraft = ""
     @State private var commitTask: Task<Void, Never>?
-    private let haptic = UISelectionFeedbackGenerator()
+    // A SHARED, pre-warmed generator. These are structs, so a `let` here allocated a
+    // brand-new generator on every body pass and the Taptic Engine was never warm —
+    // making the first tap's feedback land ~100-200ms late or be dropped entirely,
+    // which is precisely what "the button felt dead" means.
+    private var haptic: UISelectionFeedbackGenerator { s8kSelectionHaptic }
 
     private func commitSearch(_ v: String) {
         commitTask?.cancel()
@@ -1274,6 +1304,8 @@ struct AppTabBar: View {
                 // filters the active section live (owner spec — App-Store style,
                 // expanding from the corner menu itself).
                 searchField
+                    .frame(maxWidth: hSize == .regular ? 560 : .infinity)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                     .padding(.horizontal, S8KSpace.lg)
             } else if vis.minimized {
                 // Collapsed: the HOME puck hugs the bottom-RIGHT corner.
@@ -1281,12 +1313,17 @@ struct AppTabBar: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     .padding(.trailing, 16)
             } else {
-                // Expanded: a FULL-WIDTH glass bar across the bottom (owner spec).
+                // Expanded: a FULL-WIDTH glass bar across the bottom (owner spec),
+                // capped and RIGHT-anchored on iPad so it grows leftward out of the
+                // corner the puck occupies. The cap used to be applied to the whole
+                // Group — which also centred the COLLAPSED puck, leaving it floating
+                // ~277pt in from the right edge of an iPad instead of in the corner.
                 ExpandedNavBar(selected: $selected)
+                    .frame(maxWidth: hSize == .regular ? 560 : .infinity)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                     .padding(.horizontal, S8KSpace.lg)
             }
         }
-        .frame(maxWidth: hSize == .regular ? 560 : .infinity)   // cap the bar on iPad
         .padding(.bottom, 10)
         .environment(\.layoutDirection, .leftToRight)
         .animation(.snappy(duration: 0.3), value: router.searchActive)
@@ -1417,7 +1454,11 @@ private struct ExpandedNavBar: View {
     @Binding var selected: AppTab
     @ObservedObject private var alerts = ActivationService.shared   // notifications
     @State private var appeared = false
-    private let haptic = UISelectionFeedbackGenerator()
+    // A SHARED, pre-warmed generator. These are structs, so a `let` here allocated a
+    // brand-new generator on every body pass and the Taptic Engine was never warm —
+    // making the first tap's feedback land ~100-200ms late or be dropped entirely,
+    // which is precisely what "the button felt dead" means.
+    private var haptic: UISelectionFeedbackGenerator { s8kSelectionHaptic }
 
     // Menu sections (Settings removed → it lives on the top-left profile button).
     // FULL-WIDTH row, left→right: Movies · Series · Live · Search · [Bell] · Home.
@@ -1445,14 +1486,17 @@ private struct ExpandedNavBar: View {
                 AppRouter.shared.searchText = ""
                 AppRouter.shared.searchActive = true
             }
-            // Notifications — only appears when there are unread; opens the list,
-            // marks them read (so it vanishes), and closes the menu.
+            // Notifications — only appears when there are unread; opens the list and
+            // closes the menu. It does NOT mark them read here: doing so removed this
+            // circle's own `if` in the same runloop, so the bar reflowed from 6 cells to
+            // 5 and every other circle — including Home — jumped sideways under the
+            // user's finger. `AlertsView.onDisappear` marks them read anyway, after the
+            // bar is gone.
             if alerts.unreadCount > 0 {
                 navCircle(icon: "bell.fill", active: false, staggerFromRight: 1,
-                          label: "التنبيهات") {
+                          label: L("alerts.title")) {
                     haptic.selectionChanged()
                     AppRouter.shared.homeSheet = .alerts
-                    ActivationService.shared.markNotificationsRead()
                     BarVisibility.shared.collapse()
                 }
             }
@@ -1460,7 +1504,10 @@ private struct ExpandedNavBar: View {
                       staggerFromRight: 0, label: L("tab.home")) { select(.home) }
         }
         .padding(7)
-        .s8kGlass(Capsule(style: .continuous))
+        // interactive: false — iOS 26's interactive glass consumes the FIRST tap for its
+        // own press animation, so every nav circle needed two taps. This codebase already
+        // hit and documented that on text fields and on the Home top bar.
+        .s8kGlass(Capsule(style: .continuous), interactive: false)
         .overlay(
             Capsule(style: .continuous)
                 .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
@@ -1481,7 +1528,13 @@ private struct ExpandedNavBar: View {
         if selected == tab {
             BarVisibility.shared.collapse()
         } else {
-            withAnimation(.snappy(duration: 0.3)) { selected = tab }
+            // A page change must not read as a scroll on the shared offset tracker.
+            BarVisibility.shared.pageChanged()
+            // No withAnimation: a UIKit-backed TabView does not honour a SwiftUI
+            // transaction for the page swap, it only picks up whatever implicitly
+            // animatable properties the incoming page has — which made arriving at one
+            // tab look different from arriving at another.
+            selected = tab
         }
     }
 
@@ -1496,15 +1549,21 @@ private struct ExpandedNavBar: View {
                     Circle().fill(active ? AnyShapeStyle(S8KGradient.goldFlat)
                                          : AnyShapeStyle(Color.white.opacity(0.08)))
                 )
+                // INSIDE the label — this is the whole point. Applied outside the
+                // Button (as they were) they only widened the LAYOUT cell: the gesture
+                // stayed on the 44pt image, leaving ~12pt of dead glass on each side of
+                // every circle — worst at the two ends of the pill, i.e. exactly where
+                // the thumb lands. That is the "I pressed it and nothing happened".
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
         }
         .buttonStyle(S8KButtonStyle())
-        .frame(maxWidth: .infinity)   // distribute evenly across the full-width bar
-        .contentShape(Rectangle())    // whole cell is tappable — no dead gaps
-        // Staggered reveal: each circle slides out of the corner, delayed by its
-        // distance from the right edge.
+        // Staggered reveal: each circle fades and scales out of the corner, delayed by
+        // its distance from the right edge. NOTE: no x-offset any more — during the
+        // ~380ms reveal it displaced each circle's hit box 22pt to the right, so the
+        // natural "tap the puck, tap again" gesture landed on empty glass.
         .opacity(appeared ? 1 : 0)
-        .scaleEffect(appeared ? 1 : 0.5, anchor: .trailing)
-        .offset(x: appeared ? 0 : 22)
+        .scaleEffect(appeared ? 1 : 0.85, anchor: .trailing)
         .animation(.spring(response: 0.38, dampingFraction: 0.72)
                     .delay(Double(staggerFromRight) * 0.045), value: appeared)
         .accessibilityLabel(label)

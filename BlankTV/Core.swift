@@ -419,6 +419,7 @@ enum L10n {
         "home.boot.series": [.ar: "المسلسلات",          .en: "Series",          .fr: "Séries",          .tr: "Diziler",         .es: "Series"],
 
         // Alerts / notifications
+        "alerts.title":       [.ar: "التنبيهات", .en: "Notifications", .fr: "Notifications", .tr: "Bildirimler", .es: "Notificaciones"],
         "alerts.announcement":[.ar: "إعلان",            .en: "Announcement",    .fr: "Annonce",         .tr: "Duyuru",          .es: "Anuncio"],
         "alerts.sub_warning": [.ar: "تنبيه الاشتراك",   .en: "Subscription Alert", .fr: "Alerte d'abonnement", .tr: "Abonelik Uyarısı", .es: "Alerta de suscripción"],
         "alerts.sub_active":  [.ar: "اشتراكك نشط",      .en: "Your subscription is active", .fr: "Votre abonnement est actif", .tr: "Aboneliğiniz aktif", .es: "Tu suscripción está activa"],

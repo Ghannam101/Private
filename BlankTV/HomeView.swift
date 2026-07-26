@@ -238,7 +238,12 @@ struct HeroCarouselView: View {
     @ObservedObject private var favs = FavoritesService.shared
     @State private var currentID: String?   // the visible page's item id (drives dots + auto-rotate)
     @State private var dir = 1               // ping-pong direction (ذهاب/عودة)
-    private let ticker = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
+    // @State, not `let`: this is a struct, so a `let` publisher was RE-CREATED on every
+    // body pass. `.onReceive` then saw a new publisher identity, cancelled the old
+    // subscription and restarted the 5s countdown from zero — so the hero only ever
+    // rotated when Home sat completely idle, and looked broken whenever anything else
+    // on the screen published.
+    @State private var ticker = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     // A paging horizontal ScrollView (NOT TabView.page): a `.page` TabView nested
     // in a vertical ScrollView swallows vertical drags, so the user could only
@@ -611,15 +616,16 @@ struct HomeView: View {
             // Show the full-screen loader ONLY on the first load (no content yet).
             // A refresh/retry that already has content reloads in place instead of
             // blanking the whole screen.
-            if vm.isLoading && vm.liveChannels.isEmpty && vm.movies.isEmpty && vm.series.isEmpty {
-                homeSkeleton
+            if showSkeleton {
+                homeSkeleton.transition(.opacity)
             } else {
-                mainScroll
+                mainScroll.transition(.opacity)
             }
         }
         // Floating top bar (profile · logo) over the hero — transparent at the top,
         // frosted glass once scrolled. Overlaid (NOT a scroll child) so its taps are
         // always live and the hero image runs full-bleed underneath it.
+        .animation(.easeInOut(duration: 0.28), value: showSkeleton)
         .overlay(alignment: .top) { homeTopBar }
         .task { await vm.load() }
         // Hero auto-rotation now lives inside HeroCarouselView (self-paced +
@@ -849,6 +855,20 @@ struct HomeView: View {
     // Floats over the hero: profile (المجسم) on the LEFT opens Settings, the logo on
     // the RIGHT. Transparent (with a soft scrim) at the top so it blends into the
     // poster; frosts to glass — keeping logo + profile clear — once scrolled.
+    /// Skeleton while a load is genuinely IN FLIGHT and the feed has nothing to draw.
+    ///
+    /// Both halves matter. Without `heroItems.isEmpty` the skeleton was torn down the
+    /// moment the movies array landed — but every rail on this page is built by
+    /// `rebuildHero()`, which runs only after ALL three loads finish, so the user got a
+    /// BLACK SCREEN until the slowest one returned. And without `vm.isLoading` the
+    /// condition never terminates: if all three loads fail (expired line, no network,
+    /// a provider with no VOD) the skeleton would shimmer forever and the error banner
+    /// and pull-to-refresh — which live inside `mainScroll` — would be unreachable.
+    /// `load()` always sets `isLoading = false` at the end, so this cannot get stuck.
+    private var showSkeleton: Bool {
+        vm.isLoading && vm.heroItems.isEmpty && vm.liveChannels.isEmpty
+    }
+
     private var homeTopBar: some View {
         HStack {
             HStack(spacing: 9) {
@@ -859,6 +879,9 @@ struct HomeView: View {
             profileButton
         }
         .padding(.horizontal, S8KSpace.xl)
+        // Home was the ONLY page with no top inset: the 48pt avatar sat flush against
+        // the safe-area top — right under the status bar on a home-button iPhone.
+        .padding(.top, 8)
         .padding(.bottom, 10)
         .frame(maxWidth: .infinity)
         .background {
@@ -871,6 +894,9 @@ struct HomeView: View {
                     .overlay(Color.black.opacity(0.18))
                     .overlay(GoldDivider(), alignment: .bottom)
                     .ignoresSafeArea(edges: .top)
+                    // Decorative: without this the frosted strip swallowed every flick
+                    // started in the top band — and users flick from the top constantly.
+                    .allowsHitTesting(false)
             } else {
                 LinearGradient(colors: [.black.opacity(0.55), .clear],
                                startPoint: .top, endPoint: .bottom)
@@ -884,6 +910,7 @@ struct HomeView: View {
     // is milestone M6). A material circle so its tap is never swallowed.
     private var profileButton: some View {
         Button {
+            BarVisibility.shared.pageChanged()
             AppRouter.shared.tab = .settings
         } label: {
             Image(systemName: "person.fill")
@@ -960,8 +987,14 @@ struct HomeView: View {
     @ViewBuilder
     private var heroSection: some View {
         if !vm.heroItems.isEmpty {
+            // Pause whenever the hero is not actually the thing on screen. It used to
+            // pause only for a detail cover, so it kept animating (and re-rendering)
+            // behind the search overlay, behind a presented sheet, and — because
+            // TabView keeps Home alive — the whole time the user was on another tab.
             HeroCarouselView(items: vm.heroItems, height: heroHeight,
-                             paused: cover != nil, onOpen: openHero)
+                             paused: cover != nil || router.searchActive
+                                     || router.homeSheet != nil || router.tab != .home,
+                             onOpen: openHero)
         }
     }
 
@@ -1206,7 +1239,7 @@ struct HomeView: View {
     private var liveSection: some View {
         if !vm.liveChannels.isEmpty {
             VStack(spacing: 0) {
-                SectionHeader(title: L("home.live_now"), count: vm.liveChannels.count) { AppRouter.shared.tab = .live }
+                SectionHeader(title: L("home.live_now"), count: vm.liveChannels.count) { BarVisibility.shared.pageChanged(); AppRouter.shared.tab = .live }
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: 12) {
                         ForEach(vm.liveChannels.prefix(20)) { ch in
@@ -1228,7 +1261,7 @@ struct HomeView: View {
     private var moviesSection: some View {
         if !vm.newMovies.isEmpty {
             VStack(spacing: 0) {
-                SectionHeader(title: L("home.new_movies")) { AppRouter.shared.tab = .movies }
+                SectionHeader(title: L("home.new_movies")) { BarVisibility.shared.pageChanged(); AppRouter.shared.tab = .movies }
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: 12) {
                         ForEach(vm.newMovies) { m in
@@ -1249,7 +1282,7 @@ struct HomeView: View {
     private var seriesSection: some View {
         if !vm.newSeries.isEmpty {
             VStack(spacing: 0) {
-                SectionHeader(title: L("home.new_series")) { AppRouter.shared.tab = .series }
+                SectionHeader(title: L("home.new_series")) { BarVisibility.shared.pageChanged(); AppRouter.shared.tab = .series }
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: 12) {
                         ForEach(vm.newSeries) { s in
