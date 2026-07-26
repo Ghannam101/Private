@@ -268,6 +268,7 @@ struct HeroCarouselView: View {
     let onOpen: (HomeVM.HeroItem) -> Void
 
     @ObservedObject private var favs = FavoritesService.shared
+    @Environment(\.horizontalSizeClass) private var hSize   // caps the copy column on iPad
     @State private var currentID: String?   // the visible page's item id (drives dots + auto-rotate)
     @State private var dir = 1               // ping-pong direction (ذهاب/عودة)
     // @State, not `let`: this is a struct, so a `let` publisher was RE-CREATED on every
@@ -426,7 +427,12 @@ struct HeroCarouselView: View {
             }
             .padding(.horizontal, S8KSpace.xl)
             .padding(.bottom, S8KSpace.xl)
-            .frame(maxWidth: .infinity, alignment: .trailing)
+            // The ARTWORK stays full-bleed, but the copy column matches the rails' 900pt
+            // cap. Edge-anchored, the hero's title and play button sat 238pt further out
+            // than every rail heading on a landscape iPad — geometrically fine, visually
+            // disjoint. Inert on a phone (the ternary yields .infinity).
+            .frame(maxWidth: hSize == .regular ? 900 : .infinity, alignment: .trailing)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
         .frame(height: height)
     }
@@ -803,12 +809,17 @@ struct HomeView: View {
     private var homeSkeleton: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
+                // Full-bleed like the real hero. Inside the 900pt cap it was a 900-wide
+                // grey block that got replaced by a 1376-wide poster — a visible width
+                // pop on every iPad load.
                 SkeletonBlock(cornerRadius: 0).frame(height: heroHeight)
-                ForEach(0..<3, id: \.self) { _ in skeletonRail }
-                Color.clear.frame(height: 60)
+                VStack(spacing: 0) {
+                    ForEach(0..<3, id: \.self) { _ in skeletonRail }
+                    Color.clear.frame(height: 60)
+                }
+                .frame(maxWidth: hSize == .regular ? 900 : .infinity)
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: hSize == .regular ? 900 : .infinity)
-            .frame(maxWidth: .infinity)
         }
         // The top bar is the shared overlay in `body`; the skeleton just runs
         // full-bleed under it (matches the loaded layout).
@@ -1069,7 +1080,17 @@ struct HomeView: View {
     private var heroHeight: CGFloat {
         // WINDOW height, not screen height — otherwise an iPad Slide Over pane (320pt
         // wide, compact) or a small Mac window gets a 660pt hero built for a Pro Max.
-        hSize == .regular ? 560 : min(max(s8kWindowSize().height * 0.62, 520), 660)
+        // The regular-class value was a bare CONSTANT: in a small Mac / Stage Manager
+        // window (700×500) a 560pt hero is TALLER THAN THE VIEWPORT — nothing below it
+        // is reachable and there is no peek at all. Clamped to 55% of the window.
+        // The compact branch also takes a WIDTH-derived cap: in a 320pt iPad Slide Over
+        // pane the height rule produced a 660×320 hero (ratio 0.48), which crops ~71% of
+        // a 16:9 backdrop and upscales the remainder ~2.6×. Neither term binds on any
+        // iPhone (375×1.5 = 562 > 520 … 440×1.5 = 660 > 593) or any full-screen iPad.
+        hSize == .regular
+            ? min(560, s8kWindowSize().height * 0.55)
+            : min(max(s8kWindowSize().height * 0.62, 520), 660,
+                    s8kWindowSize().width * 1.5, s8kWindowSize().height * 0.8)
     }
 
     // MARK: - Hero Section — isolated swipeable cinematic carousel.

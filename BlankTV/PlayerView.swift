@@ -84,6 +84,12 @@ struct PlayerView: View {
                     AppDelegate.orientationLock = .portrait
                     if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
                         scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait)) { _ in }
+                        // Tell UIKit to re-ask for the supported orientations. Without
+                        // this the geometry request can be ignored and the phone is left
+                        // in landscape — where every page's hero is computed from a
+                        // portrait assumption and ends up taller than the screen.
+                        scene.keyWindow?.rootViewController?
+                            .setNeedsUpdateOfSupportedInterfaceOrientations()
                     }
                 }
             }

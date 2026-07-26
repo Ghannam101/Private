@@ -1608,7 +1608,10 @@ private struct ExpandedNavBar: View {
             navCircle(icon: "house.fill", active: selected == .home,
                       staggerFromRight: 0, label: L("tab.home")) { select(.home) }
         }
-        .padding(7)
+        // 6, not 7: at a 320pt iPad Slide Over pane the 6-circle bar needed exactly
+        // 274 of 274 available points -- zero slack, and pane widths are not even
+        // guaranteed to be integral. This buys 2pt on each side.
+        .padding(6)
         // interactive: false — iOS 26's interactive glass consumes the FIRST tap for its
         // own press animation, so every nav circle needed two taps. This codebase already
         // hit and documented that on text fields and on the Home top bar.

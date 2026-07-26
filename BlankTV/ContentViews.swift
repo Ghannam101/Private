@@ -1465,7 +1465,14 @@ struct MoviesView: View {
     private var heroHeight: CGFloat {
         // WINDOW height, not screen height (see s8kWindowSize) — correct in iPad
         // Split View / Slide Over / Stage Manager and in a resized Mac window.
-        hSize == .regular ? 520 : min(max(s8kWindowSize().height * 0.58, 460), 600)
+        // See HomeView.heroHeight for the reasoning: the regular-class value must be
+        // clamped to the WINDOW (a small Mac window made the hero taller than the
+        // viewport), and the compact branch needs a width-derived cap so a 320pt iPad
+        // pane does not get a 600×320 hero that crops 71% of the artwork away.
+        hSize == .regular
+            ? min(520, s8kWindowSize().height * 0.55)
+            : min(max(s8kWindowSize().height * 0.58, 460), 600,
+                  s8kWindowSize().width * 1.4, s8kWindowSize().height * 0.8)
     }
     private func openHero(_ item: HomeVM.HeroItem) {
         if case .movie(let m) = item.kind { selected = m }
@@ -1830,8 +1837,13 @@ struct MoviePosterCell: View {
                     // Fixed-size box drives layout; the poster fills it as a
                     // clipped overlay. Prevents a non-2:3 poster from leaking its
                     // width and overlapping neighbours in the grid.
+                    // 2:3, NOT a fixed 150pt: on an iPad the adaptive column is ~172pt
+                    // wide, so a 150pt-tall cell rendered a LANDSCAPE band of a portrait
+                    // poster (233×150 on an iPad mini). It also made the loaded grid a
+                    // different shape from the skeleton, which already uses 2:3.
                     Color.clear
-                        .frame(maxWidth: .infinity).frame(height: 150)
+                        .frame(maxWidth: .infinity)
+                        .aspectRatio(2.0 / 3.0, contentMode: .fit)
                         .overlay { S8KImage(url: movie.posterURL, placeholder: "film") }
                         .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
@@ -1984,7 +1996,14 @@ struct SeriesListView: View {
     private var heroHeight: CGFloat {
         // WINDOW height, not screen height (see s8kWindowSize) — correct in iPad
         // Split View / Slide Over / Stage Manager and in a resized Mac window.
-        hSize == .regular ? 520 : min(max(s8kWindowSize().height * 0.58, 460), 600)
+        // See HomeView.heroHeight for the reasoning: the regular-class value must be
+        // clamped to the WINDOW (a small Mac window made the hero taller than the
+        // viewport), and the compact branch needs a width-derived cap so a 320pt iPad
+        // pane does not get a 600×320 hero that crops 71% of the artwork away.
+        hSize == .regular
+            ? min(520, s8kWindowSize().height * 0.55)
+            : min(max(s8kWindowSize().height * 0.58, 460), 600,
+                  s8kWindowSize().width * 1.4, s8kWindowSize().height * 0.8)
     }
     private func openHero(_ item: HomeVM.HeroItem) {
         if case .series(let s) = item.kind { selected = s }
@@ -2256,8 +2275,11 @@ struct SeriesPosterCell: View {
     var body: some View {
         Button(action: onTap) {
             VStack(alignment: .trailing, spacing: 6) {
+                // 2:3 for the same reason as MoviePosterCell — a fixed height turned a
+                // portrait cover into a landscape band on every iPad column width.
                 Color.clear
-                    .frame(maxWidth: .infinity).frame(height: 150)
+                    .frame(maxWidth: .infinity)
+                    .aspectRatio(2.0 / 3.0, contentMode: .fit)
                     .overlay { S8KImage(url: series.coverURL, placeholder: "tv") }
                     .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
@@ -2290,8 +2312,14 @@ struct SeriesGrid: View {
                 ForEach(series) { s in
                     Button(action: { onSelect(s) }) {
                         VStack(alignment: .trailing, spacing: 6) {
-                            S8KImage(url: s.coverURL, placeholder: "tv")
-                                .frame(height: 150)
+                            // 2:3 like MoviePosterCell — and via a Color.clear box, which
+                            // also stops a non-2:3 cover leaking its width and overlapping
+                            // its neighbours. Left at a fixed 150 this grid rendered a
+                            // landscape band beside a correctly-proportioned Movies grid.
+                            Color.clear
+                                .frame(maxWidth: .infinity)
+                                .aspectRatio(2.0 / 3.0, contentMode: .fit)
+                                .overlay { S8KImage(url: s.coverURL, placeholder: "tv") }
                                 .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm))
                                 .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm)
                                     .strokeBorder(Color.s8kBorder, lineWidth: 1))
