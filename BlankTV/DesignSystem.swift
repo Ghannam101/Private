@@ -128,7 +128,9 @@ struct S8KPinnedPageBar<Content: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, max(0, topInset))
         .background(alignment: .top) {
-            LinearGradient(colors: [.black.opacity(0.65), .black.opacity(0.25), .clear],
+            // Middle stop 0.45 (not 0.25): on a Dynamic Island phone the logo sits about
+            // halfway down this ramp, and 0.25 left the wordmark soft over bright artwork.
+            LinearGradient(colors: [.black.opacity(0.65), .black.opacity(0.45), .clear],
                            startPoint: .top, endPoint: .bottom)
                 .frame(height: max(0, topInset) + 78)
                 .allowsHitTesting(false)
@@ -883,7 +885,7 @@ struct S8KShimmer: ViewModifier {
             .overlay(
                 GeometryReader { geo in
                     LinearGradient(
-                        colors: [.clear, Color.white.opacity(0.09), .clear],
+                        colors: [.clear, Color.white.opacity(0.22), .clear],
                         startPoint: .leading, endPoint: .trailing)
                         .frame(width: geo.size.width * 0.6)
                         .offset(x: animate ? geo.size.width * 1.1 : -geo.size.width * 0.7)
@@ -908,7 +910,11 @@ struct SkeletonBlock: View {
     var cornerRadius: CGFloat = S8KRadius.md
     var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(Color.s8kElevated)
+            // white@0.13, NOT s8kElevated: the brand base is a deep GREEN, so an
+            // `elevated` fill measured only 1.35:1 against the page — the skeleton was
+            // invisible on a real screen, which is why loading read as `a plain page`.
+            // A neutral white wash is ~3.3:1 and works for every BrandTheme.
+            .fill(Color.white.opacity(0.13))
             .s8kShimmer()
     }
 }
@@ -924,7 +930,7 @@ struct S8KPosterGridSkeleton: View {
     @Environment(\.horizontalSizeClass) private var hSize
     private var cols: [GridItem] { [GridItem(.adaptive(minimum: hSize == .regular ? 168 : 116), spacing: 14)] }
     private func cell(_ r: CGFloat = S8KRadius.md) -> some View {
-        RoundedRectangle(cornerRadius: r, style: .continuous).fill(Color.s8kElevated)
+        RoundedRectangle(cornerRadius: r, style: .continuous).fill(Color.white.opacity(0.13))
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -945,7 +951,7 @@ struct S8KPosterGridSkeleton: View {
 // A list-shaped skeleton (logo + two text bars per row) for the Live channel list.
 struct S8KListSkeleton: View {
     private func cell(_ r: CGFloat = S8KRadius.sm) -> some View {
-        RoundedRectangle(cornerRadius: r, style: .continuous).fill(Color.s8kElevated)
+        RoundedRectangle(cornerRadius: r, style: .continuous).fill(Color.white.opacity(0.13))
     }
     var body: some View {
         VStack(spacing: 14) {

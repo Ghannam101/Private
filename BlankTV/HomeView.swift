@@ -75,11 +75,32 @@ final class HomeVM: ObservableObject {
     func rebuildHero() {
         // Sort ONCE here (not on every SwiftUI render) — re-sorting a large catalog
         // on each body eval was a major source of home jank.
-        topMovies = Array(s8kUniqueByID(movies.sorted { $0.ratingDouble > $1.ratingDouble }, { $0.id }).prefix(10))
-        topSeries = Array(s8kUniqueByID(series.sorted { s8kRating($0.rating) > s8kRating($1.rating) }, { $0.id }).prefix(10))
+        // SORT INDICES, NOT ELEMENTS. The old comparators parsed a String into a
+        // Double/Int on EVERY comparison — twice per compare, ~n·log n compares. On a
+        // 30–60k-title line that was 0.4–1.5s of BLOCKED MAIN THREAD right after login,
+        // which is what held the half-empty page motionless and made the app read as
+        // "just a plain screen".
+        // Each key is now parsed ONCE, and only Ints are moved during the sort — so no
+        // 224-byte struct with 13 refcounted String fields is ever copied (that would
+        // have traded the CPU cost for a ~55MB transient spike, four times over).
+        // `.prefix(n*4)` before materialising: we only need 10/20 items, and the extra
+        // headroom absorbs any duplicate ids that `s8kUniqueByID` then removes.
+        let mRate = movies.map(\.ratingDouble)
+        let mByRate: [Int] = movies.indices.sorted { mRate[$0] > mRate[$1] }
+        topMovies = Array(s8kUniqueByID(mByRate.prefix(40).map { movies[$0] }, { $0.id }).prefix(10))
+
+        let sRate = series.map { s8kRating($0.rating) }
+        let sByRate: [Int] = series.indices.sorted { sRate[$0] > sRate[$1] }
+        topSeries = Array(s8kUniqueByID(sByRate.prefix(40).map { series[$0] }, { $0.id }).prefix(10))
+
         // "Recently added" ≈ highest Xtream id (ids auto-increment, so newest last).
-        newMovies = Array(movies.sorted { (Int($0.id) ?? 0) > (Int($1.id) ?? 0) }.prefix(20))
-        newSeries = Array(series.sorted { (Int($0.id) ?? 0) > (Int($1.id) ?? 0) }.prefix(20))
+        let mID = movies.map { Int($0.id) ?? 0 }
+        let mByID: [Int] = movies.indices.sorted { mID[$0] > mID[$1] }
+        newMovies = mByID.prefix(20).map { movies[$0] }
+
+        let sID = series.map { Int($0.id) ?? 0 }
+        let sByID: [Int] = series.indices.sorted { sID[$0] > sID[$1] }
+        newSeries = sByID.prefix(20).map { series[$0] }
 
         // Hero features the NEWEST content (movies + series interleaved) — it refreshes
         // as fresh titles arrive on reload. (Owner: hero tracks new movies/series.)
@@ -102,6 +123,11 @@ final class HomeVM: ObservableObject {
     private let config  = ConfigService.shared
     private var heroTimer: Timer?
     private var loaded = false
+    /// True once a load has COMPLETED at least once for this playlist. It gates the
+    /// full-screen skeleton so a pull-to-refresh reloads IN PLACE instead of swapping
+    /// `mainScroll` — and therefore the refresh control itself — out from under the
+    /// user's finger. Cleared by `reset()`, so switching accounts still shows it.
+    @Published private(set) var everLoaded = false
 
     func load(force: Bool = false) async {
         history = Array(hist.items.prefix(8))
@@ -114,7 +140,7 @@ final class HomeVM: ObservableObject {
             g.addTask { await self.loadMovies() }
             g.addTask { await self.loadSeries() }
         }
-        loaded = true
+        loaded = true; everLoaded = true
         rebuildHero()
         // rebuildRails() intentionally NOT called: the curated Smart-Rail feed
         // (`railsSection`) is not currently shown on Home (owner kept the
@@ -129,6 +155,12 @@ final class HomeVM: ObservableObject {
         history = []; heroIndex = 0; isLoading = true; error = nil
         doneChannels = false; doneMovies = false; doneSeries = false
         rails = []; movieCats = []; seriesCats = []
+        // The DERIVED arrays must be cleared too — MoviesVM/SeriesVM already do this and
+        // Home was the outlier. Without it, "add account" / "switch playlist" left
+        // `heroItems` populated, so `showSkeleton` was false from the first frame and
+        // Home showed the PREVIOUS line's hero and Top-10 under the new subscription.
+        heroItems = []; topMovies = []; topSeries = []; newMovies = []; newSeries = []
+        everLoaded = false
     }
 
     /// Parallel boot load for the dedicated loading screen: live + movies +
@@ -142,7 +174,7 @@ final class HomeVM: ObservableObject {
         async let s: Void = loadSeries()
         _ = await (c, m, s)
         history = Array(hist.items.prefix(8))
-        loaded = true
+        loaded = true; everLoaded = true
         rebuildHero()
         // rebuildRails() intentionally skipped — see note in load(). The curated
         // rail feed isn't shown, so we don't spend a load classifying/sorting it.
@@ -264,6 +296,14 @@ struct HeroCarouselView: View {
         .scrollTargetBehavior(.paging)
         .scrollPosition(id: $currentID)
         .frame(height: height)
+        // The stretch now lives INSIDE this scroll view (on the artwork of each card),
+        // and a ScrollView clips its content by default — so everything the pull-down
+        // grew above the card's top edge was being thrown away and the black tear came
+        // back. Un-clip, then re-clip on the HORIZONTAL axis only (a bottom-anchored
+        // scaled rectangle), so the artwork can grow upward while the neighbouring page
+        // still cannot bleed in from the side while it is scaled.
+        .scrollClipDisabled()
+        .clipShape(Rectangle().scale(x: 1, y: 4, anchor: .bottom))
         .onReceive(ticker) { _ in advance() }
         .onAppear { if currentID == nil { currentID = items.first?.id } }
         .onChange(of: items.map(\.id)) { _, ids in
@@ -283,25 +323,40 @@ struct HeroCarouselView: View {
 
     private func heroCard(_ item: HomeVM.HeroItem) -> some View {
         ZStack(alignment: .bottom) {
-            Color.clear
-                .frame(maxWidth: .infinity)
-                .frame(height: height)
-                // alignment: .top biases the CROP upward. The artwork is scaled to fill,
-                // so something must be cut; centred, it ate the top of every poster —
-                // which is exactly where the subject and the title sit. Anchoring at the
-                // top keeps them and crops the bottom instead, where the scrim already is.
-                .overlay(alignment: .top) { S8KImage(url: item.backdropURL, placeholder: "film") }
-                .clipped()
-            LinearGradient(
-                stops: [
-                    .init(color: .s8kBlack,              location: 0.0),
-                    .init(color: .s8kBlack.opacity(0.6), location: 0.28),
-                    .init(color: .clear,                 location: 0.60),
-                    .init(color: .s8kBlack.opacity(0.5), location: 1.0)
-                ],
-                startPoint: .bottom, endPoint: .top)
-                .frame(height: height)
-                .allowsHitTesting(false)
+            // ONLY the artwork + its scrim stretch. The modifier used to wrap the whole
+            // card, so a pull-down also scaled the title, the ★, the play/favourite
+            // buttons and the page dots — the 32pt Arabic title inflated to ~39pt and the
+            // right-aligned controls were pushed past the screen edge and clipped. And
+            // because a visual effect is render-only, those buttons stayed tappable where
+            // they used to be, not where they were drawn.
+            ZStack {
+                Color.clear
+                    .frame(maxWidth: .infinity)
+                    .frame(height: height)
+                    // alignment: .top biases the CROP upward. The artwork is scaled to
+                    // fill, so something must be cut; centred, it ate the top of portrait
+                    // art — where the subject sits. Anchoring at the top keeps it and
+                    // crops the bottom, where the scrim already is.
+                    .overlay(alignment: .top) {
+                        S8KImage(url: item.backdropURL, placeholder: "film", maxPixel: 1400)
+                    }
+                    .clipped()
+                LinearGradient(
+                    stops: [
+                        .init(color: .s8kBlack,              location: 0.0),
+                        .init(color: .s8kBlack.opacity(0.6), location: 0.28),
+                        .init(color: .clear,                 location: 0.60),
+                        .init(color: .s8kBlack.opacity(0.5), location: 1.0)
+                    ],
+                    startPoint: .bottom, endPoint: .top)
+                    .frame(height: height)
+                    .allowsHitTesting(false)
+            }
+            .s8kStretchyHeader()
+            // Clip each CARD to its own width: the stretch scales x and y uniformly, so
+            // without this the neighbouring page slid ~39pt in from the side during a
+            // pull. Bottom-anchored and tall, so the upward growth still survives.
+            .clipShape(Rectangle().scale(x: 1, y: 4, anchor: .bottom))
 
             VStack(alignment: .trailing, spacing: 11) {
                 HStack(spacing: 6) {
@@ -615,22 +670,35 @@ struct HomeView: View {
         // ate the bell/search/refresh taps once real (tall) content scrolled
         // under it (Demo's short content didn't trigger it). Removing it deletes
         // the blocking layer at the root.
-        ZStack {
-            Color.s8kBlack.ignoresSafeArea()
-            // Show the full-screen loader ONLY on the first load (no content yet).
-            // A refresh/retry that already has content reloads in place instead of
-            // blanking the whole screen.
-            if showSkeleton {
-                homeSkeleton.transition(.opacity)
-            } else {
-                mainScroll.transition(.opacity)
+        // The GeometryReader exists ONLY to measure the safe-area top for the pinned bar.
+        // It is the page root (the one placement where a GeometryReader is safe) and its
+        // value is never used for a width, so it cannot collapse anything.
+        GeometryReader { geo in
+            ZStack {
+                Color.s8kBlack.ignoresSafeArea()
+                // Show the full-screen loader ONLY on the first load (no content yet).
+                // A refresh/retry that already has content reloads in place instead of
+                // blanking the whole screen.
+                if showSkeleton {
+                    homeSkeleton.transition(.opacity)
+                } else {
+                    mainScroll.transition(.opacity)
+                }
+            }
+            // Home was still positioning its top bar with a bare `.padding(.top, 8)` on
+            // an overlay — the construction this project has already been burned by
+            // twice: an `.ignoresSafeArea()` child inflates the ZStack to the full
+            // screen, so "top" is the PHYSICAL top and the logo/avatar land in the
+            // status bar, around the Dynamic Island. Movies and Series were fixed with
+            // `S8KPinnedPageBar`; Home is now on the same footing.
+            .overlay(alignment: .top) {
+                S8KPinnedPageBar(topInset: geo.safeAreaInsets.top) { homeTopBar }
             }
         }
-        // Floating top bar (profile · logo) over the hero — transparent at the top,
-        // frosted glass once scrolled. Overlaid (NOT a scroll child) so its taps are
-        // always live and the hero image runs full-bleed underneath it.
+        // (the floating top bar is the S8KPinnedPageBar overlay inside the GeometryReader
+        //  above — overlaid, never a scroll child, so its taps are always live and the
+        //  hero runs full-bleed underneath it)
         .animation(.easeInOut(duration: 0.28), value: showSkeleton)
-        .overlay(alignment: .top) { homeTopBar }
         .task { await vm.load() }
         // Hero auto-rotation now lives inside HeroCarouselView (self-paced +
         // self-paused while a cover is open), so Home no longer drives a VM timer
@@ -690,24 +758,35 @@ struct HomeView: View {
     private var mainScroll: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
-                if contentFailed { contentErrorBanner }
-                // Home section order (owner spec): immersive hero → Continue Watching →
-                // a) Top-rated Movies + b) Top-rated Series (quickNav) → c) Recently
-                // added Movies → d) Recently added Series → e) Live / يبث الآن.
+                // The hero stays FULL-BLEED on iPad. It used to sit inside the 900pt cap
+                // below, so on a 1024pt iPad it rested with black bars either side (233pt
+                // each in landscape) — and because a frame does not clip, the stretch
+                // then grew out of the column into those bars and snapped back.
                 heroSection
-                continueWatching
-                quickNav
-                moviesSection       // c) recently added movies
-                seriesSection       // d) recently added series
-                liveSection         // e) live channels
-                supportButtons
-                Color.clear.frame(height: 100)
+                VStack(spacing: 0) {
+                    if contentFailed { contentErrorBanner }
+                    // Home section order (owner spec): immersive hero → Continue Watching
+                    // → a) Top-rated Movies + b) Top-rated Series (quickNav) → c) Recently
+                    // added Movies → d) Recently added Series → e) Live / يبث الآن.
+                    continueWatching
+                    quickNav
+                    moviesSection       // c) recently added movies
+                    seriesSection       // d) recently added series
+                    liveSection         // e) live channels
+                    supportButtons
+                    // 110 = the app-wide spacer that clears the floating bar (58 + 10 +
+                    // the home indicator). 100 left the support buttons under the puck.
+                    Color.clear.frame(height: 110)
+                }
+                // Cap + center only the RAILS on iPad so the page isn't a blown-up phone
+                // screen stretched edge-to-edge.
+                .frame(maxWidth: hSize == .regular ? 900 : .infinity)
+                .frame(maxWidth: .infinity)
             }
-            // Cap + center the content on iPad so the page isn't a blown-up phone
-            // screen stretched edge-to-edge.
-            .frame(maxWidth: hSize == .regular ? 900 : .infinity)
-            .frame(maxWidth: .infinity)
         }
+        // Without a bounce there is no over-scroll, and with no over-scroll there is no
+        // stretch. Movies/Series already declare it; Home was relying on `.refreshable`.
+        .scrollBounceBehavior(.always)
         // force: without it `loaded == true` makes pull-to-refresh a silent no-op.
         .refreshable { await vm.load(force: true) }
         // Drive the floating menu (collapse on scroll) + the top bar glass (frost on scroll).
@@ -872,7 +951,13 @@ struct HomeView: View {
     /// and pull-to-refresh — which live inside `mainScroll` — would be unreachable.
     /// `load()` always sets `isLoading = false` at the end, so this cannot get stuck.
     private var showSkeleton: Bool {
-        vm.isLoading && vm.heroItems.isEmpty && vm.liveChannels.isEmpty
+        // NOT `&& liveChannels.isEmpty`. All three loaders await the SAME single-flight
+        // playlist fetch and resume together, and `loadChannels` has no second await —
+        // so `liveChannels` always lands first and used to tear the skeleton down while
+        // the hero and every rail were still empty. The user got a black page with one
+        // strip of channel chips for the whole time the catalog was being sorted. Only
+        // `heroItems` (built by rebuildHero after ALL three finish) means "drawable".
+        vm.isLoading && vm.heroItems.isEmpty && !vm.everLoaded
     }
 
     private var homeTopBar: some View {
@@ -899,16 +984,17 @@ struct HomeView: View {
                 Rectangle().fill(.ultraThinMaterial)
                     .overlay(Color.black.opacity(0.18))
                     .overlay(GoldDivider(), alignment: .bottom)
-                    .ignoresSafeArea(edges: .top)
+                    // NOT .ignoresSafeArea: the host (S8KPinnedPageBar) already ignored
+                    // the top, so there is no region left to expand into and the frost
+                    // would start below the status bar with a visible hard seam.
+                    // A negative padding inside a `.background` cannot affect layout.
+                    .padding(.top, -400)
                     // Decorative: without this the frosted strip swallowed every flick
                     // started in the top band — and users flick from the top constantly.
                     .allowsHitTesting(false)
-            } else {
-                LinearGradient(colors: [.black.opacity(0.55), .clear],
-                               startPoint: .top, endPoint: .bottom)
-                    .ignoresSafeArea(edges: .top)
-                    .allowsHitTesting(false)
             }
+            // (no `else` gradient: the at-rest scrim now comes from S8KPinnedPageBar, so
+            //  the two no longer stack into a doubly-dark band over the hero)
         }
     }
 
@@ -1001,11 +1087,10 @@ struct HomeView: View {
                              paused: cover != nil || router.searchActive
                                      || router.homeSheet != nil || router.tab != .home,
                              onOpen: openHero)
-                // Pull-down now STRETCHES the artwork instead of tearing a black gap
-                // above it. Fixed height + the transform applied outside it, so nothing
-                // re-lays-out while scrolling. See `s8kStretchyHeader`.
+                // The stretch itself lives INSIDE the card, on the artwork only
+                // (see heroCard) — scaling the whole card also inflated the title and
+                // pushed the controls off-screen.
                 .frame(height: heroHeight)
-                .s8kStretchyHeader()
         }
     }
 

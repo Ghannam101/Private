@@ -132,10 +132,11 @@ struct LiveTVView: View {
                         // the error page (reachable when a load is cancelled mid-flight
                         // by a tab remount).
                         ErrorView(message: e.errorDescription ?? L("loading.error")) { Task { await vm.load(force: true) } }
-                    } else if useSplit(geo.size.width) { padBrowser(geo.size.width) } else { browser }
+                    } else if useSplit(geo.size.width) { padBrowser(geo.size.width) }
+                    else { browser(geo.safeAreaInsets.top) }
                 }
             }
-            .navigationBarHidden(true)
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Category.self) { cat in
                 ParentalGate(kind: .live, categoryID: cat.id) {
                     ChannelListScreen(title: cat.name, channels: vm.list(in: cat)) { playerItem = .live($0) }
@@ -281,10 +282,15 @@ struct LiveTVView: View {
     // iPhone: a sticky mini-player (preview) pinned at the top + a scrolling
     // channel list under it. Tapping a row swaps the preview channel; tapping the
     // player expands to fullscreen. Auto-previews the first channel on open.
+    // Same pattern as Movies and Series (owner: make Live match): the page identity
+    // capsule top-leading, then ONE glass row carrying categories · the four filters
+    // (All / Favorites / Newest / History) · reorder. `topInset` is the measured
+    // safe-area top — the old hard-coded `.padding(.top, 56)` was stacked on top of the
+    // real inset, which is why this page started lower than everything else.
     @ViewBuilder
-    private var browser: some View {
+    private func browser(_ topInset: CGFloat) -> some View {
         VStack(spacing: 0) {
-            liveTopBar
+            liveTopBar(topInset)
             if let ch = previewing {
                 InlineLivePlayer(channel: ch, isExpanded: playerItem != nil) { playerItem = .live(ch) }
                     .id(ch.id)
@@ -296,41 +302,77 @@ struct LiveTVView: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
                     // Search field removed — it now lives in the corner menu (owner #6).
-                    Color.clear.frame(height: S8KSpace.md)
+                    toolRow
                     if !vm.search.isEmpty {
                         ChannelList(channels: vm.searchResults) { preview($0) }
                     } else {
-                        ContentTabBar(selected: $tab)
                         tabContent
                     }
                     Color.clear.frame(height: 110)
                 }
             }
+            .scrollBounceBehavior(.always)
             .reportsScrollToTabBar()   // collapse the corner puck on scroll (owner #4)
         }
+        // Same footing as Movies/Series: the page ZStack is inflated to the full screen
+        // by its `ignoresSafeArea` background, so `topInset` must be measured from the
+        // PHYSICAL top. Without this the capsule sat 30–60pt lower than the other pages.
+        .ignoresSafeArea(edges: .top)
     }
 
-    // Slim top bar for the live page (title + reorder + categories).
-    private var liveTopBar: some View {
-        HStack(spacing: 10) {
-            Text(L("title.live")).font(.system(size: 20, weight: .black)).foregroundColor(.s8kTextPrimary)
-            RoundedRectangle(cornerRadius: 1.5).fill(S8KGradient.goldFlat).frame(width: 22, height: 3)
-            Spacer()
-            liveBarButton("arrow.up.arrow.down") { showReorder = true }
-            liveBarButton("line.3.horizontal.decrease.circle") { showCategories = true }
-        }
-        .padding(.horizontal, S8KSpace.xl).padding(.top, 56).padding(.bottom, 8)
+    private func liveTopBar(_ topInset: CGFloat) -> some View {
+        S8KSectionBar(title: L("title.live"))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, S8KSpace.xl)
+            .padding(.top, max(0, topInset) + 6)
+            .padding(.bottom, 8)
     }
-    private func liveBarButton(_ icon: String, action: @escaping () -> Void) -> some View {
+
+    private var toolRow: some View {
+        HStack(spacing: 10) {
+            toolButton("line.3.horizontal.decrease.circle", L("cats.channels")) { showCategories = true }
+            Menu {
+                Picker("", selection: $tab) {
+                    ForEach(ContentTab.allCases) { t in Label(t.title, systemImage: t.icon).tag(t) }
+                }
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: tab.icon).font(.system(size: 13, weight: .bold))
+                    Text(tab.title).font(S8KFont.subhead.weight(.bold))
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                    Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
+                }
+                .foregroundColor(tab == .all ? .s8kTextSecondary : .s8kBlack)
+                .padding(.horizontal, 14).frame(height: 42)
+                .background(Capsule(style: .continuous)
+                    .fill(tab == .all ? AnyShapeStyle(Color.white.opacity(0.07))
+                                      : AnyShapeStyle(Color.s8kGoldHigh)))
+                .overlay(Capsule(style: .continuous)
+                    .strokeBorder(Color.white.opacity(tab == .all ? 0.12 : 0), lineWidth: 1)
+                    .allowsHitTesting(false))
+                .contentShape(Capsule(style: .continuous))
+            }
+            .buttonStyle(S8KButtonStyle())
+            Spacer(minLength: 0)
+            toolButton("arrow.up.arrow.down", L("reorder.button")) { showReorder = true }
+        }
+        .padding(.horizontal, S8KSpace.lg)
+        .padding(.top, 12)
+        .padding(.bottom, 4)
+    }
+
+    private func toolButton(_ icon: String, _ label: String, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 15, weight: .bold)).foregroundColor(.s8kGoldHigh)
-                .frame(width: 40, height: 40)
-                .background(Color.s8kSurface, in: RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
-                    .strokeBorder(Color.s8kBorder, lineWidth: 1))
+                .font(.system(size: 16, weight: .bold)).foregroundColor(.s8kGoldHigh)
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(Color.white.opacity(0.07)))
+                .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                    .allowsHitTesting(false))
+                .contentShape(Circle())
         }
         .buttonStyle(S8KButtonStyle())
+        .accessibilityLabel(label)
     }
 
     // Compact info bar under the mini-player: favorite · fullscreen · name/live ·
@@ -1434,7 +1476,12 @@ struct MoviesView: View {
             GeometryReader { geo in
                 ZStack {
                     Color.s8kBlack.ignoresSafeArea()
-                    if vm.isLoading { S8KPosterGridSkeleton()
+                    if vm.isLoading {
+                        // Reserve the same space the loaded page reserves, so the
+                        // skeleton does not sit behind the pinned identity capsule.
+                        S8KPosterGridSkeleton()
+                            .padding(.top, geo.safeAreaInsets.top + 62)
+                            .ignoresSafeArea(edges: .top)
                     } else if let e = vm.error {
                         // force: a plain load() early-returns when `loaded` is already
                         // true, so Retry would do nothing and the tab would be stuck on
@@ -1447,7 +1494,10 @@ struct MoviesView: View {
                 // Pinned identity capsule over the artwork (phone layout only — the iPad
                 // split pane has its own sidebar chrome).
                 .overlay(alignment: .top) {
-                    if !vm.isLoading, vm.error == nil, !useSplit(geo.size.width) {
+                    // NOT gated on !isLoading: hiding the identity bar while the page
+                    // loaded meant the skeleton had no title and looked nothing like the
+                    // page that replaced it.
+                    if vm.error == nil, !useSplit(geo.size.width) {
                         S8KPinnedPageBar(topInset: geo.safeAreaInsets.top) { moviesTopBar }
                     }
                 }
@@ -1657,11 +1707,9 @@ struct MoviesView: View {
                     HeroCarouselView(items: vm.heroItems, height: heroHeight + topInset,
                                      paused: selected != nil || router.tab != .movies,
                                      onOpen: openHero)
-                        // Fixed height + the effect applied OUTSIDE it: the stretch is a
-                        // transform on the rendered layer, so LazyVStack still measures
-                        // the header correctly and nothing re-lays-out while scrolling.
+                        // Fixed height so LazyVStack measures the header correctly. The
+                        // stretch lives inside the hero card, on the ARTWORK only.
                         .frame(height: heroHeight + topInset)
-                        .s8kStretchyHeader()
                     toolRow
                 } else {
                     Color.clear.frame(height: topInset + 62)
@@ -1947,7 +1995,12 @@ struct SeriesListView: View {
             GeometryReader { geo in
                 ZStack {
                     Color.s8kBlack.ignoresSafeArea()
-                    if vm.isLoading { S8KPosterGridSkeleton()
+                    if vm.isLoading {
+                        // Reserve the same space the loaded page reserves, so the
+                        // skeleton does not sit behind the pinned identity capsule.
+                        S8KPosterGridSkeleton()
+                            .padding(.top, geo.safeAreaInsets.top + 62)
+                            .ignoresSafeArea(edges: .top)
                     } else if let e = vm.error {
                         // force: a plain load() early-returns when `loaded` is already
                         // true, so Retry would do nothing and the tab would be stuck on
@@ -1958,7 +2011,7 @@ struct SeriesListView: View {
                     else { browser(geo.safeAreaInsets.top) }
                 }
                 .overlay(alignment: .top) {
-                    if !vm.isLoading, vm.error == nil, !useSplit(geo.size.width) {
+                    if vm.error == nil, !useSplit(geo.size.width) {
                         S8KPinnedPageBar(topInset: geo.safeAreaInsets.top) { seriesTopBar }
                     }
                 }
@@ -2148,7 +2201,6 @@ struct SeriesListView: View {
                                      paused: selected != nil || router.tab != .series,
                                      onOpen: openHero)
                         .frame(height: heroHeight + topInset)
-                        .s8kStretchyHeader()
                     toolRow
                 } else {
                     Color.clear.frame(height: topInset + 62)
