@@ -38,6 +38,105 @@ import UIKit
     return UIScreen.main.bounds.size
 }
 
+// MARK: - Stretchy full-bleed hero header
+extension View {
+    /// Pull-to-stretch for artwork sitting at the TOP of a vertical ScrollView.
+    ///
+    /// The naive implementation — recomputing `.frame(height: h + pull)` from a
+    /// GeometryReader every frame — is what most sample code does and it is wrong here:
+    /// it re-runs LAYOUT on every scroll frame (visible stutter), it makes the header
+    /// greedy inside a LazyVStack, and it produces NEGATIVE heights the moment the user
+    /// scrolls the other way.
+    ///
+    /// This scales the already-rendered layer instead, anchored at the BOTTOM:
+    ///     scale = (height + pull) / height          ← always ≥ 1, never negative
+    /// A bottom anchor pins the bottom edge (nothing below moves) and grows the top edge
+    /// upward by exactly the gap the over-scroll opened — so the artwork fills it
+    /// *by construction*, with no seam and no tuned constant. `scaleEffect` is a GPU
+    /// transform on a rasterised layer: no re-layout, no image re-decode.
+    ///
+    /// `parallax` lets the artwork lag as the page scrolls over it. DEFAULT 0: this feed
+    /// has no opaque rows, so a lagging hero stays visible BEHIND the rails that scroll
+    /// over it — and because a visual effect is render-only, its buttons would still be
+    /// hit-testable up to 150pt away from where they are drawn.
+    func s8kStretchyHeader(parallax: CGFloat = 0) -> some View {
+        visualEffect { effect, proxy in
+            // max(_, 1): the first layout pass can report a zero size → NaN.
+            let h = max(proxy.size.height, 1)
+            let minY = proxy.frame(in: .scrollView(axis: .vertical)).minY
+            let pull = max(0, minY)                 // over-scroll only
+            let scale = (h + pull) / h
+            return effect
+                .scaleEffect(x: scale, y: scale, anchor: .bottom)
+                .offset(y: -min(0, minY) * parallax)
+        }
+    }
+
+    /// iOS 26 draws its own blur/dim where a scroll view meets the safe area. Over a
+    /// full-bleed hero that stacks on our scrim and muddies the band under the notch.
+    @ViewBuilder func s8kNoScrollEdgeEffect() -> some View {
+        if #available(iOS 26.0, *) { self.scrollEdgeEffectHidden(true, for: .top) }
+        else { self }
+    }
+}
+
+// MARK: - Pinned page identity bar (Movies / Series)
+/// The section's name, in the WORDMARK's typeface, inside a frosted capsule beside the
+/// app mark — so the page identifies itself over any artwork and stays legible while the
+/// poster scrolls underneath it. Purely decorative: it must never intercept a scroll.
+struct S8KSectionBar: View {
+    let title: String
+    var body: some View {
+        HStack(spacing: 9) {
+            BrandLogo(size: 22)
+            Text(title)
+                .font(.system(size: 17, weight: .heavy, design: .rounded))
+                // Tracking ONLY for Latin. Arabic is cursive — inter-glyph tracking
+                // breaks the joining stroke, and this is the app's most prominent label
+                // in its default language.
+                .tracking(LocalizationManager.current.isRTL ? 0 : 1.2)
+                .foregroundColor(.s8kTextPrimary)
+                .lineLimit(1).minimumScaleFactor(0.75)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .background(Capsule(style: .continuous).fill(.ultraThinMaterial))
+        .background(Capsule(style: .continuous).fill(Color.black.opacity(0.22)))
+        .overlay(Capsule(style: .continuous)
+            .strokeBorder(Color.white.opacity(0.14), lineWidth: 1))
+        .shadow(color: .black.opacity(0.4), radius: 10, y: 4)
+        .allowsHitTesting(false)
+    }
+}
+
+/// Hosts a pinned top bar over full-bleed artwork, at the correct height on every device.
+///
+/// This exists because of a trap this project has already paid for twice: a ZStack that
+/// contains an `.ignoresSafeArea()` child is itself inflated to the FULL SCREEN, so
+/// `.overlay(alignment: .top)` on it aligns to the physical top — under the Dynamic
+/// Island — not to the safe area. The fix is to stop relying on the container's frame:
+/// the overlay explicitly ignores the top safe area (so its own origin is the physical
+/// top, deterministically) and then pads down by the measured inset.
+/// It also carries the scrim that keeps the status bar legible over bright posters.
+struct S8KPinnedPageBar<Content: View>: View {
+    let topInset: CGFloat
+    @ViewBuilder var content: () -> Content
+    var body: some View {
+        VStack(spacing: 0) {
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, max(0, topInset))
+        .background(alignment: .top) {
+            LinearGradient(colors: [.black.opacity(0.65), .black.opacity(0.25), .clear],
+                           startPoint: .top, endPoint: .bottom)
+                .frame(height: max(0, topInset) + 78)
+                .allowsHitTesting(false)
+        }
+        .ignoresSafeArea(edges: .top)
+    }
+}
+
 // MARK: - Brand theme (ready-made palettes + per-reseller re-skin)
 // The whole app's brand colors read from `BrandTheme.active`, so swapping ONE
 // palette (a ready-made brand, or a reseller's accent color) re-skins the entire

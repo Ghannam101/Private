@@ -1441,10 +1441,18 @@ struct MoviesView: View {
                         // the error page (reachable when a load is cancelled mid-flight
                         // by a tab remount).
                         ErrorView(message: e.errorDescription ?? L("loading.error")) { Task { await vm.load(force: true) } }
-                    } else if useSplit(geo.size.width) { padBrowser(geo.size.width) } else { browser }
+                    } else if useSplit(geo.size.width) { padBrowser(geo.size.width) }
+                    else { browser(geo.safeAreaInsets.top) }
+                }
+                // Pinned identity capsule over the artwork (phone layout only — the iPad
+                // split pane has its own sidebar chrome).
+                .overlay(alignment: .top) {
+                    if !vm.isLoading, vm.error == nil, !useSplit(geo.size.width) {
+                        S8KPinnedPageBar(topInset: geo.safeAreaInsets.top) { moviesTopBar }
+                    }
                 }
             }
-            .navigationBarHidden(true)
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Category.self) { cat in
                 ParentalGate(kind: .movie, categoryID: cat.id) {
                     MoviePosterScreen(title: cat.name, movies: vm.list(in: cat)) { selected = $0 }
@@ -1507,73 +1515,97 @@ struct MoviesView: View {
     // BLANK TV "Stage + Collections" library (see DESIGN.md). No oversized title
     // bar, no 4-chip strip: a FIXED working top bar (safe-area inset) + an immersive
     // Stage + category "Collections" rails.
+    // The poster now runs EDGE TO EDGE under the status bar and stretches on pull-down;
+    // the page identity ("الأفلام") is a pinned frosted capsule welded onto it; and every
+    // working control that used to crowd the old 114pt title bar has moved into one glass
+    // row directly beneath the hero. `topInset` = the real safe-area top, passed in from
+    // the page's GeometryReader — never a hard-coded number.
     @ViewBuilder
-    private var browser: some View {
+    private func browser(_ topInset: CGFloat) -> some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
                 if !vm.search.isEmpty {
-                    Color.clear.frame(height: 8)
+                    // No hero in search results → reserve the space the pinned bar needs,
+                    // and keep the controls reachable (they used to live in a fixed bar
+                    // that stayed visible during a search).
+                    Color.clear.frame(height: topInset + 62)
+                    toolRow
                     PosterGrid(movies: vm.searchResults, empty: L("empty.no_results")) { selected = $0 }
                 } else {
-                    // The hero now leads the "All" editorial feed (in tabContent);
-                    // the old single-shot featuredBanner Stage is retired.
-                    tabContent                             // Collections (category rails) / filter grids
+                    tabContent(topInset)
                 }
                 Color.clear.frame(height: 110)
             }
         }
+        // `.always`: without a bounce there is no over-scroll, and with no over-scroll
+        // there is no stretch — on a short page the effect would silently not exist.
+        .scrollBounceBehavior(.always)
         .reportsScrollToTabBar()   // collapse the corner puck on scroll (owner #4)
-        // The top bar is a safe-area INSET, NEVER a ScrollView child — scroll-child
-        // buttons go dead in this codebase. This keeps search/filter always tappable.
-        .safeAreaInset(edge: .top, spacing: 0) { moviesTopBar }
+        // Full-bleed: the artwork runs under the notch / Dynamic Island. The working
+        // controls are NOT in here — a scroll-child button goes dead in this codebase —
+        // they sit in `toolRow`, which is a normal (non-overlapping) row of the feed.
+        .ignoresSafeArea(edges: .top)
+        .s8kNoScrollEdgeEffect()
     }
 
+    // Pinned page identity. An overlay on the page ZStack (not a safe-area inset, which
+    // would push the poster down and destroy the full bleed), so it floats over the
+    // artwork and stays put while the page scrolls under it.
     private var moviesTopBar: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 12) {
-                Text(L("title.movies"))
-                    .font(.system(size: 21, weight: .black)).foregroundColor(.s8kTextPrimary)
-                RoundedRectangle(cornerRadius: 1.5).fill(S8KGradient.goldFlat).frame(width: 24, height: 3)
-                Spacer()
-                Menu {
-                    Picker("", selection: $tab) {
-                        ForEach(ContentTab.allCases) { t in Label(t.title, systemImage: t.icon).tag(t) }
-                    }
-                    Button { showReorder = true } label: {
-                        Label(L("reorder.button"), systemImage: "arrow.up.arrow.down")
-                    }
-                } label: {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 16, weight: .bold)).foregroundColor(.s8kGoldHigh)
-                        .frame(width: 42, height: 42)
-                        .background(Color.s8kSurface, in: RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
-                            .strokeBorder(Color.s8kBorder, lineWidth: 1))
+        S8KSectionBar(title: L("title.movies"))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, S8KSpace.xl)
+            .padding(.top, 6)
+    }
+
+    // Every control the old top bar carried, in one glass row under the hero:
+    // categories (which Movies had LOST — the sheet existed but nothing could open it),
+    // the four filters, and reorder.
+    private var toolRow: some View {
+        HStack(spacing: 10) {
+            toolButton("line.3.horizontal.decrease.circle", L("cats.movies")) { showCategories = true }
+            Menu {
+                Picker("", selection: $tab) {
+                    ForEach(ContentTab.allCases) { t in Label(t.title, systemImage: t.icon).tag(t) }
                 }
-                .buttonStyle(S8KButtonStyle())
-            }
-            // Search moved to the corner-menu search button (owner #6) — the top bar
-            // is now a clean row. Only a "back to All" chip remains when a filter tab
-            // (Favorites / Newest / History) is active.
-            if tab != .all {
-                Button { withAnimation { tab = .all } } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: tab.icon).font(.system(size: 11, weight: .bold))
-                        Text(tab.title).font(S8KFont.caption1.weight(.bold))
-                        Image(systemName: "xmark").font(.system(size: 9, weight: .bold))
-                    }
-                    .foregroundColor(.s8kBlack)
-                    .padding(.horizontal, 12).frame(height: 38)
-                    .background(S8KGradient.goldFlat)
-                    .clipShape(Capsule())
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: tab.icon).font(.system(size: 13, weight: .bold))
+                    Text(tab.title).font(S8KFont.subhead.weight(.bold))
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                    Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
                 }
-                .buttonStyle(S8KButtonStyle())
-                .frame(maxWidth: .infinity, alignment: .trailing)
+                .foregroundColor(tab == .all ? .s8kTextSecondary : .s8kBlack)
+                .padding(.horizontal, 14).frame(height: 42)
+                .background(Capsule(style: .continuous)
+                    .fill(tab == .all ? AnyShapeStyle(Color.white.opacity(0.07))
+                                      : AnyShapeStyle(Color.s8kGoldHigh)))
+                .overlay(Capsule(style: .continuous)
+                    .strokeBorder(Color.white.opacity(tab == .all ? 0.12 : 0), lineWidth: 1)
+                    .allowsHitTesting(false))
+                .contentShape(Capsule(style: .continuous))
             }
+            .buttonStyle(S8KButtonStyle())
+            Spacer(minLength: 0)
+            toolButton("arrow.up.arrow.down", L("reorder.button")) { showReorder = true }
         }
-        .padding(.horizontal, S8KSpace.xl)
-        .padding(.top, 60).padding(.bottom, 12)
-        .background(Color.s8kBlack)
+        .padding(.horizontal, S8KSpace.lg)
+        .padding(.top, 14)
+        .padding(.bottom, 4)
+    }
+
+    private func toolButton(_ icon: String, _ label: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .bold)).foregroundColor(.s8kGoldHigh)
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(Color.white.opacity(0.07)))
+                .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                    .allowsHitTesting(false))
+                .contentShape(Circle())
+        }
+        .buttonStyle(S8KButtonStyle())
+        .accessibilityLabel(label)
     }
 
     // Featured spotlight banner at the top of the Movies browse (2026 VOD pattern:
@@ -1615,17 +1647,25 @@ struct MoviesView: View {
     }
 
     @ViewBuilder
-    private var tabContent: some View {
+    private func tabContent(_ topInset: CGFloat) -> some View {
         switch tab {
         case .all:
-            // Editorial feed (Home-style, movies-only): swipeable hero → Top-10 →
-            // the user's own category shelves. Search/filter/reorder stay in the
-            // top bar (per owner: "feed + categories button").
+            // Editorial feed (Home-style, movies-only): full-bleed stretchy hero →
+            // the working row → Top-10 → the user's own category shelves.
             LazyVStack(spacing: 0) {
                 if !vm.heroItems.isEmpty {
-                    HeroCarouselView(items: vm.heroItems, height: heroHeight,
-                                     paused: selected != nil, onOpen: openHero)
-                        .padding(.bottom, S8KSpace.lg)
+                    HeroCarouselView(items: vm.heroItems, height: heroHeight + topInset,
+                                     paused: selected != nil || router.tab != .movies,
+                                     onOpen: openHero)
+                        // Fixed height + the effect applied OUTSIDE it: the stretch is a
+                        // transform on the rendered layer, so LazyVStack still measures
+                        // the header correctly and nothing re-lays-out while scrolling.
+                        .frame(height: heroHeight + topInset)
+                        .s8kStretchyHeader()
+                    toolRow
+                } else {
+                    Color.clear.frame(height: topInset + 62)
+                    toolRow
                 }
                 if !vm.topRanked.isEmpty {
                     RankRail(title: L("home.top_movies"),
@@ -1648,12 +1688,24 @@ struct MoviesView: View {
                 }
             }
         case .favorites:
-            PosterGrid(movies: favorites, empty: L("movies.empty.fav")) { selected = $0 }
+            VStack(spacing: 0) {
+                Color.clear.frame(height: topInset + 62)
+                toolRow
+                PosterGrid(movies: favorites, empty: L("movies.empty.fav")) { selected = $0 }
+            }
         case .newest:
-            PosterGrid(movies: vm.movies, empty: L("movies.empty")) { selected = $0 }
+            VStack(spacing: 0) {
+                Color.clear.frame(height: topInset + 62)
+                toolRow
+                PosterGrid(movies: vm.movies, empty: L("movies.empty")) { selected = $0 }
+            }
         case .history:
-            HistoryGrid(items: movieHistory, empty: L("history.empty")) { h in
-                if let m = vm.movies.first(where: { $0.id == h.contentID }) { selected = m }
+            VStack(spacing: 0) {
+                Color.clear.frame(height: topInset + 62)
+                toolRow
+                HistoryGrid(items: movieHistory, empty: L("history.empty")) { h in
+                    if let m = vm.movies.first(where: { $0.id == h.contentID }) { selected = m }
+                }
             }
         }
     }
@@ -1902,10 +1954,16 @@ struct SeriesListView: View {
                         // the error page (reachable when a load is cancelled mid-flight
                         // by a tab remount).
                         ErrorView(message: e.errorDescription ?? L("loading.error")) { Task { await vm.load(force: true) } }
-                    } else if useSplit(geo.size.width) { padBrowser(geo.size.width) } else { browser }
+                    } else if useSplit(geo.size.width) { padBrowser(geo.size.width) }
+                    else { browser(geo.safeAreaInsets.top) }
+                }
+                .overlay(alignment: .top) {
+                    if !vm.isLoading, vm.error == nil, !useSplit(geo.size.width) {
+                        S8KPinnedPageBar(topInset: geo.safeAreaInsets.top) { seriesTopBar }
+                    }
                 }
             }
-            .navigationBarHidden(true)
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Category.self) { cat in
                 ParentalGate(kind: .series, categoryID: cat.id) {
                     SeriesPosterScreen(title: cat.name, series: vm.list(in: cat)) { selected = $0 }
@@ -1963,27 +2021,82 @@ struct SeriesListView: View {
         }
     }
 
+    // Mirrors Movies exactly (see the notes there): full-bleed stretchy hero under the
+    // status bar, a pinned frosted identity capsule, and one glass row of controls.
+    // The old `ContentTitleBar` — whose buttons were SCROLL CHILDREN, the pattern this
+    // codebase documents as making buttons go dead — is gone.
     @ViewBuilder
-    private var browser: some View {
+    private func browser(_ topInset: CGFloat) -> some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
-                ContentTitleBar(title: L("title.series"), subtitle: "\(vm.series.count) \(L("count.series"))",
-                                trailingIcon: "line.3.horizontal.decrease.circle",
-                                onTrailing: { showCategories = true },
-                                reorderAction: { showReorder = true })
-                // Search field removed — it now lives in the corner menu (owner #6).
                 if !vm.search.isEmpty {
+                    Color.clear.frame(height: topInset + 62)
+                    toolRow
                     SeriesGrid(series: vm.searchResults, empty: L("empty.no_results")) { selected = $0 }
                 } else {
-                    // The hero now leads the "All" editorial feed (in tabContent);
-                    // the old single-shot featuredBanner is retired.
-                    ContentTabBar(selected: $tab)
-                    tabContent
+                    tabContent(topInset)
                 }
                 Color.clear.frame(height: 110)
             }
         }
-        .reportsScrollToTabBar()   // collapse the corner puck on scroll (owner #4)
+        .scrollBounceBehavior(.always)   // no bounce → no over-scroll → no stretch
+        .reportsScrollToTabBar()         // collapse the corner puck on scroll (owner #4)
+        .ignoresSafeArea(edges: .top)    // artwork runs under the notch
+        .s8kNoScrollEdgeEffect()
+    }
+
+    private var seriesTopBar: some View {
+        S8KSectionBar(title: L("title.series"))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, S8KSpace.xl)
+            .padding(.top, 6)
+    }
+
+    private var toolRow: some View {
+        HStack(spacing: 10) {
+            toolButton("line.3.horizontal.decrease.circle", L("cats.series")) { showCategories = true }
+            Menu {
+                Picker("", selection: $tab) {
+                    ForEach(ContentTab.allCases) { t in Label(t.title, systemImage: t.icon).tag(t) }
+                }
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: tab.icon).font(.system(size: 13, weight: .bold))
+                    Text(tab.title).font(S8KFont.subhead.weight(.bold))
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                    Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
+                }
+                .foregroundColor(tab == .all ? .s8kTextSecondary : .s8kBlack)
+                .padding(.horizontal, 14).frame(height: 42)
+                .background(Capsule(style: .continuous)
+                    .fill(tab == .all ? AnyShapeStyle(Color.white.opacity(0.07))
+                                      : AnyShapeStyle(Color.s8kGoldHigh)))
+                .overlay(Capsule(style: .continuous)
+                    .strokeBorder(Color.white.opacity(tab == .all ? 0.12 : 0), lineWidth: 1)
+                    .allowsHitTesting(false))
+                .contentShape(Capsule(style: .continuous))
+            }
+            .buttonStyle(S8KButtonStyle())
+            Spacer(minLength: 0)
+            toolButton("arrow.up.arrow.down", L("reorder.button")) { showReorder = true }
+        }
+        .padding(.horizontal, S8KSpace.lg)
+        .padding(.top, 14)
+        .padding(.bottom, 4)
+    }
+
+    private func toolButton(_ icon: String, _ label: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .bold)).foregroundColor(.s8kGoldHigh)
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(Color.white.opacity(0.07)))
+                .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                    .allowsHitTesting(false))
+                .contentShape(Circle())
+        }
+        .buttonStyle(S8KButtonStyle())
+        .accessibilityLabel(label)
     }
 
     // Featured spotlight banner atop the Series browse (mirrors Movies).
@@ -2024,17 +2137,22 @@ struct SeriesListView: View {
     }
 
     @ViewBuilder
-    private var tabContent: some View {
+    private func tabContent(_ topInset: CGFloat) -> some View {
         switch tab {
         case .all:
-            // Editorial feed (Home-style, series-only): swipeable hero → Top-10 →
-            // the user's own category shelves. Categories/search/reorder stay
-            // reachable from the title bar (per owner: "feed + categories button").
+            // Editorial feed (Home-style, series-only): full-bleed stretchy hero →
+            // the working row → Top-10 → the user's own category shelves.
             LazyVStack(spacing: 0) {
                 if !vm.heroItems.isEmpty {
-                    HeroCarouselView(items: vm.heroItems, height: heroHeight,
-                                     paused: selected != nil, onOpen: openHero)
-                        .padding(.bottom, S8KSpace.lg)
+                    HeroCarouselView(items: vm.heroItems, height: heroHeight + topInset,
+                                     paused: selected != nil || router.tab != .series,
+                                     onOpen: openHero)
+                        .frame(height: heroHeight + topInset)
+                        .s8kStretchyHeader()
+                    toolRow
+                } else {
+                    Color.clear.frame(height: topInset + 62)
+                    toolRow
                 }
                 if !vm.topRanked.isEmpty {
                     RankRail(title: L("home.top_series"),
@@ -2057,12 +2175,24 @@ struct SeriesListView: View {
                 }
             }
         case .favorites:
-            SeriesGrid(series: favorites, empty: L("series.empty.fav")) { selected = $0 }
+            VStack(spacing: 0) {
+                Color.clear.frame(height: topInset + 62)
+                toolRow
+                SeriesGrid(series: favorites, empty: L("series.empty.fav")) { selected = $0 }
+            }
         case .newest:
-            SeriesGrid(series: vm.series, empty: L("series.empty")) { selected = $0 }
+            VStack(spacing: 0) {
+                Color.clear.frame(height: topInset + 62)
+                toolRow
+                SeriesGrid(series: vm.series, empty: L("series.empty")) { selected = $0 }
+            }
         case .history:
-            HistoryGrid(items: seriesHistory, empty: L("history.empty")) { h in
-                if let s = vm.series.first(where: { h.contentName.hasPrefix($0.name) }) { selected = s }
+            VStack(spacing: 0) {
+                Color.clear.frame(height: topInset + 62)
+                toolRow
+                HistoryGrid(items: seriesHistory, empty: L("history.empty")) { h in
+                    if let s = vm.series.first(where: { h.contentName.hasPrefix($0.name) }) { selected = s }
+                }
             }
         }
     }

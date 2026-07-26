@@ -286,7 +286,11 @@ struct HeroCarouselView: View {
             Color.clear
                 .frame(maxWidth: .infinity)
                 .frame(height: height)
-                .overlay { S8KImage(url: item.backdropURL, placeholder: "film") }
+                // alignment: .top biases the CROP upward. The artwork is scaled to fill,
+                // so something must be cut; centred, it ate the top of every poster —
+                // which is exactly where the subject and the title sit. Anchoring at the
+                // top keeps them and crops the bottom instead, where the scrim already is.
+                .overlay(alignment: .top) { S8KImage(url: item.backdropURL, placeholder: "film") }
                 .clipped()
             LinearGradient(
                 stops: [
@@ -711,6 +715,7 @@ struct HomeView: View {
         // Hero runs full-bleed UNDER the status bar; the top bar is a top OVERLAY
         // (see `body`), hit-tested independently so its taps are always live.
         .ignoresSafeArea(edges: .top)
+        .s8kNoScrollEdgeEffect()
     }
 
     // MARK: - Loading skeleton (first, empty load)
@@ -729,6 +734,7 @@ struct HomeView: View {
         // The top bar is the shared overlay in `body`; the skeleton just runs
         // full-bleed under it (matches the loaded layout).
         .ignoresSafeArea(edges: .top)
+        .s8kNoScrollEdgeEffect()   // match mainScroll, or iOS 26 dims only the skeleton
     }
 
     private var skeletonRail: some View {
@@ -995,6 +1001,11 @@ struct HomeView: View {
                              paused: cover != nil || router.searchActive
                                      || router.homeSheet != nil || router.tab != .home,
                              onOpen: openHero)
+                // Pull-down now STRETCHES the artwork instead of tearing a black gap
+                // above it. Fixed height + the transform applied outside it, so nothing
+                // re-lays-out while scrolling. See `s8kStretchyHeader`.
+                .frame(height: heroHeight)
+                .s8kStretchyHeader()
         }
     }
 
