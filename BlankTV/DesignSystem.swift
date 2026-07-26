@@ -390,16 +390,10 @@ struct BrandTheme {
         accentLow:  Color(red: 0.000, green: 0.569, blue: 0.349), // #009159
         accentDeep: Color(red: 0.000, green: 0.451, blue: 0.290)  // #00734A
     )
-    static let strongGold = BrandTheme(
-        base:     Color(red: 0.039, green: 0.039, blue: 0.039),   // #0A0A0A
-        surface:  Color(red: 0.055, green: 0.055, blue: 0.063),
-        card:     Color(red: 0.082, green: 0.082, blue: 0.094),
-        elevated: Color(red: 0.110, green: 0.110, blue: 0.125),
-        accentHigh: Color(red: 1.000, green: 0.843, blue: 0.000), // #FFD700 gold
-        accentMid:  Color(red: 0.784, green: 0.525, blue: 0.039), // #C8860A
-        accentLow:  Color(red: 0.545, green: 0.376, blue: 0.031),
-        accentDeep: Color(red: 0.420, green: 0.259, blue: 0.020)
-    )
+    // NOTE: a `strongGold` palette used to live here — it reproduced the OTHER app's
+    // exact base (#0A0A0A) and accent (#FFD700 / #C8860A). It was never referenced, but
+    // it shipped inside the binary of the app we argue is a distinct product. Deleted:
+    // an unused palette is not worth handing a reviewer a colour-for-colour match.
 
     /// Build a premium theme from a SINGLE reseller accent color: a neutral dark
     /// base (looks good with any hue) + an accent ramp derived from the color.
