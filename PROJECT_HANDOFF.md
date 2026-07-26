@@ -188,6 +188,43 @@ truth. **Read `DEVICE_MATRIX.md` §6b/§6c/§7 before touching any layout.**
 width caps, the grid/rail metrics, and the 13 hard-coded top paddings. Until they are, the
 old literals still live alongside the system — do not assume a number in a view is canonical.
 
+## 5f. DETAIL PAGES REBUILT — the distinctiveness fix (2026-07-26, v73)
+**Read this before touching `MovieDetailView` / `SeriesDetailView`.**
+
+A line-by-line audit against `Strong8K/iOS` found the detail pages were **a fork, not a
+resemblance**: 9 of 11 elements were byte-for-byte identical SOURCE, four of them carrying
+Strong8K's own code comments verbatim into this binary (the actions row, the section header,
+the synopsis block, the episode row, the info chip recipe, the dismiss gesture *including its
+80/120 constants*, the cast chips). The four main pages had genuinely diverged — the detail
+pages had not moved at all, which is precisely what made them the evidence.
+
+**They are now rebuilt as "pinned canvas + editorial plinth":**
+- The artwork is a FIXED canvas; content rises over it on an **opaque** plinth (Apple: glass
+  belongs to the navigation layer, never a content background).
+- **The title is LIVE TYPE on the plinth, never an image composited onto artwork.** This is
+  the biggest break from the whole category *and* it fixes contrast, Dynamic Type, RTL and
+  missing artwork at once — a type-led page still works when the catalogue has no backdrop,
+  which [[metadata-agnostic-design]] requires.
+- Primary action = a **content-sized capsule** with an inset progress rule + 48pt circular
+  glass satellites — the same vocabulary as the main pages' tool rows. **Never a full-width
+  bar plus rounded squares**: that strip is the most-copied element in streaming and was
+  identical to Strong8K line for line.
+- Synopsis clamps to **4 lines**, expands in place. `MetaSection` was **deleted** (not left
+  unused) so the borrowed motif cannot be reintroduced.
+- **Episode rows are inverted**: oversized numeral in its own gutter, thumbnail on the
+  OPPOSITE side, resume as a rule along the thumbnail's bottom edge. The three things that
+  ARE Strong8K's row — a 120×68 leading thumbnail, a 32pt circular play badge on a black
+  scrim, a trailing chevron — are gone. Numerals go through `NumberFormatter`, so Arabic
+  renders ١ ٢ ٣.
+- Everything mirrors by LANGUAGE (`s8kIsRTL` / `s8kTextAlign` / `s8kFrameAlign`), because the
+  app forces `layoutDirection = .leftToRight` globally — child ORDER is flipped by hand. The
+  ▶ glyph deliberately does NOT mirror (media transport controls keep their direction).
+- `BrandTheme.strongGold` (an unused palette reproducing Strong8K's exact #0A0A0A/#FFD700)
+  was deleted — it shipped inside the binary of the app we argue is a distinct product.
+
+**Do not "simplify" any of this back toward the common pattern.** Every choice above is the
+distinctiveness argument.
+
 ## 6. Remaining tasks (priority order)
 1. ~~Fix the gateway bug → adopt it → remove the preview button~~ **DONE** (§5, §5d, v67).
 2. ~~**Post-login instant flow**~~ **DONE** (§5d, v67).
