@@ -274,7 +274,7 @@ struct ActivationRequiredView: View {
 
                     Spacer(minLength: 40)
                 }
-                .padding(.top, 70)
+                .padding(.top, 70)   // literal: this gate renders OUTSIDE S8KMetricsRoot, so metrics.safeTop would be 0
             }
         }
         .sheet(isPresented: $showCode) { codeSheet }

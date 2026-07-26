@@ -91,6 +91,7 @@ struct S8KLogoMark: View {
 
 // MARK: - Login View
 struct LoginView: View {
+    @Environment(\.s8kMetrics) private var metrics
     @StateObject private var auth  = AuthService.shared
     @StateObject private var theme = AppTheme.shared
     @StateObject private var activation = ActivationService.shared
@@ -278,7 +279,7 @@ struct LoginView: View {
                 }
                 // Constrain + center on wide screens (iPad) so the form isn't
                 // stretched edge-to-edge.
-                .frame(maxWidth: 480)
+                .frame(maxWidth: metrics.formMaxWidth)
                 .frame(maxWidth: .infinity)
             }
         }
@@ -308,7 +309,7 @@ struct LoginView: View {
             .background(Color.white.opacity(0.06)).clipShape(Capsule())
             .overlay(Capsule().strokeBorder(Color.s8kBorder, lineWidth: 1))
         }
-        .padding(.top, 54).padding(.leading, 20)
+        .padding(.top, metrics.safeTop).padding(.leading, 20)
     }
 
     // MARK: - Connection method picker (Xtream / M3U) — big selectable cards
@@ -455,6 +456,7 @@ struct TermsView: View {
 // new entry experience — nothing like the reference single-form login.
 // ============================================================
 struct SubscriptionsGateView: View {
+    @Environment(\.s8kMetrics) private var metrics
     @StateObject private var auth       = AuthService.shared
     @StateObject private var activation = ActivationService.shared
     @StateObject private var loc        = LocalizationManager.shared
@@ -480,7 +482,7 @@ struct SubscriptionsGateView: View {
                     if accounts.isEmpty { emptyState } else { accountList }
                     footer
                 }
-                .frame(maxWidth: 520)
+                .frame(maxWidth: metrics.formMaxWidth)
                 .frame(maxWidth: .infinity)
             }
         }
@@ -509,7 +511,7 @@ struct SubscriptionsGateView: View {
                 .frame(width: 48, height: 4)
                 .shadow(color: .s8kGoldHigh.opacity(0.5), radius: 5)
         }
-        .padding(.top, 56).padding(.bottom, 30)
+        .padding(.top, metrics.safeTop + S8KSpace.md).padding(.bottom, 30)
         .opacity(appear ? 1 : 0).offset(y: appear ? 0 : 12)
     }
 
@@ -652,7 +654,7 @@ struct SubscriptionsGateView: View {
             .background(Color.white.opacity(0.06)).clipShape(Capsule())
             .overlay(Capsule().strokeBorder(Color.s8kBorder, lineWidth: 1))
         }
-        .padding(.top, 54).padding(.leading, 20)
+        .padding(.top, metrics.safeTop).padding(.leading, 20)
     }
 
     private func enter(_ acc: SavedPlaylist) {

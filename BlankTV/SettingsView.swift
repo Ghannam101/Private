@@ -157,7 +157,7 @@ struct SettingsProV2: View {
                             footer
                             Color.clear.frame(height: metrics.bottomClearance)   // clear the floating AppTabBar (was 30 → logout sat under it)
                         }
-                        .frame(maxWidth: hSize == .regular ? 640 : .infinity)
+                        .frame(maxWidth: metrics.readableMaxWidth)
                         .frame(maxWidth: .infinity)
                     }
                     .padding(.top, 6)
@@ -339,7 +339,7 @@ struct SetScaffold<C: View>: View {
                 // sub-page was covered by the bar).
                 VStack(spacing: 20) { content(); Color.clear.frame(height: metrics.bottomClearance) }
                     .padding(.top, 14)
-                    .frame(maxWidth: hSize == .regular ? 640 : .infinity)
+                    .frame(maxWidth: metrics.readableMaxWidth)
                     .frame(maxWidth: .infinity)
             }
         }
@@ -589,6 +589,7 @@ struct EngineStatsView: View {
 // reboots content (switchPlaylist → contentReady=false) which unmounts this cover.
 // ============================================================
 struct AccountSwitcherView: View {
+    @Environment(\.s8kMetrics) private var metrics
     var onClose: () -> Void
     @StateObject private var auth = AuthService.shared
     @State private var accounts: [SavedPlaylist] = Store.shared.savedPlaylists
@@ -614,7 +615,7 @@ struct AccountSwitcherView: View {
                     Spacer()
                     Text(L("accounts.title")).font(.system(size: 20, weight: .black)).foregroundColor(.s8kTextPrimary)
                 }
-                .padding(.horizontal, 20).padding(.top, 56).padding(.bottom, 26)
+                .padding(.horizontal, 20).padding(.top, max(56, metrics.safeTop + S8KSpace.md)).padding(.bottom, 26)
 
                 ScrollView(showsIndicators: false) {
                     LazyVGrid(columns: cols, spacing: 26) {
@@ -819,6 +820,7 @@ struct PlaylistsView: View {
 }
 
 struct AddPlaylistView: View {
+    @Environment(\.s8kMetrics) private var metrics
     let onAdded: () -> Void
     @StateObject private var auth = AuthService.shared
     @Environment(\.dismiss) var dismiss
@@ -853,7 +855,7 @@ struct AddPlaylistView: View {
                     }
                 }
                 .padding(20)
-                .frame(maxWidth: 460)
+                .frame(maxWidth: metrics.formMaxWidth)
                 .frame(maxWidth: .infinity)
                 }
                 .scrollBounceBehavior(.basedOnSize)
@@ -925,6 +927,7 @@ struct AboutView: View {
 /// `.verify` checks against the saved PIN → returns the entered PIN on success.
 /// Returns nil on cancel. Never dismisses itself — the parent drives navigation.
 struct PINEntryView: View {
+    @Environment(\.s8kMetrics) private var metrics
     enum Mode { case set, verify }
     let mode: Mode
     var allowForgot: Bool = false
@@ -971,7 +974,7 @@ struct PINEntryView: View {
                     .font(S8KFont.callout).foregroundColor(.s8kTextSecondary).padding(.top, 2)
             }
             .padding(30)
-            .frame(maxWidth: 420)
+            .frame(maxWidth: metrics.formMaxWidth)
             .frame(maxWidth: .infinity)
             }
             // The PIN pad was vertically centred before it became scrollable — keep it
@@ -1063,6 +1066,7 @@ struct ParentalGate<Content: View>: View {
 /// Parental-control hub: enable (with one-time recovery code), change PIN,
 /// forgot-PIN reset via recovery code, disable, and locked-categories link.
 struct ParentalControlView: View {
+    @Environment(\.s8kMetrics) private var metrics
     @Environment(\.dismiss) var dismiss
     @StateObject private var parental = ParentalService.shared
     @State private var step: Step = .menu
@@ -1118,7 +1122,7 @@ struct ParentalControlView: View {
             Spacer()
             Button(L("common.close")) { dismiss() }.foregroundColor(.s8kGoldMid)
         }
-        .padding(.horizontal, S8KSpace.xl).padding(.top, 50).padding(.bottom, S8KSpace.lg)
+        .padding(.horizontal, S8KSpace.xl).padding(.top, max(50, metrics.safeTop + S8KSpace.sm)).padding(.bottom, S8KSpace.lg)
     }
 
     // Redesigned (owner spec: distinct from the reference) — a luminous shield hero,

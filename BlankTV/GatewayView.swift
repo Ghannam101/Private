@@ -345,7 +345,7 @@ struct GatewayView: View {
         // 320pt iPad Slide Over pane, 327pt on an iPhone SE) and stops at a tidy 400,
         // centred, on iPad/Mac. It can never overflow, and — unlike the old
         // `min(geo.width - 44, 430)` — it can never go negative.
-        .frame(maxWidth: 400)
+        .frame(maxWidth: 400)   // owner-approved width for this card specifically
         .padding(.horizontal, 24)
         .padding(.top, topInset)
         .padding(.bottom, 16)

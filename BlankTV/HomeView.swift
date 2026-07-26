@@ -269,6 +269,7 @@ struct HeroCarouselView: View {
 
     @ObservedObject private var favs = FavoritesService.shared
     @Environment(\.horizontalSizeClass) private var hSize   // caps the copy column on iPad
+    @Environment(\.s8kMetrics) private var metrics
     @State private var currentID: String?   // the visible page's item id (drives dots + auto-rotate)
     @State private var dir = 1               // ping-pong direction (ذهاب/عودة)
     // @State, not `let`: this is a struct, so a `let` publisher was RE-CREATED on every
@@ -431,7 +432,7 @@ struct HeroCarouselView: View {
             // cap. Edge-anchored, the hero's title and play button sat 238pt further out
             // than every rail heading on a landscape iPad — geometrically fine, visually
             // disjoint. Inert on a phone (the ternary yields .infinity).
-            .frame(maxWidth: hSize == .regular ? 900 : .infinity, alignment: .trailing)
+            .frame(maxWidth: metrics.contentMaxWidth, alignment: .trailing)
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .frame(height: height)
@@ -597,7 +598,7 @@ private struct HomeSearchResults: View {
                             Divider().background(Color.s8kBorder).padding(.leading, 74)
                         }
                     }
-                    .padding(.top, 66)
+                    .padding(.top, max(66, metrics.safeTop + S8KSpace.sm))
                     Color.clear.frame(height: metrics.bottomClearance)
                 }
             }
@@ -790,7 +791,7 @@ struct HomeView: View {
                 }
                 // Cap + center only the RAILS on iPad so the page isn't a blown-up phone
                 // screen stretched edge-to-edge.
-                .frame(maxWidth: hSize == .regular ? 900 : .infinity)
+                .frame(maxWidth: metrics.contentMaxWidth)
                 .frame(maxWidth: .infinity)
             }
         }
@@ -821,7 +822,7 @@ struct HomeView: View {
                     ForEach(0..<3, id: \.self) { _ in skeletonRail }
                     Color.clear.frame(height: 60)
                 }
-                .frame(maxWidth: hSize == .regular ? 900 : .infinity)
+                .frame(maxWidth: metrics.contentMaxWidth)
                 .frame(maxWidth: .infinity)
             }
         }
@@ -931,7 +932,7 @@ struct HomeView: View {
             }
         }
         .padding(.horizontal, S8KSpace.xl)
-        .padding(.top, 60)
+        .padding(.top, max(56, metrics.safeTop + S8KSpace.md))
         .padding(.bottom, S8KSpace.lg)
     }
 
@@ -1473,6 +1474,7 @@ struct HomeView: View {
 
 // MARK: - Alerts / Notifications Sheet
 struct AlertsView: View {
+    @Environment(\.s8kMetrics) private var metrics
     var onClose: (() -> Void)? = nil
     @StateObject private var config = ConfigService.shared
     @StateObject private var auth   = AuthService.shared
@@ -1521,7 +1523,7 @@ struct AlertsView: View {
                             EmptyState(icon: "bell.slash",
                                        title: L("alerts.empty.title"),
                                        subtitle: L("alerts.empty.sub"))
-                                .padding(.top, 60)
+                                .padding(.top, max(56, metrics.safeTop + S8KSpace.md))
                         }
                     }
                     .padding(20)
@@ -1565,6 +1567,7 @@ struct AlertsView: View {
 
 // MARK: - All watch history (full page, reachable from "see all")
 struct AllHistoryView: View {
+    @Environment(\.s8kMetrics) private var metrics
     let items: [WatchHistory]
     var onClose: () -> Void
     var onSelect: (WatchHistory) -> Void
@@ -1589,7 +1592,7 @@ struct AllHistoryView: View {
                     Button(L("common.close")) { onClose() }
                         .font(S8KFont.subhead).foregroundColor(.s8kGoldMid)
                 }
-                .padding(.horizontal, S8KSpace.xl).padding(.top, 56).padding(.bottom, S8KSpace.md)
+                .padding(.horizontal, S8KSpace.xl).padding(.top, max(56, metrics.safeTop + S8KSpace.md)).padding(.bottom, S8KSpace.md)
 
                 if items.isEmpty {
                     EmptyState(icon: "clock.arrow.circlepath", title: L("history.empty"),

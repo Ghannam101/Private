@@ -208,7 +208,7 @@ struct LiveTVView: View {
             VStack(spacing: 0) {
                 SearchField(text: $vm.search, placeholder: L("search.live"))
                     .padding(.horizontal, S8KSpace.lg)
-                    .padding(.top, 50).padding(.bottom, S8KSpace.md)
+                    .padding(.top, max(50, metrics.safeTop + S8KSpace.sm)).padding(.bottom, S8KSpace.md)
                 if list.isEmpty {
                     EmptyState(icon: "antenna.radiowaves.left.and.right.slash",
                                title: L("live.empty.title"), subtitle: L("live.empty.sub"))
@@ -239,7 +239,7 @@ struct LiveTVView: View {
                 channelInfoPane(ch)
                 Spacer(minLength: 0)
             }
-            .padding(.top, 50)        // align with the sidebar + channel list panes
+            .padding(.top, max(50, metrics.safeTop + S8KSpace.sm))   // align with the sidebar + channel list panes
         } else {
             VStack(spacing: 14) {
                 Image(systemName: "play.tv").font(.system(size: 54)).foregroundColor(.s8kTextDisabled)
@@ -1391,7 +1391,7 @@ struct CategorySidebar: View {
                 Text(title)
                     .font(S8KFont.title3).foregroundColor(.s8kTextPrimary)
             }
-            .padding(.horizontal, S8KSpace.lg).padding(.top, 50).padding(.bottom, S8KSpace.md)
+            .padding(.horizontal, S8KSpace.lg).padding(.top, max(50, metrics.safeTop + S8KSpace.sm)).padding(.bottom, S8KSpace.md)
             ScrollView(showsIndicators: false) {
                 LazyVStack(spacing: 4) {
                     if let favCount = favoritesCount {
@@ -1560,7 +1560,7 @@ struct MoviesView: View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: S8KSpace.lg) {
                 SearchField(text: $vm.search, placeholder: L("search.movies"))
-                    .padding(.horizontal, S8KSpace.lg).padding(.top, 50)
+                    .padding(.horizontal, S8KSpace.lg).padding(.top, max(50, metrics.safeTop + S8KSpace.sm))
                 PosterGrid(movies: vm.search.isEmpty ? items : vm.searchResults,
                            empty: empty) { selected = $0 }
                 Color.clear.frame(height: metrics.bottomClearance)   // clear the floating AppTabBar (iPad grid)
@@ -2080,7 +2080,7 @@ struct SeriesListView: View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: S8KSpace.lg) {
                 SearchField(text: $vm.search, placeholder: L("search.series"))
-                    .padding(.horizontal, S8KSpace.lg).padding(.top, 50)
+                    .padding(.horizontal, S8KSpace.lg).padding(.top, max(50, metrics.safeTop + S8KSpace.sm))
                 SeriesGrid(series: vm.search.isEmpty ? items : vm.searchResults,
                            empty: empty) { selected = $0 }
                 Color.clear.frame(height: metrics.bottomClearance)   // clear the floating AppTabBar (iPad grid)
@@ -2606,7 +2606,7 @@ struct SeriesDetailView: View {
                         Color.clear.frame(height: canvasHeight - 34)
                         S8KPlinth { plinthContent }
                     }
-                    .frame(maxWidth: metrics.contentMaxWidth)
+                    .frame(maxWidth: isPad ? metrics.contentMaxWidth : .infinity)
                     .frame(maxWidth: .infinity)
                 }
                 .scrollBounceBehavior(.always)
@@ -3050,6 +3050,7 @@ final class SearchVM: ObservableObject {
 }
 
 struct SearchView: View {
+    @Environment(\.s8kMetrics) private var metrics
     var onClose: (() -> Void)? = nil
     @StateObject private var vm = SearchVM()
     @State private var playerItem: ContentItem? = nil
@@ -3066,7 +3067,7 @@ struct SearchView: View {
     }
     // Cap + center the content block on iPad so the field/results aren't an ugly
     // full-width stretch; full width on iPhone.
-    private var contentMaxWidth: CGFloat { isPad ? 760 : .infinity }
+    private var contentMaxWidth: CGFloat { isPad ? metrics.readableMaxWidth : .infinity }
 
     var body: some View {
         NavigationStack {
@@ -3241,7 +3242,7 @@ struct SearchView: View {
                         ForEach(vm.results) { posterCell($0) }
                     }
                     .padding(.horizontal, S8KSpace.xl)
-                    .frame(maxWidth: isPad ? 920 : .infinity).frame(maxWidth: .infinity)
+                    .frame(maxWidth: metrics.contentMaxWidth).frame(maxWidth: .infinity)
                 }
                 Color.clear.frame(height: 100)
             }
