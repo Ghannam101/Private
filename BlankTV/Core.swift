@@ -1287,6 +1287,8 @@ struct M3UEntry {
     let name:  String
     let logo:  String?
     let group: String
+    /// tvg-id — the guide-matching key. Optional: most messy providers omit it.
+    let tvgID: String?
     let url:   String
 }
 
@@ -1315,6 +1317,15 @@ enum M3UParser {
                     name:  displayName(in: info),
                     logo:  attribute("tvg-logo", in: info),
                     group: attribute("group-title", in: info) ?? "عام",
+                    // `tvg-id` is the ONLY key that links a raw-M3U channel to a
+                    // programme guide. It was never parsed, so every M3U user had
+                    // permanently no EPG — not a degraded guide, none at all.
+                    // Some providers emit a feed suffix ("AbuDhabiTV.ae@SD"); strip it,
+                    // and lower-case so it matches the guide's lower-cased ids.
+                    tvgID: attribute("tvg-id", in: info)
+                        .map { $0.components(separatedBy: "@")[0]
+                                 .trimmingCharacters(in: .whitespaces).lowercased() }
+                        .flatMap { $0.isEmpty ? nil : $0 },
                     url:   line
                 ))
                 pendingInfo = nil
@@ -1384,7 +1395,15 @@ enum M3UParser {
                     name: entry.name,
                     logoURL: entry.logo,
                     groupTitle: entry.group,
-                    epgChannelID: nil,
+                    // Carry the parsed tvg-id through and persist it (`CatalogDB.Chan`
+                    // already has the column). GROUNDWORK ONLY — be precise about what
+                    // this does and does not do: nothing READS `epgChannelID` yet
+                    // (`ContentService.epg(for:)` passes `channel.id`, and the M3U path
+                    // has no Xtream endpoint at all), so this does not by itself give an
+                    // M3U user a guide. It captures the ONLY key that can ever match one,
+                    // at the only moment it is available — without it the future guide
+                    // client would have nothing to match on.
+                    epgChannelID: entry.tvgID,
                     directURL: entry.url
                 ))
                 if !liveGroups.contains(entry.group) { liveGroups.append(entry.group) }
@@ -1765,7 +1784,7 @@ actor PlaylistService {
         return head.contains("#EXTM3U") || head.contains("#EXTINF")
     }
 
-    func reset() { content = nil; xtream = nil; epgCache = [:] }
+    func reset() { content = nil; xtream = nil; epgCache = [:]; Self.panelTimeZone = .current }
 
     // MARK: ── EPG (Xtream-direct short program guide) ──
     private var epgCache: [String: (date: Date, programs: [EPGProgram])] = [:]
@@ -1798,23 +1817,46 @@ actor PlaylistService {
     }
 
     /// Accepts a Unix timestamp (Int or String) or a "yyyy-MM-dd HH:mm:ss" string.
+    ///
+    /// `start_timestamp` / `stop_timestamp` are the ONLY safe time fields: they are true
+    /// epoch seconds. The `start` / `end` strings carry NO timezone and are rendered in
+    /// the PANEL's local time — reading them as UTC (which this did) silently shifts the
+    /// whole guide by the panel's offset, and that is the classic Xtream catch-up bug.
+    /// The panel publishes its zone in `server_info.timezone`; use it when we have it,
+    /// and fall back to the DEVICE's zone rather than UTC, which is right far more often.
+    nonisolated(unsafe) static var panelTimeZone: TimeZone = .current
     private static let epgDateFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd HH:mm:ss"; f.timeZone = TimeZone(identifier: "UTC")
+        f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        f.locale = Locale(identifier: "en_US_POSIX")
         return f
     }()
     private func epgTime(_ any: Any?) -> Date? {
         if let i = intVal(any), i > 1_000_000 { return Date(timeIntervalSince1970: TimeInterval(i)) }
         if let s = str(any) {
             if let i = Int(s), i > 1_000_000 { return Date(timeIntervalSince1970: TimeInterval(i)) }
+            // Panels emit "0000-00-00 00:00:00" as a null sentinel — must not poison the row.
+            guard !s.hasPrefix("0000-") else { return nil }
+            Self.epgDateFormatter.timeZone = Self.panelTimeZone
             return Self.epgDateFormatter.date(from: s)
         }
         return nil
     }
 
+    /// Xtream base64-encodes ONLY `title` and `description` — and not every panel does.
+    /// The naive "try to decode, keep it if it is valid UTF-8" test is not safe: a short
+    /// ASCII title is frequently itself valid base64 ("News" decodes to 3 bytes), so a
+    /// perfectly good title could be silently replaced by mojibake. Guard with the
+    /// properties real base64 has — length ≥ 8, a multiple of 4, only alphabet
+    /// characters — and reject anything that decodes to control characters.
+    /// Standard alphabet only: `.ignoreUnknownCharacters` DELETES `-`/`_` rather than`r`n    /// translating them, which shifts the 6-bit groups and produces exactly the mojibake`r`n    /// this guard exists to prevent. URL-safe input is rejected, not mangled.
     private static func decodeB64(_ s: String?) -> String? {
-        guard let s, let data = Data(base64Encoded: s),
-              let text = String(data: data, encoding: .utf8) else { return nil }
+        guard let s, s.count >= 8, s.count % 4 == 0,
+              s.range(of: "^[A-Za-z0-9+/=]+$", options: .regularExpression) != nil,
+              let data = Data(base64Encoded: s),
+              let text = String(data: data, encoding: .utf8),
+              !text.unicodeScalars.contains(where: { $0.value < 0x20 && $0 != "\n" && $0 != "\r" && $0 != "\t" })
+        else { return nil }
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
@@ -1937,6 +1979,15 @@ actor PlaylistService {
         guard authed, status != "expired", status != "banned", status != "disabled" else {
             throw AppError.server(String(format: L("error.subscription_invalid"), status))
         }
+        // Capture the panel's timezone while we are already parsing this response. The
+        // EPG's `start`/`end` strings carry no zone and are rendered in PANEL-local time,
+        // so without this every guide time on a non-UTC panel is silently shifted.
+        // TOTAL assignment, not if let: a second panel that omits 	imezone (or
+        // reports an unknown identifier) must fall back to the device zone, never
+        // silently inherit the PREVIOUS panel's offset.
+        Self.panelTimeZone = (root["server_info"] as? [String: Any])
+            .flatMap { $0["timezone"] as? String }
+            .flatMap { TimeZone(identifier: $0) } ?? .current
     }
 
     private func loadXtreamDirect(_ xd: XtreamDirect) async throws -> M3UContent {
