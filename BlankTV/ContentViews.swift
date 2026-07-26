@@ -2606,7 +2606,7 @@ struct SeriesDetailView: View {
                         Color.clear.frame(height: canvasHeight - 34)
                         S8KPlinth { plinthContent }
                     }
-                    .frame(maxWidth: isPad ? metrics.contentMaxWidth : .infinity)
+                    .frame(maxWidth: metrics.contentMaxWidth)
                     .frame(maxWidth: .infinity)
                 }
                 .scrollBounceBehavior(.always)
