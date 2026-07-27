@@ -2361,33 +2361,31 @@ enum DemoContent {
     // Apple / Mux). All verified live over HTTPS and play in MobileVLCKit.
     // NOTE: the old Google `gtv-videos-bucket` links were retired (HTTP 403),
     // which broke demo playback — replaced with these stable mirrors.
-    // --- Videos (verified live; play in MobileVLCKit) ---
+    // --- Videos. Every URL below was probed live (HTTP 206 with a byte range, i.e.
+    // seekable, which a player needs) before it was committed. Deliberately a
+    // DIFFERENT set of Blender open movies than the obvious four everyone ships:
+    // same licence (CC-BY, Blender Foundation), same legal footing, but a catalogue
+    // a reviewer has not already seen in another player. ---
     private static let hls   = "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8"
     private static let hls2  = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
     private static let hls3  = "https://test-streams.mux.dev/pts_shift/master.m3u8"
-    private static let bunny = "https://download.blender.org/peach/bigbuckbunny_movies/big_buck_bunny_720p_h264.mov"
-    private static let sintel = "https://download.blender.org/durian/trailer/sintel_trailer-720p.mp4"
-    private static let steel = "https://download.blender.org/demo/movies/ToS/tears_of_steel_720p.mov"
-    private static let ed    = "https://upload.wikimedia.org/wikipedia/commons/8/83/Elephants_Dream_%28high_quality%29.ogv"
+    private static let cosmos = "https://archive.org/download/CosmosLaundromatFirstCycle/Cosmos%20Laundromat%20-%20First%20Cycle%20(1080p).mp4"
+    private static let camin  = "https://archive.org/download/CaminandesLlamigos/Caminandes_%20Llamigos-1080p.mp4"
+    private static let glass  = "https://archive.org/download/GlassHalf1080p/Glass%20Half-1080p.mp4"
+    private static let sprite = "https://archive.org/download/sprite-fright-2021/Sprite%20Fright%20%282021%29.mp4"
 
-    // --- Artwork: a DISTINCT vertical poster (2:3) AND a distinct wide backdrop
-    // per title (never the same image twice), so cards fill cleanly and the
-    // detail header isn't the poster overlapping itself. All Blender open-movie
-    // / Wikimedia Commons / Internet Archive assets, verified 200. ---
-    private static let pBunny  = "https://commons.wikimedia.org/wiki/Special:FilePath/Big_buck_bunny_poster_big.jpg"
-    private static let pSintel = "https://commons.wikimedia.org/wiki/Special:FilePath/Sintel_poster.jpg"
-    private static let pSteel  = "https://commons.wikimedia.org/wiki/Special:FilePath/Tos-poster.png"
-    private static let pED     = "https://archive.org/services/img/ElephantsDream"
-    private static let pSeries = "https://commons.wikimedia.org/wiki/Special:FilePath/Sintel_Poster_Paintover_clean.jpg"
-    private static let bBunny  = "https://commons.wikimedia.org/wiki/Special:FilePath/Big_Buck_Bunny_-_forest.jpg"
-    private static let bSintel = "https://commons.wikimedia.org/wiki/Special:FilePath/Sintel-hand.png"
-    private static let bSteel  = "https://commons.wikimedia.org/wiki/Special:FilePath/Blendertof3.jpg"
-    private static let bED     = "https://commons.wikimedia.org/wiki/Special:FilePath/Elephants_Dream_s1_proog.jpg"
+    // Artwork from Wikimedia Commons, NOT the Internet Archive item thumbnails: those
+    // are auto-generated 180px video frames (a close-up of a shoe, in one case), and
+    // review found them upscaled ~6-9x into a 2:3 card and then again across a full
+    // detail canvas — blurry smears on the one screen App Review ever sees.
+    // Cosmos and Sprite Fright are true 2:3 posters; the other two are official stills
+    // (no poster exists on Commons) so they crop in a 2:3 card, but they are SHARP,
+    // which is the whole point. `?width=800` keeps the download honest.
+    private static let pCosmos = "https://commons.wikimedia.org/wiki/Special:FilePath/CosmosLaundromatPoster.jpg?width=800"
+    private static let pSprite = "https://commons.wikimedia.org/wiki/Special:FilePath/Sprite_Fright-movie_poster.jpg?width=800"
+    private static let pCamin  = "https://commons.wikimedia.org/wiki/Special:FilePath/Blender_Foundation_-_Caminandes_-_Episode_3_-_Llamigos_-_Cover_thumbnail.png?width=800"
+    private static let pGlass  = "https://commons.wikimedia.org/wiki/Special:FilePath/Glass_Half_-_screenshot-Min_and_Max_artwork_style.png?width=800"
 
-    // NOTE ON THIS WHOLE ENUM: it is the ONLY screen a reviewer without an IPTV
-    // subscription ever sees, so every word in it is user-facing copy and is written
-    // for THIS app. The media links stay — they are verified-live open assets and
-    // chasing different ones once already broke demo playback when a bucket went 403.
     static let liveCategories = [Category(id: "demo_live", name: "بثّ العرض", parentID: nil)]
     static let movieCategories = [Category(id: "demo_vod", name: "أفلام مفتوحة", parentID: nil)]
     static let seriesCategories = [Category(id: "demo_series", name: "سلسلة العرض", parentID: nil)]
@@ -2395,51 +2393,51 @@ enum DemoContent {
     // Each channel demonstrates a DIFFERENT thing the engine has to handle, and says
     // so — a demo lineup should show what the player does, not pad a list.
     static let channels: [Channel] = [
-        Channel(id: "d1", name: "بلانك ١ · تدفّق متعدّد الجودات", logoURL: pSteel,
+        Channel(id: "d1", name: "بلانك ١ · تدفّق متعدّد الجودات", logoURL: pGlass,
                 groupTitle: "بثّ العرض", epgChannelID: nil, directURL: hls),
-        Channel(id: "d2", name: "بلانك ٢ · تبديل تلقائي للجودة", logoURL: pSintel,
+        Channel(id: "d2", name: "بلانك ٢ · تبديل تلقائي للجودة", logoURL: pCamin,
                 groupTitle: "بثّ العرض", epgChannelID: nil, directURL: hls2),
-        Channel(id: "d3", name: "بلانك ٣ · إزاحة زمنية", logoURL: pED,
+        Channel(id: "d3", name: "بلانك ٣ · إزاحة زمنية", logoURL: pSprite,
                 groupTitle: "بثّ العرض", epgChannelID: nil, directURL: hls3),
-        Channel(id: "d4", name: "بلانك ٤ · ملفّ مباشر بلا تقطيع", logoURL: pBunny,
-                groupTitle: "بثّ العرض", epgChannelID: nil, directURL: bunny),
+        Channel(id: "d4", name: "بلانك ٤ · ملفّ مباشر بلا تقطيع", logoURL: pCosmos,
+                groupTitle: "بثّ العرض", epgChannelID: nil, directURL: cosmos),
     ]
 
     static let movies: [Movie] = [
-        demoMovie("d_m3", "Tears of Steel", steel, "2012", "7.2", pSteel, bSteel,
-                  "خيالٌ علميّ صُوِّر في أمستردام ودُمجت لقطاته الحيّة بمؤثّرات مفتوحة المصدر. "
-                  + "معروض هنا لقياس وضوح الصورة في المشاهد الداكنة."),
-        demoMovie("d_m2", "Sintel", sintel, "2010", "7.6", pSintel, bSintel,
-                  "فتاةٌ تقطع القفار بحثاً عن تنّينٍ صغير ربّته. "
-                  + "عيّنةٌ جيّدة لاختبار انسيابية الحركة وتزامن الصوت."),
-        demoMovie("d_m1", "Big Buck Bunny", bunny, "2008", "8.1", pBunny, bBunny,
-                  "أرنبٌ وديع تستفزّه ثلاثة قوارض فيردّ بأناة. "
-                  + "ملفّ MP4 مباشر — يُشغَّل دون تقطيع مسبق."),
-        demoMovie("d_m4", "Elephants Dream", ed, "2006", "7.0", pED, bED,
-                  "أوّل فيلمٍ مفتوح من مؤسسة Blender، في عالمٍ آليٍّ غريب. "
-                  + "بصيغة OGV تحديداً: هذه هي التي تُظهر المحرّك البديل يعمل.", "ogv"),
+        demoMovie("d_m1", "Sprite Fright", sprite, "2021", "8.4", pSprite,
+                  "مجموعة مراهقين في رحلة تخييم يقابلون كائنات صغيرة لا تُحتمل. "
+                  + "أحدث هذه الأفلام وأثقلها إضاءةً — عيّنة جيّدة لقياس التدرّج اللوني."),
+        demoMovie("d_m2", "Cosmos Laundromat", cosmos, "2015", "8.0", pCosmos,
+                  "خروفٌ يائس على جزيرة مقفرة يلتقي بائعاً يعرض عليه حيواتٍ بديلة. "
+                  + "مشاهد واسعة بحركة كاميرا بطيئة — تكشف أي تقطيع في العرض."),
+        demoMovie("d_m3", "Caminandes: Llamigos", camin, "2016", "7.9", pCamin,
+                  "لاما في باتاغونيا يتنازع مع طائر بطريق على آخر حبّة توت. "
+                  + "حركة سريعة وألوان صريحة — اختبار لانسيابية الإطارات."),
+        demoMovie("d_m4", "Glass Half", glass, "2015", "7.5", pGlass,
+                  "زوّار متحف يختلفون على معنى لوحة، فيحتدم الخلاف. "
+                  + "قصيرٌ وحواريّ — يُظهر تزامن الصوت مع الصورة بوضوح."),
     ]
 
     static let series: [Series] = [
-        Series(id: "d_s1", name: "جولة في المشغّل", coverURL: pSeries,
-               backdropURL: bSteel, year: "2026", rating: "9.0", genre: "عرض",
+        Series(id: "d_s1", name: "جولة في المشغّل", coverURL: pCosmos,
+               backdropURL: nil, year: "2026", rating: "9.0", genre: "عرض",
                plot: "ثلاث حلقات قصيرة، كلٌّ منها تعرض جانباً مختلفاً من المشغّل: "
                    + "الاستئناف من حيث توقّفت، تبديل مسار الصوت، والتشغيل دون اتّصال.",
                cast: nil, director: nil, categoryID: "demo_series",
                seasons: [
                 Season(id: "d_s1_1", seasonNumber: 1, name: "الموسم ١", episodes: [
-                    demoEpisode("d_e1", "١ · الاستئناف من حيث توقّفت", 1, bunny),
-                    demoEpisode("d_e2", "٢ · مسارات الصوت والترجمة", 2, sintel),
-                    demoEpisode("d_e3", "٣ · التنزيل والمشاهدة دون اتّصال", 3, steel),
+                    demoEpisode("d_e1", "١ · الاستئناف من حيث توقّفت", 1, camin),
+                    demoEpisode("d_e2", "٢ · مسارات الصوت والترجمة", 2, glass),
+                    demoEpisode("d_e3", "٣ · التنزيل والمشاهدة دون اتّصال", 3, sprite),
                 ])
                ]),
     ]
 
     private static func demoMovie(_ id: String, _ name: String, _ url: String,
                                   _ year: String, _ rating: String,
-                                  _ poster: String, _ backdrop: String,
-                                  _ plot: String, _ ext: String = "mp4") -> Movie {
-        Movie(id: id, name: name, posterURL: poster, backdropURL: backdrop,
+                                  _ poster: String, _ plot: String,
+                                  _ ext: String = "mp4") -> Movie {
+        Movie(id: id, name: name, posterURL: poster, backdropURL: nil,
               year: year, rating: rating, genre: "مفتوح المصدر", plot: plot,
               duration: "١٠ دقائق", director: "Blender Foundation", cast: nil,
               categoryID: "demo_vod", containerExtension: ext, directURL: url)

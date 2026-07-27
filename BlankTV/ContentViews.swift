@@ -2911,9 +2911,38 @@ struct SeriesDetailView: View {
 
     /// Play resolves to the NEXT unwatched episode of the selected season, so the
     /// primary action is never "which episode?" — the page answers it.
+    /// Which episode the play capsule offers.
+    ///
+    /// OWNER-REPORTED: watch episode 9, leave the series, come back — the button said
+    /// episode 1. The old rule was "the first episode with progress < 0.9", which only
+    /// ever works if you watch strictly in order from the start: episode 1, never
+    /// opened and therefore at progress 0, also satisfies "< 0.9" and it comes first,
+    /// so it won every time no matter what you actually watched.
+    ///
+    /// The rule now, in priority order:
+    ///   1. The episode you last watched and did NOT finish — resume exactly there.
+    ///   2. Otherwise the one AFTER the furthest episode you did finish — go forward.
+    ///   3. Otherwise the first.
     private var nextEpisode: Episode? {
-        guard let s = vm.selected else { return nil }
-        return s.episodes.first { hist.progress(for: $0.id) < 0.9 } ?? s.episodes.first
+        guard let s = vm.selected, !s.episodes.isEmpty else { return nil }
+        let ids = Set(s.episodes.map(\.id))
+        // `hist.items` is kept most-recent-first (update() inserts at 0), so the first
+        // match IS the latest one touched — no date comparison needed.
+        let furthestDone = s.episodes.lastIndex(where: { hist.progress(for: $0.id) >= 0.9 })
+        if let recent = hist.items.first(where: { ids.contains($0.contentID) && $0.progress < 0.9 }),
+           let idx = s.episodes.firstIndex(where: { $0.id == recent.contentID }),
+           // ...but only if it is not BEHIND something already finished. Abandoning
+           // ep 9 and then finishing ep 10 should offer 11, not drag you back to 9.
+           idx >= (furthestDone ?? -1) {
+            return s.episodes[idx]
+        }
+        // Everything watched is finished: offer the one after the furthest finished.
+        // Finishing the last episode offers it again rather than returning nil.
+        if let done = furthestDone {
+            let after = s.episodes.index(after: done)
+            return after < s.episodes.endIndex ? s.episodes[after] : s.episodes[done]
+        }
+        return s.episodes.first
     }
 
     private var actionRow: some View {

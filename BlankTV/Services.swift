@@ -497,7 +497,22 @@ final class HistoryService: ObservableObject {
         )
         items.removeAll { $0.contentID == contentID }
         items.insert(entry, at: 0)
-        if items.count > 50 { items = Array(items.prefix(50)) }
+        // Cap PER TYPE, not globally. This is an IPTV app: flicking through channels
+        // writes a `.live` row per channel, so a single zapping session used to push
+        // 50 rows in and evict the episode progress that the series "resume" button
+        // reads — watch episode 9, browse live for a minute, and the series was back
+        // to episode 1. `items` is already most-recent-first, so one pass keeps the
+        // newest 50 of each kind and preserves the order.
+        if items.count > 150 {
+            var kept: [WatchHistory] = []
+            var seen: [WatchHistory.ContentType: Int] = [:]
+            for it in items {
+                let n = (seen[it.contentType] ?? 0) + 1
+                seen[it.contentType] = n
+                if n <= 50 { kept.append(it) }
+            }
+            items = kept
+        }
         Store.shared.saveHistory(items)
     }
 
