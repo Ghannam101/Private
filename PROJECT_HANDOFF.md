@@ -283,7 +283,8 @@ truth is not.
 also decide whether the tolerated result is allowed to become the cached truth.
 
 ### Also worth keeping
-- The scope-audit regex must be `var\s+$sym`, not `var $sym\s*(:|=|\{)` — the
+- The scope-audit regex must be `var` + `\s+` + the symbol + a word boundary, not
+  `var $sym\s*(:|=|\{)` — the
   latter misses `@Environment(\.s8kMetrics) private var metrics`, and that gap is
   what let build 72 fail. Strip comments AND string literals before auditing, or
   `L("search.title")` reads as a use of `search`.
