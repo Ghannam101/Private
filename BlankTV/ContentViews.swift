@@ -107,6 +107,7 @@ struct LiveTVView: View {
     @State private var path = NavigationPath()
     @State private var padCat: Category? = nil
     @State private var padChannel: Channel? = nil
+    @State private var padShown = S8KListWindow.initial
     @State private var currentChannel: Channel? = nil   // iPhone sticky mini-player selection
 
     private var favorites: [Channel] { vm.channels.filter { favs.channels.contains($0.id) } }
@@ -179,7 +180,7 @@ struct LiveTVView: View {
         // Clear channel preview AND any leftover search query when switching
         // sidebar sections — a stale query would filter the new category to
         // "no results" (matches the Movies/Series iPad behavior).
-        .onChange(of: padCat?.id) { _, _ in padChannel = nil; vm.search = "" }
+        .onChange(of: padCat?.id) { _, _ in padChannel = nil; vm.search = ""; padShown = S8KListWindow.initial }
         // While viewing Favorites, if the previewing channel is un-favorited it
         // leaves the middle list — clear the player so it doesn't keep showing a
         // channel that's no longer in view.
@@ -215,10 +216,14 @@ struct LiveTVView: View {
                         .padding(.top, S8KSpace.xl)
                 } else {
                     LazyVStack(spacing: 0) {
-                        ForEach(Array(list.enumerated()), id: \.element.id) { idx, ch in
+                        ForEach(Array(list.prefix(padShown).enumerated()), id: \.element.id) { idx, ch in
                             ChannelRow(channel: ch, index: idx + 1) { padChannel = ch }
                                 .background(padChannel?.id == ch.id ? Color.s8kGoldMid.opacity(0.12) : .clear)
                             Divider().background(Color.s8kBorder).padding(.leading, 74)
+                        }
+                        if padShown < list.count {                  // window sentinel — grows only when scrolled to
+                            Color.clear.frame(height: 1)
+                                .onAppear { padShown = min(padShown + S8KListWindow.step, list.count) }
                         }
                     }
                 }
@@ -447,23 +452,55 @@ struct LiveTVView: View {
 struct ChannelList: View {
     let channels: [Channel]
     let onTap: (Channel) -> Void
+    /// How many rows are handed to `ForEach` right now. A `LazyVStack` defers building
+    /// the VIEWS, but `ForEach` still walks the WHOLE collection to build its identity
+    /// map on every invalidation — and `Array(channels.enumerated())` additionally
+    /// materialises one tuple per channel each time. On a 56k-channel line, toggling a
+    /// single favourite paid for 56k tuples. The window makes first paint O(120) at any
+    /// catalogue size and grows as the user actually scrolls.
+    @State private var shown = S8KListWindow.initial
+
+    private var visible: ArraySlice<Channel> { channels.prefix(shown) }
 
     var body: some View {
-        if channels.isEmpty {
-            EmptyState(icon: "antenna.radiowaves.left.and.right.slash",
-                       title: L("live.empty.title"), subtitle: L("live.empty.sub"))
-        } else {
-            LazyVStack(spacing: 0) {
-                ForEach(Array(channels.enumerated()), id: \.element.id) { idx, ch in
-                    ChannelRow(channel: ch, index: idx + 1) { onTap(ch) }
-                    if idx < channels.count - 1 {
-                        Divider().background(Color.s8kBorder).padding(.leading, 74)
+        Group {
+            if channels.isEmpty {
+                EmptyState(icon: "antenna.radiowaves.left.and.right.slash",
+                           title: L("live.empty.title"), subtitle: L("live.empty.sub"))
+            } else {
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(visible.enumerated()), id: \.element.id) { idx, ch in
+                        ChannelRow(channel: ch, index: idx + 1) { onTap(ch) }
+                        if idx < visible.count - 1 {
+                            Divider().background(Color.s8kBorder).padding(.leading, 74)
+                        }
+                    }
+                    // Sentinel: appearing means the user reached the end of the window.
+                    if shown < channels.count {
+                        Color.clear.frame(height: 1)
+                            .onAppear { shown = min(shown + S8KListWindow.step, channels.count) }
                     }
                 }
+                .onAppear { S8KImageCache.shared.prefetch(channels.prefix(40).compactMap { $0.logoURL }, maxPixel: 240) }
             }
-            .onAppear { S8KImageCache.shared.prefetch(channels.prefix(40).compactMap { $0.logoURL }, maxPixel: 240) }
         }
+        // Reset when the LIST ITSELF changes (category switch, search, reorder).
+        // Keyed on the HEAD ITEM, not count: toggling one favourite changes the count
+        // but not the list the user is scrolling, and a reset there would collapse the
+        // content height and throw the scroll position. Lives on the Group so it
+        // survives the empty branch (a modifier inside `else` is destroyed on 5000 -> 0
+        // and never fires).
+        .onChange(of: channels.first?.id) { _, _ in shown = S8KListWindow.initial }
     }
+}
+
+/// One place for the windowing constants, so every list grows the same way.
+enum S8KListWindow {
+    /// Enough to fill any screen in the matrix plus a comfortable scroll buffer.
+    static let initial = 120
+    /// Roughly a screenful and a half per extension — big enough that the sentinel
+    /// never fires twice in one flick, small enough that it stays cheap.
+    static let step = 180
 }
 
 struct ChannelRow: View {
@@ -1811,18 +1848,31 @@ struct PosterGrid: View {
     // Larger, more immersive posters (fewer per row) — a bolder catalog than the
     // reference's dense postage-stamp grid.
     private var cols: [GridItem] { [GridItem(.adaptive(minimum: hSize == .regular ? 168 : 116), spacing: 14)] }
+    /// See S8KListWindow — ForEach walks the whole collection on every invalidation
+    /// even inside a LazyVGrid, so a 30k-title catalogue paid for 30k identities on
+    /// every favourite toggle and every keystroke.
+    @State private var shown = S8KListWindow.initial
 
     var body: some View {
-        if movies.isEmpty {
-            EmptyState(icon: "film.slash", title: empty, subtitle: L("grid.empty.sub"))
-        } else {
-            LazyVGrid(columns: cols, spacing: 18) {
-                ForEach(movies) { m in MoviePosterCell(movie: m) { onSelect(m) } }
+        Group {
+            if movies.isEmpty {
+                EmptyState(icon: "film.slash", title: empty, subtitle: L("grid.empty.sub"))
+            } else {
+                LazyVGrid(columns: cols, spacing: 18) {
+                    ForEach(movies.prefix(shown)) { m in MoviePosterCell(movie: m) { onSelect(m) } }
+                    // Sentinel: reaching it means the user scrolled past the window.
+                    if shown < movies.count {
+                        Color.clear.frame(height: 1)
+                            .onAppear { shown = min(shown + S8KListWindow.step, movies.count) }
+                    }
+                }
+                .padding(.horizontal, S8KSpace.lg)
+                // Warm the first screenful of posters so the grid paints instantly.
+                .onAppear { S8KImageCache.shared.prefetch(movies.prefix(30).compactMap { $0.posterURL }, maxPixel: 800) }
             }
-            .padding(.horizontal, S8KSpace.lg)
-            // Warm the first screenful of posters so the grid paints instantly.
-            .onAppear { S8KImageCache.shared.prefetch(movies.prefix(30).compactMap { $0.posterURL }, maxPixel: 800) }
         }
+        // Keyed on the head item, not count — see ChannelList for why.
+        .onChange(of: movies.first?.id) { _, _ in shown = S8KListWindow.initial }
     }
 }
 
@@ -2298,39 +2348,53 @@ struct SeriesGrid: View {
     let onSelect: (Series) -> Void
     @Environment(\.horizontalSizeClass) private var hSize
     private var cols: [GridItem] { [GridItem(.adaptive(minimum: hSize == .regular ? 168 : 116), spacing: 14)] }
+    /// See S8KListWindow.
+    @State private var shown = S8KListWindow.initial
 
     var body: some View {
-        if series.isEmpty {
-            EmptyState(icon: "tv.slash", title: empty, subtitle: L("grid.empty.sub"))
-        } else {
-            LazyVGrid(columns: cols, spacing: 16) {
-                ForEach(series) { s in
-                    Button(action: { onSelect(s) }) {
-                        VStack(alignment: .trailing, spacing: 6) {
-                            // 2:3 like MoviePosterCell — and via a Color.clear box, which
-                            // also stops a non-2:3 cover leaking its width and overlapping
-                            // its neighbours. Left at a fixed 150 this grid rendered a
-                            // landscape band beside a correctly-proportioned Movies grid.
-                            Color.clear
-                                .frame(maxWidth: .infinity)
-                                .aspectRatio(2.0 / 3.0, contentMode: .fit)
-                                .overlay { S8KImage(url: s.coverURL, placeholder: "tv") }
-                                .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm))
-                                .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm)
-                                    .strokeBorder(Color.s8kBorder, lineWidth: 1))
-                            Text(s.name).font(S8KFont.caption2.weight(.semibold))
-                                .foregroundColor(.s8kTextPrimary).lineLimit(1)
-                            if let y = s.year {
-                                Text(y).font(S8KFont.caption3).foregroundColor(.s8kTextTertiary)
-                            }
+        Group {
+            if series.isEmpty {
+                EmptyState(icon: "tv.slash", title: empty, subtitle: L("grid.empty.sub"))
+            } else {
+                grid
+            }
+        }
+        // Keyed on the head item, not count — see ChannelList for why.
+        .onChange(of: series.first?.id) { _, _ in shown = S8KListWindow.initial }
+    }
+
+    private var grid: some View {
+        LazyVGrid(columns: cols, spacing: 16) {
+            ForEach(series.prefix(shown)) { s in
+                Button(action: { onSelect(s) }) {
+                    VStack(alignment: .trailing, spacing: 6) {
+                        // 2:3 like MoviePosterCell — and via a Color.clear box, which
+                        // also stops a non-2:3 cover leaking its width and overlapping
+                        // its neighbours. Left at a fixed 150 this grid rendered a
+                        // landscape band beside a correctly-proportioned Movies grid.
+                        Color.clear
+                            .frame(maxWidth: .infinity)
+                            .aspectRatio(2.0 / 3.0, contentMode: .fit)
+                            .overlay { S8KImage(url: s.coverURL, placeholder: "tv") }
+                            .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm))
+                            .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm)
+                                .strokeBorder(Color.s8kBorder, lineWidth: 1))
+                        Text(s.name).font(S8KFont.caption2.weight(.semibold))
+                            .foregroundColor(.s8kTextPrimary).lineLimit(1)
+                        if let y = s.year {
+                            Text(y).font(S8KFont.caption3).foregroundColor(.s8kTextTertiary)
                         }
                     }
-                    .buttonStyle(S8KButtonStyle())
                 }
+                .buttonStyle(S8KButtonStyle())
             }
-            .padding(.horizontal, S8KSpace.lg)
-            .onAppear { S8KImageCache.shared.prefetch(series.prefix(30).compactMap { $0.coverURL }, maxPixel: 800) }
+            if shown < series.count {
+                Color.clear.frame(height: 1)
+                    .onAppear { shown = min(shown + S8KListWindow.step, series.count) }
+            }
         }
+        .padding(.horizontal, S8KSpace.lg)
+        .onAppear { S8KImageCache.shared.prefetch(series.prefix(30).compactMap { $0.coverURL }, maxPixel: 800) }
     }
 }
 
