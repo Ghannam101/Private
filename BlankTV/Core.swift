@@ -123,17 +123,17 @@ enum L10n {
         "title.live":   [.ar: "البث المباشر",.en: "Live TV", .fr: "TV en direct", .tr: "Canlı TV", .es: "TV en vivo"],
 
         // Search placeholders
-        "search.movies": [.ar: "ابحث في كل الأفلام…",   .en: "Search all movies…",   .fr: "Rechercher des films…", .tr: "Tüm filmlerde ara…", .es: "Buscar películas…"],
-        "search.series": [.ar: "ابحث في كل المسلسلات…", .en: "Search all series…",   .fr: "Rechercher des séries…",.tr: "Tüm dizilerde ara…", .es: "Buscar series…"],
-        "search.live":   [.ar: "ابحث في كل القنوات…",   .en: "Search all channels…", .fr: "Rechercher des chaînes…",.tr: "Tüm kanallarda ara…", .es: "Buscar canales…"],
+        "search.movies": [.ar: "في كل الأفلام…",   .en: "Search all movies…",   .fr: "Rechercher des films…", .tr: "Tüm filmlerde ara…", .es: "Buscar películas…"],
+        "search.series": [.ar: "في كل المسلسلات…", .en: "Search all series…",   .fr: "Rechercher des séries…",.tr: "Tüm dizilerde ara…", .es: "Buscar series…"],
+        "search.live":   [.ar: "في كل القنوات…",   .en: "Search all channels…", .fr: "Rechercher des chaînes…",.tr: "Tüm kanallarda ara…", .es: "Buscar canales…"],
         "search.all":    [.ar: "ابحث في كل المحتوى…",   .en: "Search everything…",   .fr: "Tout rechercher…",     .tr: "Her şeyde ara…",     .es: "Buscar todo…"],
-        "search.cat":    [.ar: "ابحث عن قسم…",          .en: "Search a category…",   .fr: "Rechercher une catégorie…", .tr: "Kategori ara…", .es: "Buscar categoría…"],
+        "search.cat":    [.ar: "اسم القسم…",          .en: "Search a category…",   .fr: "Rechercher une catégorie…", .tr: "Kategori ara…", .es: "Buscar categoría…"],
 
         // Home sections
-        "home.live_now":   [.ar: "يُبث الآن",      .en: "Live Now",     .fr: "En direct",     .tr: "Şimdi Canlı",  .es: "En directo"],
-        "home.new_movies": [.ar: "أفلام جديدة",    .en: "New Movies",   .fr: "Nouveaux films",.tr: "Yeni Filmler", .es: "Nuevas películas"],
-        "home.new_series": [.ar: "مسلسلات جديدة",  .en: "New Series",   .fr: "Nouvelles séries",.tr: "Yeni Diziler",.es: "Nuevas series"],
-        "home.continue":   [.ar: "أكمل المشاهدة",  .en: "Continue Watching", .fr: "Reprendre", .tr: "İzlemeye Devam", .es: "Seguir viendo"],
+        "home.live_now":   [.ar: "على الهواء",      .en: "Live Now",     .fr: "En direct",     .tr: "Şimdi Canlı",  .es: "En directo"],
+        "home.new_movies": [.ar: "وصل حديثاً · أفلام",    .en: "New Movies",   .fr: "Nouveaux films",.tr: "Yeni Filmler", .es: "Nuevas películas"],
+        "home.new_series": [.ar: "وصل حديثاً · مسلسلات",  .en: "New Series",   .fr: "Nouvelles séries",.tr: "Yeni Diziler",.es: "Nuevas series"],
+        "home.continue":   [.ar: "تابع من حيث توقّفت",  .en: "Continue Watching", .fr: "Reprendre", .tr: "İzlemeye Devam", .es: "Seguir viendo"],
 
         // Settings groups
         "set.player":   [.ar: "المشغّل",          .en: "Player",    .fr: "Lecteur",  .tr: "Oynatıcı",.es: "Reproductor"],
@@ -174,7 +174,7 @@ enum L10n {
         // Empty
         "empty.no_results": [.ar: "لا نتائج", .en: "No results", .fr: "Aucun résultat", .tr: "Sonuç yok", .es: "Sin resultados"],
 
-        "home.see_all":  [.ar: "عرض الكل", .en: "See all", .fr: "Tout voir", .tr: "Tümünü gör", .es: "Ver todo"],
+        "home.see_all":  [.ar: "استعرض الكل", .en: "See all", .fr: "Tout voir", .tr: "Tümünü gör", .es: "Ver todo"],
 
         // Reseller code
         "code.have_code":[.ar: "معي كود من موزّع", .en: "I have a reseller code", .fr: "J'ai un code revendeur", .tr: "Bayi kodum var", .es: "Tengo un código de distribuidor"],
@@ -203,7 +203,7 @@ enum L10n {
         "history.remove":[.ar: "حذف من السجل", .en: "Remove from history", .fr: "Retirer de l'historique", .tr: "Geçmişten kaldır", .es: "Quitar del historial"],
 
         // iPad live pane
-        "live.pick_channel": [.ar: "اختر قناة للمشاهدة", .en: "Select a channel to watch", .fr: "Sélectionnez une chaîne", .tr: "İzlemek için bir kanal seçin", .es: "Selecciona un canal"],
+        "live.pick_channel": [.ar: "اختر قناة لتبدأ", .en: "Select a channel to watch", .fr: "Sélectionnez une chaîne", .tr: "İzlemek için bir kanal seçin", .es: "Selecciona un canal"],
         "live.fullscreen":   [.ar: "ملء الشاشة", .en: "Fullscreen", .fr: "Plein écran", .tr: "Tam ekran", .es: "Pantalla completa"],
 
         // Common (extra)
@@ -211,7 +211,7 @@ enum L10n {
         "common.activate": [.ar: "تفعيل",    .en: "Activate",   .fr: "Activer",   .tr: "Etkinleştir",.es: "Activar"],
         "common.done":     [.ar: "تم",       .en: "Done",       .fr: "Terminé",   .tr: "Bitti",     .es: "Hecho"],
         "common.connected":[.ar: "متصل",     .en: "Connected",  .fr: "Connecté",  .tr: "Bağlı",     .es: "Conectado"],
-        "common.search_in":[.ar: "ابحث في",  .en: "Search in",  .fr: "Rechercher dans", .tr: "Şurada ara", .es: "Buscar en"],
+        "common.search_in":[.ar: "ابحث داخل",  .en: "Search in",  .fr: "Rechercher dans", .tr: "Şurada ara", .es: "Buscar en"],
 
         // Units / time
         "unit.day":        [.ar: "يوم",      .en: "day",        .fr: "jour",      .tr: "gün",       .es: "día"],
@@ -224,7 +224,7 @@ enum L10n {
         "episode.number":  [.ar: "الحلقة",   .en: "Episode",    .fr: "Épisode",   .tr: "Bölüm",     .es: "Episodio"],
 
         // Loading / status messages
-        "loading.generic":  [.ar: "جارٍ التحميل...", .en: "Loading…",  .fr: "Chargement…", .tr: "Yükleniyor…", .es: "Cargando…"],
+        "loading.generic":  [.ar: "لحظة…", .en: "Loading…",  .fr: "Chargement…", .tr: "Yükleniyor…", .es: "Cargando…"],
         "loading.error":    [.ar: "خطأ",     .en: "Error",      .fr: "Erreur",    .tr: "Hata",      .es: "Error"],
 
         // Settings — server / activation
@@ -234,7 +234,7 @@ enum L10n {
         "settings.device_id":       [.ar: "معرّف الجهاز",   .en: "Device ID",       .fr: "ID de l'appareil",.tr: "Cihaz Kimliği",   .es: "ID del dispositivo"],
 
         // Subscription card
-        "sub.renew":        [.ar: "تجديد الاشتراك",        .en: "Renew Subscription", .fr: "Renouveler l'abonnement", .tr: "Aboneliği Yenile", .es: "Renovar suscripción"],
+        "sub.renew":        [.ar: "جدّد الاشتراك",        .en: "Renew Subscription", .fr: "Renouveler l'abonnement", .tr: "Aboneliği Yenile", .es: "Renovar suscripción"],
 
         // Activation status
 
@@ -322,19 +322,19 @@ enum L10n {
         "locked.channels":  [.ar: "القنوات",            .en: "Channels",        .fr: "Chaînes",         .tr: "Kanallar",        .es: "Canales"],
 
         // Player view
-        "play.reconnecting":[.ar: "جارٍ إعادة الاتصال…", .en: "Reconnecting…",   .fr: "Reconnexion…",    .tr: "Yeniden bağlanılıyor…", .es: "Reconectando…"],
-        "play.skip_intro":  [.ar: "تخطّي المقدمة",      .en: "Skip Intro",      .fr: "Passer l'intro",  .tr: "Tanıtımı Atla",   .es: "Saltar intro"],
+        "play.reconnecting":[.ar: "نستعيد الاتصال…", .en: "Reconnecting…",   .fr: "Reconnexion…",    .tr: "Yeniden bağlanılıyor…", .es: "Reconectando…"],
+        "play.skip_intro":  [.ar: "تجاوز المقدّمة",      .en: "Skip Intro",      .fr: "Passer l'intro",  .tr: "Tanıtımı Atla",   .es: "Saltar intro"],
         "play.next_episode":[.ar: "الحلقة التالية",     .en: "Next Episode",    .fr: "Épisode suivant", .tr: "Sonraki Bölüm",   .es: "Siguiente episodio"],
         "play.live_now":    [.ar: "بث مباشر",           .en: "Live",            .fr: "En direct",       .tr: "Canlı",           .es: "En vivo"],
         "play.audio":       [.ar: "صوت",                .en: "Audio",           .fr: "Audio",           .tr: "Ses",             .es: "Audio"],
         "play.subtitle":    [.ar: "ترجمة",              .en: "Subtitles",       .fr: "Sous-titres",     .tr: "Altyazı",         .es: "Subtítulos"],
-        "play.sleep":       [.ar: "نوم",                .en: "Sleep",           .fr: "Veille",          .tr: "Uyku",            .es: "Apagado"],
+        "play.sleep":       [.ar: "مؤقّت",                .en: "Sleep",           .fr: "Veille",          .tr: "Uyku",            .es: "Apagado"],
         "play.sleep.title": [.ar: "مؤقت النوم",         .en: "Sleep Timer",     .fr: "Minuteur de veille", .tr: "Uyku Zamanlayıcısı", .es: "Temporizador de apagado"],
-        "play.sleep.will_stop":[.ar: "سيتوقف التشغيل خلال", .en: "Playback will stop in", .fr: "La lecture s'arrêtera dans", .tr: "Oynatma şu sürede duracak", .es: "La reproducción se detendrá en"],
-        "play.sleep.cancel":[.ar: "إلغاء المؤقت",       .en: "Cancel Timer",    .fr: "Annuler le minuteur", .tr: "Zamanlayıcıyı İptal Et", .es: "Cancelar temporizador"],
-        "play.sleep.choose":[.ar: "اختر مدة المؤقت",    .en: "Choose timer duration", .fr: "Choisir la durée", .tr: "Süre seçin", .es: "Elige la duración"],
+        "play.sleep.will_stop":[.ar: "يتوقّف بعد", .en: "Playback will stop in", .fr: "La lecture s'arrêtera dans", .tr: "Oynatma şu sürede duracak", .es: "La reproducción se detendrá en"],
+        "play.sleep.cancel":[.ar: "أوقف المؤقت",       .en: "Cancel Timer",    .fr: "Annuler le minuteur", .tr: "Zamanlayıcıyı İptal Et", .es: "Cancelar temporizador"],
+        "play.sleep.choose":[.ar: "بعد كم يتوقّف؟",    .en: "Choose timer duration", .fr: "Choisir la durée", .tr: "Süre seçin", .es: "Elige la duración"],
         "play.subtitle.title":[.ar: "الترجمة",          .en: "Subtitles",       .fr: "Sous-titres",     .tr: "Altyazı",         .es: "Subtítulos"],
-        "play.subtitle.none":[.ar: "بدون ترجمة",        .en: "No subtitles",    .fr: "Aucun sous-titre", .tr: "Altyazı yok",     .es: "Sin subtítulos"],
+        "play.subtitle.none":[.ar: "بلا ترجمة",        .en: "No subtitles",    .fr: "Aucun sous-titre", .tr: "Altyazı yok",     .es: "Sin subtítulos"],
         "play.subtitle.empty.title":[.ar: "لا توجد ترجمات", .en: "No subtitles", .fr: "Aucun sous-titre", .tr: "Altyazı yok", .es: "Sin subtítulos"],
         "play.subtitle.empty.sub":[.ar: "هذا المحتوى لا يتضمن مسارات ترجمة", .en: "This content has no subtitle tracks", .fr: "Ce contenu ne contient pas de sous-titres", .tr: "Bu içerikte altyazı parçası yok", .es: "Este contenido no tiene pistas de subtítulos"],
         "play.audio_track": [.ar: "المسار الصوتي",      .en: "Audio Track",     .fr: "Piste audio",     .tr: "Ses Parçası",     .es: "Pista de audio"],
@@ -343,19 +343,19 @@ enum L10n {
         "play.audio_track.empty.sub":[.ar: "هذا المحتوى يحتوي على مسار صوتي واحد فقط", .en: "This content has only one audio track", .fr: "Ce contenu n'a qu'une seule piste audio", .tr: "Bu içerikte yalnızca bir ses parçası var", .es: "Este contenido solo tiene una pista de audio"],
         "play.speed":       [.ar: "السرعة",             .en: "Speed",           .fr: "Vitesse",         .tr: "Hız",             .es: "Velocidad"],
         "play.speed.title": [.ar: "سرعة التشغيل",       .en: "Playback Speed",  .fr: "Vitesse de lecture", .tr: "Oynatma Hızı",  .es: "Velocidad de reproducción"],
-        "play.speed.normal":[.ar: "عادي (1x)",          .en: "Normal (1x)",     .fr: "Normal (1x)",     .tr: "Normal (1x)",     .es: "Normal (1x)"],
-        "play.unlock":      [.ar: "إلغاء القفل",        .en: "Unlock",          .fr: "Déverrouiller",   .tr: "Kilidi Aç",       .es: "Desbloquear"],
+        "play.speed.normal":[.ar: "عادي ×١",          .en: "Normal (1x)",     .fr: "Normal (1x)",     .tr: "Normal (1x)",     .es: "Normal (1x)"],
+        "play.unlock":      [.ar: "افتح القفل",        .en: "Unlock",          .fr: "Déverrouiller",   .tr: "Kilidi Aç",       .es: "Desbloquear"],
 
         // Home
-        "home.featured":    [.ar: "مميّز",              .en: "Featured",        .fr: "À la une",        .tr: "Öne çıkan",       .es: "Destacado"],
+        "home.featured":    [.ar: "مختارات",              .en: "Featured",        .fr: "À la une",        .tr: "Öne çıkan",       .es: "Destacado"],
         "home.new_tag":     [.ar: "جديد",               .en: "New",             .fr: "Nouveau",         .tr: "Yeni",            .es: "Nuevo"],
         "home.top_movies":  [.ar: "الأفلام الأعلى تقييماً", .en: "Top Rated Movies", .fr: "Films les mieux notés", .tr: "En Çok Beğenilen Filmler", .es: "Películas mejor valoradas"],
         "home.top_series":  [.ar: "المسلسلات الأعلى تقييماً", .en: "Top Rated Series", .fr: "Séries les mieux notées", .tr: "En Çok Beğenilen Diziler", .es: "Series mejor valoradas"],
-        "home.clear_all":   [.ar: "مسح الكل",           .en: "Clear All",       .fr: "Tout effacer",    .tr: "Tümünü Temizle",  .es: "Borrar todo"],
-        "home.remove_history":[.ar: "حذف من السجل",     .en: "Remove from history", .fr: "Retirer de l'historique", .tr: "Geçmişten kaldır", .es: "Quitar del historial"],
+        "home.clear_all":   [.ar: "امسح السجل",           .en: "Clear All",       .fr: "Tout effacer",    .tr: "Tümünü Temizle",  .es: "Borrar todo"],
+        "home.remove_history":[.ar: "أزِل من السجل",     .en: "Remove from history", .fr: "Retirer de l'historique", .tr: "Geçmişten kaldır", .es: "Quitar del historial"],
         "home.content_error.title":[.ar: "تعذّر تحميل المحتوى", .en: "Couldn't load content", .fr: "Impossible de charger le contenu", .tr: "İçerik yüklenemedi", .es: "No se pudo cargar el contenido"],
         "home.content_error.sub":[.ar: "تحقّق من اتصالك أو من صلاحية اشتراكك لدى المزوّد، ثم أعد المحاولة", .en: "Check your connection or that your provider subscription is active, then try again", .fr: "Vérifiez votre connexion ou la validité de votre abonnement, puis réessayez", .tr: "Bağlantınızı veya sağlayıcı aboneliğinizin aktif olduğunu kontrol edip tekrar deneyin", .es: "Comprueba tu conexión o que tu suscripción esté activa e inténtalo de nuevo"],
-        "home.percent_done":[.ar: "مكتمل",             .en: "complete",        .fr: "terminé",         .tr: "tamamlandı",      .es: "completado"],
+        "home.percent_done":[.ar: "شوهد",             .en: "complete",        .fr: "terminé",         .tr: "tamamlandı",      .es: "completado"],
         "home.whatsapp":    [.ar: "واتساب",             .en: "WhatsApp",        .fr: "WhatsApp",        .tr: "WhatsApp",        .es: "WhatsApp"],
         "home.telegram":    [.ar: "تيليغرام",           .en: "Telegram",        .fr: "Telegram",        .tr: "Telegram",        .es: "Telegram"],
 
@@ -368,8 +368,8 @@ enum L10n {
         "alerts.empty.sub":   [.ar: "ستظهر هنا تنبيهات الإدارة وحالة اشتراكك", .en: "Admin alerts and your subscription status will appear here", .fr: "Les alertes de l'administration et l'état de votre abonnement apparaîtront ici", .tr: "Yönetici uyarıları ve abonelik durumunuz burada görünecek", .es: "Aquí aparecerán las alertas y el estado de tu suscripción"],
 
         // Channel info sheet
-        "channel.live_now": [.ar: "بث مباشر الآن",      .en: "Live now",        .fr: "En direct maintenant", .tr: "Şimdi canlı",  .es: "En directo ahora"],
-        "channel.play":     [.ar: "تشغيل القناة",       .en: "Play Channel",    .fr: "Lire la chaîne",  .tr: "Kanalı Oynat",    .es: "Reproducir canal"],
+        "channel.live_now": [.ar: "على الهواء الآن",      .en: "Live now",        .fr: "En direct maintenant", .tr: "Şimdi canlı",  .es: "En directo ahora"],
+        "channel.play":     [.ar: "شغّل القناة",       .en: "Play Channel",    .fr: "Lire la chaîne",  .tr: "Kanalı Oynat",    .es: "Reproducir canal"],
         "epg.next":         [.ar: "التالي",             .en: "Next",            .fr: "Suivant",         .tr: "Sıradaki",        .es: "Siguiente"],
         "refresh.title":    [.ar: "تحديث المحتوى؟",     .en: "Refresh content?", .fr: "Actualiser le contenu ?", .tr: "İçerik yenilensin mi?", .es: "¿Actualizar contenido?"],
         "refresh.msg":      [.ar: "سيُجلب أحدث القنوات والأفلام والمسلسلات من مزوّدك. قد يستغرق بضع ثوانٍ.", .en: "Fetches the latest channels, movies and series from your provider. May take a few seconds.", .fr: "Récupère les dernières chaînes, films et séries de votre fournisseur. Peut prendre quelques secondes.", .tr: "Sağlayıcınızdan en yeni kanalları, filmleri ve dizileri getirir. Birkaç saniye sürebilir.", .es: "Obtiene los últimos canales, películas y series de tu proveedor. Puede tardar unos segundos."],
@@ -446,9 +446,9 @@ enum L10n {
         // Content lists / empties
         "live.empty.title": [.ar: "لا توجد قنوات",      .en: "No channels",     .fr: "Aucune chaîne",   .tr: "Kanal yok",       .es: "Sin canales"],
         "live.empty.sub":   [.ar: "جرّب كلمات بحث مختلفة", .en: "Try different search terms", .fr: "Essayez d'autres termes", .tr: "Farklı arama terimleri deneyin", .es: "Prueba otros términos de búsqueda"],
-        "cats.channels":    [.ar: "أقسام القنوات",      .en: "Channel Categories", .fr: "Catégories de chaînes", .tr: "Kanal Kategorileri", .es: "Categorías de canales"],
-        "cats.movies":      [.ar: "أقسام الأفلام",      .en: "Movie Categories", .fr: "Catégories de films", .tr: "Film Kategorileri", .es: "Categorías de películas"],
-        "cats.series":      [.ar: "أقسام المسلسلات",    .en: "Series Categories", .fr: "Catégories de séries", .tr: "Dizi Kategorileri", .es: "Categorías de series"],
+        "cats.channels":    [.ar: "تصنيفات القنوات",      .en: "Channel Categories", .fr: "Catégories de chaînes", .tr: "Kanal Kategorileri", .es: "Categorías de canales"],
+        "cats.movies":      [.ar: "تصنيفات الأفلام",      .en: "Movie Categories", .fr: "Catégories de films", .tr: "Film Kategorileri", .es: "Categorías de películas"],
+        "cats.series":      [.ar: "تصنيفات المسلسلات",    .en: "Series Categories", .fr: "Catégories de séries", .tr: "Dizi Kategorileri", .es: "Categorías de series"],
         "cats.empty.title": [.ar: "لا أقسام",           .en: "No categories",   .fr: "Aucune catégorie",.tr: "Kategori yok",    .es: "Sin categorías"],
         "cats.empty.sub":   [.ar: "جرّب بحثاً مختلفاً", .en: "Try a different search", .fr: "Essayez une autre recherche", .tr: "Farklı bir arama deneyin", .es: "Prueba otra búsqueda"],
         "history.empty":    [.ar: "لا سجل مشاهدة",      .en: "No watch history", .fr: "Aucun historique", .tr: "İzleme geçmişi yok", .es: "Sin historial"],
@@ -486,7 +486,7 @@ enum L10n {
         "search.title":     [.ar: "البحث",              .en: "Search",          .fr: "Recherche",       .tr: "Arama",           .es: "Buscar"],
         "search.empty.title":[.ar: "لا توجد نتائج",     .en: "No results",      .fr: "Aucun résultat",  .tr: "Sonuç yok",       .es: "Sin resultados"],
         "search.empty.sub": [.ar: "جرب كلمات مختلفة",   .en: "Try different keywords", .fr: "Essayez d'autres mots-clés", .tr: "Farklı kelimeler deneyin", .es: "Prueba otras palabras"],
-        "search.recent":    [.ar: "عمليات البحث الأخيرة", .en: "Recent searches", .fr: "Recherches récentes", .tr: "Son aramalar", .es: "Búsquedas recientes"],
+        "search.recent":    [.ar: "بحثت مؤخّراً", .en: "Recent searches", .fr: "Recherches récentes", .tr: "Son aramalar", .es: "Búsquedas recientes"],
         "search.clear_all": [.ar: "مسح الكل",           .en: "Clear All",       .fr: "Tout effacer",    .tr: "Tümünü Temizle",  .es: "Borrar todo"],
         "search.type.live": [.ar: "بث مباشر",           .en: "Live",            .fr: "En direct",       .tr: "Canlı",           .es: "En vivo"],
         "search.type.movie":[.ar: "فيلم",               .en: "Movie",           .fr: "Film",            .tr: "Film",            .es: "Película"],
@@ -494,12 +494,12 @@ enum L10n {
         "search.type.all":  [.ar: "الكل",               .en: "All",             .fr: "Tout",            .tr: "Tümü",            .es: "Todo"],
         "search.failed.title":[.ar: "تعذّر البحث",       .en: "Search failed",   .fr: "Échec de la recherche", .tr: "Arama başarısız", .es: "Error en la búsqueda"],
         "search.failed.sub": [.ar: "تحقّق من اتصالك وحاول مرة أخرى", .en: "Check your connection and try again", .fr: "Vérifiez votre connexion et réessayez", .tr: "Bağlantınızı kontrol edip tekrar deneyin", .es: "Revisa tu conexión e inténtalo de nuevo"],
-        "search.start.title":[.ar: "ابدأ البحث",         .en: "Start searching", .fr: "Commencer la recherche", .tr: "Aramaya başla", .es: "Empieza a buscar"],
-        "search.start.sub":  [.ar: "اختر القسم واكتب اسم ما تبحث عنه", .en: "Pick a section and type what you're looking for", .fr: "Choisissez une section et saisissez votre recherche", .tr: "Bir bölüm seçin ve aradığınızı yazın", .es: "Elige una sección y escribe lo que buscas"],
+        "search.start.title":[.ar: "ما الذي تبحث عنه؟",         .en: "Start searching", .fr: "Commencer la recherche", .tr: "Aramaya başla", .es: "Empieza a buscar"],
+        "search.start.sub":  [.ar: "اختر النوع، ثم اكتب", .en: "Pick a section and type what you're looking for", .fr: "Choisissez une section et saisissez votre recherche", .tr: "Bir bölüm seçin ve aradığınızı yazın", .es: "Elige una sección y escribe lo que buscas"],
 
         // Subscription day-count sentences (composed: prefix + N day + suffix)
-        "sub.days_left_prefix": [.ar: "تبقّى",          .en: "",                .fr: "Il reste",        .tr: "",                .es: "Quedan"],
-        "sub.expire_suffix":    [.ar: "على انتهاء اشتراكك — جدّد الآن لتجنّب انقطاع الخدمة", .en: "left before your subscription expires — renew now to avoid interruption", .fr: "avant l'expiration de votre abonnement — renouvelez maintenant pour éviter toute interruption", .tr: "abonelik bitişine kaldı — kesintiyi önlemek için şimdi yenileyin", .es: "para que venza tu suscripción — renueva ahora para evitar la interrupción"],
+        "sub.days_left_prefix": [.ar: "بقي",          .en: "",                .fr: "Il reste",        .tr: "",                .es: "Quedan"],
+        "sub.expire_suffix":    [.ar: "على انتهاء اشتراكك — جدّده قبل أن تنقطع الخدمة", .en: "left before your subscription expires — renew now to avoid interruption", .fr: "avant l'expiration de votre abonnement — renouvelez maintenant pour éviter toute interruption", .tr: "abonelik bitişine kaldı — kesintiyi önlemek için şimdi yenileyin", .es: "para que venza tu suscripción — renueva ahora para evitar la interrupción"],
         "sub.active_suffix":    [.ar: "على اشتراكك",    .en: "left on your subscription", .fr: "restant sur votre abonnement", .tr: "aboneliğinizde kaldı", .es: "en tu suscripción"],
 
         // App Store legal disclaimer (Guideline 4.3 / 5.x)
