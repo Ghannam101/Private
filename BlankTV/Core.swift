@@ -2364,6 +2364,7 @@ enum DemoContent {
     // --- Videos (verified live; play in MobileVLCKit) ---
     private static let hls   = "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8"
     private static let hls2  = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+    private static let hls3  = "https://test-streams.mux.dev/pts_shift/master.m3u8"
     private static let bunny = "https://download.blender.org/peach/bigbuckbunny_movies/big_buck_bunny_720p_h264.mov"
     private static let sintel = "https://download.blender.org/durian/trailer/sintel_trailer-720p.mp4"
     private static let steel = "https://download.blender.org/demo/movies/ToS/tears_of_steel_720p.mov"
@@ -2383,40 +2384,53 @@ enum DemoContent {
     private static let bSteel  = "https://commons.wikimedia.org/wiki/Special:FilePath/Blendertof3.jpg"
     private static let bED     = "https://commons.wikimedia.org/wiki/Special:FilePath/Elephants_Dream_s1_proog.jpg"
 
-    static let liveCategories = [Category(id: "demo_live", name: "تجريبي", parentID: nil)]
-    static let movieCategories = [Category(id: "demo_vod", name: "أفلام تجريبية", parentID: nil)]
-    static let seriesCategories = [Category(id: "demo_series", name: "مسلسلات تجريبية", parentID: nil)]
+    // NOTE ON THIS WHOLE ENUM: it is the ONLY screen a reviewer without an IPTV
+    // subscription ever sees, so every word in it is user-facing copy and is written
+    // for THIS app. The media links stay — they are verified-live open assets and
+    // chasing different ones once already broke demo playback when a bucket went 403.
+    static let liveCategories = [Category(id: "demo_live", name: "بثّ العرض", parentID: nil)]
+    static let movieCategories = [Category(id: "demo_vod", name: "أفلام مفتوحة", parentID: nil)]
+    static let seriesCategories = [Category(id: "demo_series", name: "سلسلة العرض", parentID: nil)]
 
+    // Each channel demonstrates a DIFFERENT thing the engine has to handle, and says
+    // so — a demo lineup should show what the player does, not pad a list.
     static let channels: [Channel] = [
-        Channel(id: "d1", name: "Blank Prime — قناة العرض", logoURL: pBunny,
-                groupTitle: "تجريبي", epgChannelID: nil, directURL: hls),
-        Channel(id: "d2", name: "Demo Live 4K", logoURL: pSintel,
-                groupTitle: "تجريبي", epgChannelID: nil, directURL: hls2),
-        Channel(id: "d3", name: "Nature HD (تجريبي)", logoURL: pSteel,
-                groupTitle: "تجريبي", epgChannelID: nil, directURL: bunny),
+        Channel(id: "d1", name: "بلانك ١ · تدفّق متعدّد الجودات", logoURL: pSteel,
+                groupTitle: "بثّ العرض", epgChannelID: nil, directURL: hls),
+        Channel(id: "d2", name: "بلانك ٢ · تبديل تلقائي للجودة", logoURL: pSintel,
+                groupTitle: "بثّ العرض", epgChannelID: nil, directURL: hls2),
+        Channel(id: "d3", name: "بلانك ٣ · إزاحة زمنية", logoURL: pED,
+                groupTitle: "بثّ العرض", epgChannelID: nil, directURL: hls3),
+        Channel(id: "d4", name: "بلانك ٤ · ملفّ مباشر بلا تقطيع", logoURL: pBunny,
+                groupTitle: "بثّ العرض", epgChannelID: nil, directURL: bunny),
     ]
 
     static let movies: [Movie] = [
-        demoMovie("d_m1", "Big Buck Bunny", bunny, "2008", "8.1", pBunny, bBunny,
-                  "فيلم رسوم متحركة قصير مفتوح المصدر من مؤسسة Blender — محتوى تجريبي للعرض."),
-        demoMovie("d_m2", "Sintel", sintel, "2010", "7.6", pSintel, bSintel,
-                  "فيلم خيالي قصير من مشروع Blender المفتوح — محتوى تجريبي."),
         demoMovie("d_m3", "Tears of Steel", steel, "2012", "7.2", pSteel, bSteel,
-                  "فيلم خيال علمي قصير مفتوح المصدر — محتوى تجريبي."),
+                  "خيالٌ علميّ صُوِّر في أمستردام ودُمجت لقطاته الحيّة بمؤثّرات مفتوحة المصدر. "
+                  + "معروض هنا لقياس وضوح الصورة في المشاهد الداكنة."),
+        demoMovie("d_m2", "Sintel", sintel, "2010", "7.6", pSintel, bSintel,
+                  "فتاةٌ تقطع القفار بحثاً عن تنّينٍ صغير ربّته. "
+                  + "عيّنةٌ جيّدة لاختبار انسيابية الحركة وتزامن الصوت."),
+        demoMovie("d_m1", "Big Buck Bunny", bunny, "2008", "8.1", pBunny, bBunny,
+                  "أرنبٌ وديع تستفزّه ثلاثة قوارض فيردّ بأناة. "
+                  + "ملفّ MP4 مباشر — يُشغَّل دون تقطيع مسبق."),
         demoMovie("d_m4", "Elephants Dream", ed, "2006", "7.0", pED, bED,
-                  "أول فيلم مفتوح المصدر من مؤسسة Blender — محتوى تجريبي.", "ogv"),
+                  "أوّل فيلمٍ مفتوح من مؤسسة Blender، في عالمٍ آليٍّ غريب. "
+                  + "بصيغة OGV تحديداً: هذه هي التي تُظهر المحرّك البديل يعمل.", "ogv"),
     ]
 
     static let series: [Series] = [
-        Series(id: "d_s1", name: "Blank Prime Originals (تجريبي)", coverURL: pSeries,
-               backdropURL: bBunny, year: "2024", rating: "9.0", genre: "عرض",
-               plot: "مسلسل تجريبي يعرض ميزات المشغّل بحلقات من محتوى مفتوح المصدر.",
+        Series(id: "d_s1", name: "جولة في المشغّل", coverURL: pSeries,
+               backdropURL: bSteel, year: "2026", rating: "9.0", genre: "عرض",
+               plot: "ثلاث حلقات قصيرة، كلٌّ منها تعرض جانباً مختلفاً من المشغّل: "
+                   + "الاستئناف من حيث توقّفت، تبديل مسار الصوت، والتشغيل دون اتّصال.",
                cast: nil, director: nil, categoryID: "demo_series",
                seasons: [
-                Season(id: "d_s1_1", seasonNumber: 1, name: "الموسم 1", episodes: [
-                    demoEpisode("d_e1", "الحلقة التجريبية الأولى", 1, bunny),
-                    demoEpisode("d_e2", "الحلقة التجريبية الثانية", 2, sintel),
-                    demoEpisode("d_e3", "الحلقة التجريبية الثالثة", 3, steel),
+                Season(id: "d_s1_1", seasonNumber: 1, name: "الموسم ١", episodes: [
+                    demoEpisode("d_e1", "١ · الاستئناف من حيث توقّفت", 1, bunny),
+                    demoEpisode("d_e2", "٢ · مسارات الصوت والترجمة", 2, sintel),
+                    demoEpisode("d_e3", "٣ · التنزيل والمشاهدة دون اتّصال", 3, steel),
                 ])
                ]),
     ]
@@ -2426,13 +2440,13 @@ enum DemoContent {
                                   _ poster: String, _ backdrop: String,
                                   _ plot: String, _ ext: String = "mp4") -> Movie {
         Movie(id: id, name: name, posterURL: poster, backdropURL: backdrop,
-              year: year, rating: rating, genre: "تجريبي", plot: plot,
-              duration: "10 دقائق", director: "Blender Foundation", cast: nil,
+              year: year, rating: rating, genre: "مفتوح المصدر", plot: plot,
+              duration: "١٠ دقائق", director: "Blender Foundation", cast: nil,
               categoryID: "demo_vod", containerExtension: ext, directURL: url)
     }
     private static func demoEpisode(_ id: String, _ title: String, _ num: Int, _ url: String) -> Episode {
         Episode(id: id, title: title, episodeNumber: num, seasonNumber: 1,
                 containerExtension: "mp4", posterURL: nil, plot: nil,
-                duration: "10 دقائق", directURL: url)
+                duration: "١٠ دقائق", directURL: url)
     }
 }

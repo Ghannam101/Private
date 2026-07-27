@@ -111,7 +111,7 @@ struct LoginView: View {
     /// Decide whether the value typed in the Server-URL field is a literal server
     /// URL or a bare reseller code. Owner's rule: anything with URL punctuation —
     /// a scheme ("://"), a host dot, a port colon, or a path slash — is a URL; a
-    /// bare alphanumeric token (e.g. "strong", "100") is a reseller code. The
+    /// bare alphanumeric token (e.g. "demo", "100") is a reseller code. The
     /// charset guard also stops a stray value with spaces/odd characters from
     /// being sent to /resolve (it falls through to the URL path instead).
     private func looksLikeResellerCode(_ raw: String) -> Bool {
