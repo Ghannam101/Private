@@ -253,4 +253,59 @@ distinctiveness argument.
 - The app forces `.environment(\.layoutDirection, .leftToRight)` globally (BlankTVApp) — Arabic text still shows RTL via per-view modifiers, but layout is LTR (so "leading"=left, "trailing"=right).
 - Memory files at `…/memory/` auto-load each session (MEMORY.md index): blank-tv-project, owner-ghannam, build-verify-constraints, player-engine-ksplayer, catalog-store-grdb, design-distinct-from-strong8k, filmm-reference, etc. Read them first.
 
-_End of handoff. Current live TestFlight = build index 61 → version 63 (gateway preview has the foreground bug; everything else is good)._
+## 9. Performance pass (builds 74–77 → TestFlight 76–79)
+
+Ordered by benefit-to-risk and executed one item per build, each behind a
+compile review + an adversarial review. Every round found a real defect, which
+is the only reason to keep running it.
+
+| # | Item | What was actually wrong |
+|---|------|-------------------------|
+| P2 | Windowed lists/grids | `LazyVStack`/`LazyVGrid` defer building VIEWS, but `ForEach` still walks the WHOLE collection to build its identity map on every invalidation, and `Array(channels.enumerated())` materialised one tuple per channel each time. 56k tuples per keystroke on a big line. Now 120 rows + 180 per step, grown from a 1pt sentinel a lazy container only builds when scrolled to. |
+| P3 | Stale posters | On a cache miss a recycled `S8KImage` kept the PREVIOUS url's bitmap while it awaited — the "wrong artwork while scrolling fast" report. Also started the download before the ThumbHash decode instead of after. |
+| P4 | ThumbHash memo | `thumbHashImage` hit SQLite and re-decoded on every cell appearance; `hasImageHash` sat on `fetch`'s return path. |
+| P5 | Folded search | `searchResults` was a COMPUTED property read from the body → a full ICU sweep of the catalogue per render AND per keystroke. Names folded once at load, needle once per query, plain substring match, one-entry memo. |
+| P6 | Live zap | `automaticallyWaitsToMinimizeStalling = !isLive` — the stall-proof buffer wait is right for VOD, wrong for channel flicking. |
+| P7 | Partial-failure tolerance | One slow list (usually VOD, the largest payload) used to fail the whole login over a perfectly good channel list. |
+| P8 | Favourites hoist | Every `ChannelRow` held its own `@StateObject` on the singleton — one state box + one Combine subscription per visible row, churned on every scroll. |
+
+### The defect the review caught in P7 — worth remembering
+Making the catalogue partial-tolerant is only half the fix. `_load` persisted the
+result unconditionally, so a VOD timeout would have written `movies = []` over
+the last good 12-hour disk cache AND wiped the FTS rows (`CatalogDB.save` deletes
+the scope before re-inserting). The user would then see an empty Movies tab with
+**no error to retry from**, surviving a relaunch, recoverable only through the
+playlist manager. A degraded catalogue is now flagged `M3UContent.isPartial` and
+never persisted: serving a partial for one session is fine, recording it as the
+truth is not.
+
+**Rule this generalises to:** any change that makes a load *tolerate* failure must
+also decide whether the tolerated result is allowed to become the cached truth.
+
+### Also worth keeping
+- The scope-audit regex must be `var\s+$sym`, not `var $sym\s*(:|=|\{)` — the
+  latter misses `@Environment(\.s8kMetrics) private var metrics`, and that gap is
+  what let build 72 fail. Strip comments AND string literals before auditing, or
+  `L("search.title")` reads as a use of `search`.
+- Window resets must key on the HEAD ITEM, not the count, and live on a `Group`
+  wrapping both branches: keyed on count, toggling one favourite in a >120-item
+  favourites list collapses the content height and throws the scroll position;
+  placed inside the `else`, the modifier is destroyed on a 5000 → 0 transition
+  and never fires.
+- An `async let` child task is *nonisolated* — it must not read a main-actor
+  stored property of a View. Copy to a local first.
+
+## 10. Still open
+- **Blocked on the server:** the "دليل البرامج" button and the guide grid need a
+  batched `GET /v2/epg/guide?host=&ids=&from=&to=` (~30 lines on
+  `strong8k-panel/routes/epg.js`; `/guide` is currently single-channel). Never
+  build a guide from per-channel provider requests — fail2ban on IPTV panels bans
+  an IP for 24h after >10 requests/10 min. The two-axis grid must be a custom
+  `UICollectionViewLayout` + `UIHostingConfiguration`, never nested SwiftUI lazy
+  stacks.
+- **"التفاصيل" button:** needs `Movie` widened to keep the `get_vod_info` fields
+  currently discarded (country, releaseDate, originalName, ageRating, trailer,
+  codec, resolution, audio channels, bitrate, tmdbID) — zero new network calls.
+- **P9:** `CatalogDB` migration `v3_epg` (rich columns, off-main reads/writes, prune).
+
+_End of handoff. Live TestFlight = build index 77 → version 79._
