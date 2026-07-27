@@ -1054,6 +1054,8 @@ final class S8KImageCache: @unchecked Sendable {
     init() {
         memory.countLimit = 240
         memory.totalCostLimit = 96 * 1024 * 1024   // ~96 MB of decoded bitmaps
+        hashMemory.countLimit = 512                // ThumbHash placeholders are ~32px
+        hashMemory.totalCostLimit = 8 * 1024 * 1024
         let disk = URLCache(memoryCapacity: 16 * 1024 * 1024,
                             diskCapacity: 256 * 1024 * 1024)
         let cfg = URLSessionConfiguration.default
@@ -1113,20 +1115,56 @@ final class S8KImageCache: @unchecked Sendable {
         return img
     }
 
+    /// Memo for decoded ThumbHash placeholders. Every recycled cell used to hit
+    /// SQLite and re-decode the same hash on every appearance. BOTH outcomes are
+    /// memoised: the miss is the common case on a catalogue that has never been
+    /// scrolled, and without a negative memo each reuse pays a query that can
+    /// only ever return nothing.
+    private let hashMemory = NSCache<NSString, UIImage>()
+    private var hashMisses = Set<String>()
+    private let hashLock = NSLock()
+
     /// Decode the cached ThumbHash for `key` into a tiny blurred placeholder image.
     /// nil when nothing is stored. Cheap; call OFF the main thread.
     func thumbHashImage(_ key: String) -> UIImage? {
-        guard let data = CatalogDB.imageHash(key), data.count >= 5 else { return nil }
-        return thumbHashToImage(hash: data)
+        let k = key as NSString
+        if let hit = hashMemory.object(forKey: k) { return hit }
+        // The lock is held ACROSS the database read, not just around the Set. If it
+        // weren't, `forgetHashMiss` could land between the read and the insert, its
+        // `remove` would be a no-op, and the stale miss would suppress that key's
+        // placeholder for the rest of the process. The read is ~1 ms and always
+        // off-main, and it happens at most once per key.
+        hashLock.lock()
+        defer { hashLock.unlock() }
+        if hashMisses.contains(key) { return nil }
+        guard let data = CatalogDB.imageHash(key), data.count >= 5 else {
+            hashMisses.insert(key)
+            return nil
+        }
+        let img = thumbHashToImage(hash: data)      // non-optional
+        hashMemory.setObject(img, forKey: k, cost: Int(img.size.width * img.size.height * 4))
+        return img
+    }
+
+    /// Drop a negative memo once a hash actually lands for that key, so the
+    /// placeholder becomes available without waiting for a relaunch.
+    fileprivate func forgetHashMiss(_ key: String) {
+        hashLock.lock(); hashMisses.remove(key); hashLock.unlock()
     }
 
     /// Encode + persist a ThumbHash for `key` once (idempotent). The heavy encode
     /// runs at background priority so it never delays the on-screen image.
     private static func ensureThumbHash(key: String, image: UIImage) {
-        guard !CatalogDB.hasImageHash(key) else { return }
         Task.detached(priority: .background) {
+            // The existence check is a SQLite read — run it INSIDE the background
+            // task. On the caller it sat on `fetch`'s return path, so every single
+            // image paid a database round trip before it could be handed back.
+            guard !CatalogDB.hasImageHash(key) else { return }
             let hash = imageToThumbHash(image: image)
-            if !hash.isEmpty { CatalogDB.saveImageHash(key, hash) }
+            if !hash.isEmpty {
+                CatalogDB.saveImageHash(key, hash)
+                S8KImageCache.shared.forgetHashMiss(key)
+            }
         }
     }
 
@@ -1180,6 +1218,10 @@ struct S8KImage: View {
     @State private var image: UIImage?
     @State private var placeholderImage: UIImage?
     @State private var failed = false
+    /// The url `image` actually belongs to. `.task(id:)` also refires on plain
+    /// re-appearance (sheet dismiss, tab return), so "did the url change?" cannot
+    /// be inferred from the task alone.
+    @State private var shownURL: String?
 
     var body: some View {
         ZStack {
@@ -1199,18 +1241,35 @@ struct S8KImage: View {
     }
 
     private func load() async {
-        guard let u = url, let imageURL = URL(string: u) else { image = nil; placeholderImage = nil; failed = false; return }
+        guard let u = url, let imageURL = URL(string: u) else {
+            image = nil; placeholderImage = nil; shownURL = nil; failed = false; return
+        }
         failed = false
-        if let hit = S8KImageCache.shared.cached(u) { image = hit; return }
-        // Paint an instant blurred ThumbHash placeholder (decoded off-main) while the
-        // real image downloads. A nil result for the new url also clears any stale one.
+        // Warm hit: swap straight to the right bitmap, no flash, no await.
+        if let hit = S8KImageCache.shared.cached(u) {
+            image = hit; placeholderImage = nil; shownURL = u; return
+        }
+        // Cache MISS on a RECYCLED cell: `image` still holds the PREVIOUS url's
+        // bitmap, and every path from here on awaits — so without this the wrong
+        // poster stayed on screen for the whole download. That is the "wrong
+        // artwork while scrolling fast" report. Gated on `shownURL` so a plain
+        // re-appearance with an evicted bitmap doesn't blank a correct image.
+        if shownURL != u { image = nil; placeholderImage = nil }
+        // Start the download FIRST and decode the ThumbHash while it is in flight.
+        // Awaiting the hash first delayed every real image by a database read plus
+        // a decode, for a placeholder that is thrown away moments later.
+        // `mp` is a local: an `async let` child task is nonisolated and must not
+        // read a main-actor-isolated stored property of this View.
+        let mp = maxPixel
+        async let downloaded = S8KImageCache.shared.load(imageURL, key: u, maxPixel: mp)
         let ph = await Task.detached(priority: .utility) { S8KImageCache.shared.thumbHashImage(u) }.value
         guard !Task.isCancelled else { return }
         if image == nil { placeholderImage = ph }
-        let img = await S8KImageCache.shared.load(imageURL, key: u, maxPixel: maxPixel)
+        let img = await downloaded
         guard !Task.isCancelled else { return }
         if let img {
             withAnimation(.easeOut(duration: 0.25)) { image = img }
+            shownURL = u
         } else { failed = true }
     }
 
