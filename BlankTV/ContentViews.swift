@@ -31,6 +31,32 @@ final class LiveTVVM: ObservableObject {
         folderList = categories.filter { $0.id != "all" && !(grouped[$0.name]?.isEmpty ?? true) }
     }
 
+    // Folded search index + a one-entry memo. `searchResults` is read from the view
+    // BODY, so it ran on every single render — a full ICU
+    // `localizedCaseInsensitiveContains` sweep of the whole catalogue, more than
+    // once per frame on the Live page. Names are folded once at load, the needle
+    // once per query, and an unchanged query returns the previous array untouched.
+    // Folding also makes Arabic search diacritic-insensitive, which the ICU
+    // "case-insensitive" call was not.
+    private var foldedNames: [String] = []
+    private var lastQuery: String? = nil
+    private var lastResults: [Channel] = []
+    private func rebuildSearchIndex() {
+        foldedNames = channels.map { S8KSearch.fold($0.name) }
+        lastQuery = nil; lastResults = []
+    }
+    /// Channels whose name matches `search`. Memoised; safe to call from a body.
+    /// (Mutating plain stored properties of a class from a getter fires no
+    /// objectWillChange, so this cannot re-enter the view update.)
+    fileprivate func searchMatches() -> [Channel] {
+        let q = S8KSearch.fold(search)
+        if lastQuery == q { return lastResults }
+        // zip truncates rather than trapping if the index is ever out of step.
+        let r: [Channel] = q.isEmpty ? [] : zip(foldedNames, channels).compactMap { $0.0.contains(q) ? $0.1 : nil }
+        lastQuery = q; lastResults = r
+        return r
+    }
+
     func load(force: Bool = false) async {
         if loaded && !force { return }   // load once — keeps tab switches instant
         isLoading = true; error = nil
@@ -41,7 +67,7 @@ final class LiveTVVM: ObservableObject {
             categories = [.all] + c
             channels   = ch
             filtered   = ch
-            rebuildGroups()
+            rebuildGroups(); rebuildSearchIndex()
             loaded = true
         // A load cancelled by a tab remount (playlist switch / refresh) still resumes and
         // would write its URLError(.cancelled) into `error` — AFTER the fresh load had
@@ -58,15 +84,41 @@ final class LiveTVVM: ObservableObject {
         if selected != "all", let cat = categories.first(where: { $0.id == selected }) {
             r = grouped[cat.name] ?? []
         }
-        if !search.isEmpty { r = r.filter { $0.name.localizedCaseInsensitiveContains(search) } }
+        if !search.isEmpty {
+            let q = S8KSearch.fold(search)
+            r = r.filter { S8KSearch.fold($0.name).contains(q) }
+        }
         filtered = r
     }
 
     func selectCat(_ id: String) { selected = id; filter() }
     func reset() {
         loaded = false; channels = []; categories = [.all]; isLoading = true; error = nil
-        grouped = [:]; folderList = []
+        grouped = [:]; folderList = []; rebuildSearchIndex()
     }
+}
+
+/// One folding rule for every catalogue search, applied once per name at load
+/// time instead of once per name per comparison. `localizedCaseInsensitiveContains`
+/// is an ICU call that allocates on each invocation; over 30–56k titles it was the
+/// single most expensive thing the content pages did while typing.
+enum S8KSearch {
+    static func fold(_ s: String) -> String {
+        s.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                  locale: nil)
+    }
+}
+
+/// Folder/sheet-level search over an ALREADY-narrowed list (one category, one
+/// sheet). Uses the same folding as the catalogue-wide index so the two can
+/// never disagree — a diacritic-insensitive hit in the main search that missed
+/// inside a folder would read as a bug.
+func s8kFolderSearch<T>(_ items: [T], _ query: String, _ name: (T) -> String) -> [T] {
+    let q = S8KSearch.fold(query)
+    // Guard on the FOLDED needle, exactly like searchMatches: a query of nothing
+    // but combining marks folds to "" and must mean "no filter", not "match none".
+    guard !q.isEmpty else { return items }
+    return items.filter { S8KSearch.fold(name($0)).contains(q) }
 }
 
 /// Clears all cached content (called on logout / session change).
@@ -85,9 +137,7 @@ extension LiveTVVM {
     func list(in cat: Category) -> [Channel] {
         cat.id == "all" ? channels : (grouped[cat.name] ?? [])
     }
-    var searchResults: [Channel] {
-        channels.filter { $0.name.localizedCaseInsensitiveContains(search) }
-    }
+    var searchResults: [Channel] { searchMatches() }
 }
 
 struct LiveTVView: View {
@@ -741,7 +791,7 @@ struct ChannelListScreen: View {
     @Environment(\.dismiss) var dismiss
 
     private var shown: [Channel] {
-        search.isEmpty ? channels : channels.filter { $0.name.localizedCaseInsensitiveContains(search) }
+        s8kFolderSearch(channels, search) { $0.name }
     }
     var body: some View {
         ZStack {
@@ -787,6 +837,22 @@ final class MoviesVM: ObservableObject {
         folderList = categories.filter { $0.id != "all" && !(grouped[$0.id]?.isEmpty ?? true) }
     }
 
+    // Folded search index + one-entry memo — see LiveTVVM.
+    private var foldedNames: [String] = []
+    private var lastQuery: String? = nil
+    private var lastResults: [Movie] = []
+    private func rebuildSearchIndex() {
+        foldedNames = movies.map { S8KSearch.fold($0.name) }
+        lastQuery = nil; lastResults = []
+    }
+    fileprivate func searchMatches() -> [Movie] {
+        let q = S8KSearch.fold(search)
+        if lastQuery == q { return lastResults }
+        let r: [Movie] = q.isEmpty ? [] : zip(foldedNames, movies).compactMap { $0.0.contains(q) ? $0.1 : nil }
+        lastQuery = q; lastResults = r
+        return r
+    }
+
     // Editorial rows: Top-10 by rating (Movie has a ratingDouble helper) + a
     // newest-movies hero.
     private func rebuildEditorial() {
@@ -806,7 +872,7 @@ final class MoviesVM: ObservableObject {
             async let movs = ContentService.movies()
             let (c, m) = try await (cats, movs)
             categories = [.all] + c; movies = m
-            rebuildGroups(); applyFilter(); rebuildEditorial(); loaded = true
+            rebuildGroups(); rebuildSearchIndex(); applyFilter(); rebuildEditorial(); loaded = true
         // A load cancelled by a tab remount (playlist switch / refresh) still resumes and
         // would write its URLError(.cancelled) into `error` — AFTER the fresh load had
         // already cleared it. The view checks `error` before content, so the tab would
@@ -819,7 +885,10 @@ final class MoviesVM: ObservableObject {
     func applyFilter() {
         var r = movies
         if selected != "all" { r = r.filter { $0.categoryID == selected } }
-        if !search.isEmpty   { r = r.filter { $0.name.localizedCaseInsensitiveContains(search) } }
+        if !search.isEmpty {
+            let q = S8KSearch.fold(search)
+            r = r.filter { S8KSearch.fold($0.name).contains(q) }
+        }
         switch sortBy {
         case .rating:  r = r.sorted { $0.ratingDouble > $1.ratingDouble }
         case .az:      r = r.sorted { $0.name < $1.name }
@@ -829,7 +898,7 @@ final class MoviesVM: ObservableObject {
     }
     func reset() {
         loaded = false; movies = []; categories = [.all]; isLoading = true; error = nil
-        grouped = [:]; folderList = []; heroItems = []; topRanked = []
+        grouped = [:]; folderList = []; heroItems = []; topRanked = []; rebuildSearchIndex()
     }
 }
 
@@ -990,8 +1059,7 @@ struct CategoryReorderView: View {
     // Everything not yet chosen (search-filtered).
     private var poolCats: [Category] {
         let rest = categories.filter { !picked.contains($0.id) }
-        guard !searchText.isEmpty else { return rest }
-        return rest.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+        return s8kFolderSearch(rest, searchText) { $0.name }
     }
     // The arranged ("your order") list grows with its content, but never takes more
     // than ~42% of the available height — so the "available" pool ALWAYS keeps the
@@ -1319,7 +1387,7 @@ struct CategoryPickerSheet: View {
 
     private var shown: [Category] {
         search.isEmpty ? categories
-                       : categories.filter { $0.name.localizedCaseInsensitiveContains(search) }
+                       : s8kFolderSearch(categories, search) { $0.name }
     }
     var body: some View {
         NavigationStack {
@@ -1488,9 +1556,7 @@ extension MoviesVM {
     func list(in cat: Category) -> [Movie] {
         cat.id == "all" ? movies : (grouped[cat.id] ?? [])
     }
-    var searchResults: [Movie] {
-        movies.filter { $0.name.localizedCaseInsensitiveContains(search) }
-    }
+    var searchResults: [Movie] { searchMatches() }
 }
 
 struct MoviesView: View {
@@ -1939,7 +2005,7 @@ struct MoviePosterScreen: View {
     @Environment(\.dismiss) var dismiss
 
     private var shown: [Movie] {
-        search.isEmpty ? movies : movies.filter { $0.name.localizedCaseInsensitiveContains(search) }
+        s8kFolderSearch(movies, search) { $0.name }
     }
     var body: some View {
         ZStack {
@@ -1984,6 +2050,22 @@ final class SeriesVM: ObservableObject {
         folderList = categories.filter { $0.id != "all" && !(grouped[$0.id]?.isEmpty ?? true) }
     }
 
+    // Folded search index + one-entry memo — see LiveTVVM.
+    private var foldedNames: [String] = []
+    private var lastQuery: String? = nil
+    private var lastResults: [Series] = []
+    private func rebuildSearchIndex() {
+        foldedNames = series.map { S8KSearch.fold($0.name) }
+        lastQuery = nil; lastResults = []
+    }
+    fileprivate func searchMatches() -> [Series] {
+        let q = S8KSearch.fold(search)
+        if lastQuery == q { return lastResults }
+        let r: [Series] = q.isEmpty ? [] : zip(foldedNames, series).compactMap { $0.0.contains(q) ? $0.1 : nil }
+        lastQuery = q; lastResults = r
+        return r
+    }
+
     // Build the editorial rows (Top-10 by rating + a newest-series hero). Series
     // has no `ratingDouble` helper, so parse the String rating inline (as Home does).
     private func rebuildEditorial() {
@@ -2001,7 +2083,7 @@ final class SeriesVM: ObservableObject {
             async let sers = ContentService.series()
             let (c, s) = try await (cats, sers)
             categories = [.all] + c; series = s
-            rebuildGroups(); applyFilter(); rebuildEditorial(); loaded = true
+            rebuildGroups(); rebuildSearchIndex(); applyFilter(); rebuildEditorial(); loaded = true
         // A load cancelled by a tab remount (playlist switch / refresh) still resumes and
         // would write its URLError(.cancelled) into `error` — AFTER the fresh load had
         // already cleared it. The view checks `error` before content, so the tab would
@@ -2014,12 +2096,15 @@ final class SeriesVM: ObservableObject {
     func applyFilter() {
         var r = series
         if selected != "all" { r = r.filter { $0.categoryID == selected } }
-        if !search.isEmpty   { r = r.filter { $0.name.localizedCaseInsensitiveContains(search) } }
+        if !search.isEmpty {
+            let q = S8KSearch.fold(search)
+            r = r.filter { S8KSearch.fold($0.name).contains(q) }
+        }
         filtered = r
     }
     func reset() {
         loaded = false; series = []; categories = [.all]; isLoading = true; error = nil
-        grouped = [:]; folderList = []; heroItems = []; topRanked = []
+        grouped = [:]; folderList = []; heroItems = []; topRanked = []; rebuildSearchIndex()
     }
 }
 
@@ -2028,9 +2113,7 @@ extension SeriesVM {
     func list(in cat: Category) -> [Series] {
         cat.id == "all" ? series : (grouped[cat.id] ?? [])
     }
-    var searchResults: [Series] {
-        series.filter { $0.name.localizedCaseInsensitiveContains(search) }
-    }
+    var searchResults: [Series] { searchMatches() }
 }
 
 struct SeriesListView: View {
@@ -2419,7 +2502,7 @@ struct SeriesPosterScreen: View {
     @Environment(\.dismiss) var dismiss
 
     private var shown: [Series] {
-        search.isEmpty ? series : series.filter { $0.name.localizedCaseInsensitiveContains(search) }
+        s8kFolderSearch(series, search) { $0.name }
     }
     var body: some View {
         ZStack {
