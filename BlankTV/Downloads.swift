@@ -475,10 +475,18 @@ final class DownloadService: NSObject, ObservableObject {
         init(from decoder: Decoder) throws { value = try? DownloadItem(from: decoder) }
     }
     private static func loadItems() -> [DownloadItem] {
-        guard let url = storeURL(), let data = try? Data(contentsOf: url) else { return [] }
+        guard let url = storeURL(), let data = try? Data(contentsOf: url), !data.isEmpty else { return [] }
         if let arr = try? JSONDecoder().decode([FailableItem].self, from: data) {
             return arr.compactMap(\.value)
         }
+        // TOTAL failure — the payload is not even an array, so the per-entry decode
+        // above never got to run. Returning [] on its own is NOT safe: the next
+        // persist() writes that empty list straight over the file and the loss becomes
+        // permanent. Move the original bytes aside first, so a manifest this build
+        // cannot read is still a manifest that exists.
+        let quarantine = url.deletingPathExtension().appendingPathExtension("corrupt.json")
+        try? FileManager.default.removeItem(at: quarantine)
+        try? FileManager.default.moveItem(at: url, to: quarantine)
         return []
     }
 

@@ -337,14 +337,18 @@ final class AVPlayerVM: BasePlayerVM {
         pItem.canUseNetworkResourcesForLiveStreamingWhilePaused = false
         observe(pItem)
         avPlayer.replaceCurrentItem(with: pItem)
-        // LIVE: start on the first available data instead of waiting for AVPlayer to
-        // build a stall-proof buffer. That wait is what makes channel zapping feel
-        // slow — it is the right default for VOD (a stall mid-film is worse than a
-        // second of startup) and the wrong one for live TV, where the user is
-        // flicking through channels and judges each one in under a second. The cost
-        // is a higher chance of an early rebuffer, which the existing stall monitor
-        // (30 s frozen = retryable error) and the VLC failover already cover.
-        avPlayer.automaticallyWaitsToMinimizeStalling = !isLive
+        // ALWAYS true — including live. An earlier build set this to `!isLive` to make
+        // channel zapping start sooner. That was wrong: Apple documents that with
+        // automatic waiting DISABLED the player does not resume by itself after a
+        // stall, so on a live channel a single buffer underrun froze the picture until
+        // our own 30-second stall monitor gave up and surfaced an error. A slower start
+        // is a far better trade than a channel that dies on the first hiccup.
+        //
+        // Nothing is lost: `playImmediately(atRate:)` on .readyToPlay already begins
+        // playback the moment the first chunk lands, and by contract it ignores this
+        // property — so the fast start was coming from there all along, not from
+        // disabling stall recovery.
+        avPlayer.automaticallyWaitsToMinimizeStalling = true
         avPlayer.preventsDisplaySleepDuringVideoPlayback = true   // secondary keep-awake (idle timer handled by the view)
         avPlayer.play()
         isPlaying = true; isLoading = true; buffering = false; errorMsg = nil
