@@ -300,7 +300,10 @@ final class AuthService: ObservableObject {
 
     // MARK: - Logout
     func logout() async {
-        if mode == .xtream && !Store.shared.demoMode {
+        // Only call the account backend when we actually HOLD a session to end.
+        // Without a token APIClient throws before connecting, so the old form bought
+        // nothing but a swallowed error.
+        if mode == .xtream, !Store.shared.demoMode, Keychain.shared.token != nil {
             _ = try? await APIClient.shared.request(path: "/auth/logout", method: .POST) as EmptyResp
         }
         await PlaylistService.shared.reset()
@@ -317,7 +320,15 @@ final class AuthService: ObservableObject {
 
     // MARK: - Delete Account (Apple Required)
     func deleteAccount() async throws {
-        if mode == .xtream {
+        // The guard `logout()` always had, which this was missing. `enterDemo()` never
+        // sets `mode`, so it kept the .xtream DEFAULT — and with no token the DELETE
+        // threw `invalidCredentials` before reaching the network, the caller's `try?`
+        // swallowed it, and EVERY line below was skipped. Nothing was deleted, no error
+        // was shown, the sheet just closed. Three taps from a fresh install, and demo
+        // mode is exactly where an App Store reviewer is: App Store Guideline 5.1.1(v).
+        // `try` stays deliberate — a genuine backend failure must still abort a genuine
+        // deletion rather than wipe the device half-way.
+        if mode == .xtream, !Store.shared.demoMode, Keychain.shared.token != nil {
             _ = try await APIClient.shared.request(path: "/auth/account", method: .DELETE) as EmptyResp
         }
         await PlaylistService.shared.reset()
@@ -339,6 +350,15 @@ final class AuthService: ObservableObject {
     func validateSession() async {
         if Store.shared.demoMode { return }   // demo never talks to the backend
         guard mode == .xtream else { return } // M3U sessions are local-only
+        // NO TOKEN AT ALL means there was never a backend session to validate. Falling
+        // through to logout() was not harmless: `mode` DEFAULTS to .xtream and this
+        // runs from a scenePhase handler that is NOT gated on `loggedIn`, so on a fresh
+        // install it fired on every foreground while the user sat on the gateway —
+        // a full local teardown (caches, theme, config, contentReady) of already-empty
+        // state, plus a swallowed throw. No network request was ever sent: APIClient
+        // rejects a token-less authenticated call before it opens a connection.
+        guard Keychain.shared.token != nil else { return }
+        // A token that EXPIRED is a real dead session: tear it down locally.
         guard Keychain.shared.tokenValid else { await logout(); return }
         do {
             let u: UserInfo = try await APIClient.shared.request(path: "/auth/validate")
