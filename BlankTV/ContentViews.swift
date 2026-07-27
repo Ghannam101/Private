@@ -217,7 +217,9 @@ struct LiveTVView: View {
                 } else {
                     LazyVStack(spacing: 0) {
                         ForEach(Array(list.prefix(padShown).enumerated()), id: \.element.id) { idx, ch in
-                            ChannelRow(channel: ch, index: idx + 1) { padChannel = ch }
+                            ChannelRow(channel: ch, index: idx + 1,
+                                       isFav: favs.channels.contains(ch.id),
+                                       onFav: { favs.toggleChannel(ch.id) }) { padChannel = ch }
                                 .background(padChannel?.id == ch.id ? Color.s8kGoldMid.opacity(0.12) : .clear)
                             Divider().background(Color.s8kBorder).padding(.leading, 74)
                         }
@@ -459,6 +461,8 @@ struct ChannelList: View {
     /// single favourite paid for 56k tuples. The window makes first paint O(120) at any
     /// catalogue size and grows as the user actually scrolls.
     @State private var shown = S8KListWindow.initial
+    /// Observed ONCE for the whole list — see ChannelRow.
+    @StateObject private var favs = FavoritesService.shared
 
     private var visible: ArraySlice<Channel> { channels.prefix(shown) }
 
@@ -470,7 +474,9 @@ struct ChannelList: View {
             } else {
                 LazyVStack(spacing: 0) {
                     ForEach(Array(visible.enumerated()), id: \.element.id) { idx, ch in
-                        ChannelRow(channel: ch, index: idx + 1) { onTap(ch) }
+                        ChannelRow(channel: ch, index: idx + 1,
+                                   isFav: favs.channels.contains(ch.id),
+                                   onFav: { favs.toggleChannel(ch.id) }) { onTap(ch) }
                         if idx < visible.count - 1 {
                             Divider().background(Color.s8kBorder).padding(.leading, 74)
                         }
@@ -506,8 +512,14 @@ enum S8KListWindow {
 struct ChannelRow: View {
     let channel: Channel
     let index: Int
+    /// Passed IN, not observed here. Every row used to hold its own `@StateObject`
+    /// on the FavoritesService singleton, so a long channel list allocated one
+    /// state box and one Combine subscription per visible row and churned them on
+    /// every scroll — for a value the parent already knows. The parent observes
+    /// once and hands each row a plain Bool.
+    let isFav: Bool
+    let onFav: () -> Void
     let onTap: () -> Void
-    @StateObject private var favs = FavoritesService.shared
 
     var body: some View {
         HStack(spacing: 12) {
@@ -537,10 +549,10 @@ struct ChannelRow: View {
             .buttonStyle(S8KButtonStyle())
 
             // Favorite toggle
-            Button(action: { favs.toggleChannel(channel.id) }) {
-                Image(systemName: favs.isChannelFav(channel.id) ? "heart.fill" : "heart")
+            Button(action: onFav) {
+                Image(systemName: isFav ? "heart.fill" : "heart")
                     .font(.system(size: 15))
-                    .foregroundColor(favs.isChannelFav(channel.id) ? .s8kRed : .s8kTextDisabled)
+                    .foregroundColor(isFav ? .s8kRed : .s8kTextDisabled)
                     .frame(width: 30, height: 30)
             }
             .buttonStyle(S8KButtonStyle())

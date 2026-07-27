@@ -1299,6 +1299,9 @@ struct M3UContent {
     var movieCategories:  [Category] = []
     var series:           [Series]   = []
     var seriesCategories: [Category] = []
+    /// At least one of the three stream lists failed to load and degraded to empty.
+    /// Safe to SHOW for this session, never safe to CACHE — see PlaylistService.
+    var isPartial: Bool = false
 }
 
 enum M3UParser {
@@ -1727,11 +1730,20 @@ actor PlaylistService {
             let built = try await loadXtreamDirect(xd)
             xtream  = xd
             content = built
-            CatalogDiskCache.save(built, scope: urlString)
-            // Shadow-write the same catalog into the SQLite store (off-actor, off-main).
-            // No reader yet (step 3) — this only POPULATES the DB so a later switch to
-            // paged reads is instant. Never blocks the return; store failure is a no-op.
-            Task.detached(priority: .utility) { CatalogDB.save(built, scope: urlString) }
+            // NEVER persist a PARTIAL catalogue. Since one failed list no longer
+            // aborts the whole load, a VOD timeout would otherwise write movies=[]
+            // straight over the last good 12-hour cache AND wipe the FTS rows
+            // (CatalogDB.save deletes the scope before re-inserting). The user would
+            // then see an empty Movies tab with no error to retry from, surviving a
+            // relaunch. Serving the partial for THIS session is fine; recording it
+            // as the truth is not.
+            if !built.isPartial {
+                CatalogDiskCache.save(built, scope: urlString)
+                // Shadow-write the same catalog into the SQLite store (off-actor, off-main).
+                // No reader yet (step 3) — this only POPULATES the DB so a later switch to
+                // paged reads is instant. Never blocks the return; store failure is a no-op.
+                Task.detached(priority: .utility) { CatalogDB.save(built, scope: urlString) }
+            }
             return built
         }
 
@@ -2003,9 +2015,12 @@ actor PlaylistService {
         async let liveCatsData = apiData(xd, action: "get_live_categories")
         async let vodCatsData  = apiData(xd, action: "get_vod_categories")
         async let serCatsData  = apiData(xd, action: "get_series_categories")
-        let liveCats = dictArray(try await liveCatsData)
-        let vodCats  = dictArray(try await vodCatsData)
-        let serCats  = dictArray(try await serCatsData)
+        // Categories are a NICETY — they only supply group titles. A panel that
+        // times out on one of them must not cost the user the whole catalogue;
+        // channels simply fall back to the "عام" group name below.
+        let liveCats = dictArray((try? await liveCatsData) ?? Data())
+        let vodCats  = dictArray((try? await vodCatsData) ?? Data())
+        let serCats  = dictArray((try? await serCatsData) ?? Data())
 
         func toCategories(_ raw: [[String: Any]]) -> [Category] {
             raw.compactMap { d in
@@ -2027,9 +2042,24 @@ actor PlaylistService {
         async let liveStreamsData = apiData(xd, action: "get_live_streams")
         async let vodStreamsData  = apiData(xd, action: "get_vod_streams")
         async let seriesData      = apiData(xd, action: "get_series")
-        let liveStreams = dictArray(try await liveStreamsData)
-        let vodStreams  = dictArray(try await vodStreamsData)
-        let seriesList  = dictArray(try await seriesData)
+        // PARTIAL-FAILURE TOLERANCE. These are three independent lists, and on a
+        // busy panel one of them times out fairly often — usually VOD, which is by
+        // far the largest payload. With `try await` that single failure threw away
+        // a perfectly good channel list and the user saw a login error instead of
+        // their TV. Each list now degrades to empty on its own, and the load only
+        // fails when ALL THREE came back with nothing (a genuinely dead panel;
+        // auth already passed `validateAuth` above, so this is not a credentials
+        // problem and must not be reported as one).
+        let liveRaw = try? await liveStreamsData
+        let vodRaw  = try? await vodStreamsData
+        let serRaw  = try? await seriesData
+        // Flagged, not thrown: the catalogue is served for this session but must not
+        // be written over the last good cache. The all-empty case is already handled
+        // by the existing "no content in this subscription" throw further down.
+        c.isPartial = (liveRaw == nil || vodRaw == nil || serRaw == nil)
+        let liveStreams = dictArray(liveRaw ?? Data())
+        let vodStreams  = dictArray(vodRaw  ?? Data())
+        let seriesList  = dictArray(serRaw  ?? Data())
 
         // Live channels
         for d in liveStreams {
