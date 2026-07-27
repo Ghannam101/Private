@@ -470,6 +470,180 @@ struct S8KDetailHeading: View {
     }
 }
 
+/// Panels publish a trailer as either a bare YouTube id or a full URL, and a fair
+/// number publish junk (an empty string, "n/a", a stray path). Returns nil unless the
+/// value resolves to something openable — the trailer button is hidden on nil, so a
+/// bad value costs the user nothing instead of a dead tap.
+func s8kTrailerURL(_ raw: String?) -> URL? {
+    guard var v = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !v.isEmpty else { return nil }
+    if v.lowercased() == "n/a" || v.lowercased() == "null" { return nil }
+    if v.hasPrefix("//") { v = "https:" + v }
+    if v.lowercased().hasPrefix("http") {
+        // HOST ALLOW-LIST. This is the only place in the whole binary where text the
+        // PANEL controls becomes a system-browser navigation — streams are opened by
+        // the in-app player. Without the gate, a hostile or compromised panel gets a
+        // one-tap drive-by under a button the user reads as "the trailer". Panels
+        // publish a bare YouTube id in the overwhelming majority of cases, so the
+        // user-visible loss is close to nothing.
+        guard let u = URL(string: v), let host = u.host?.lowercased(),
+              S8KTrailerHosts.allowed.contains(host) else { return nil }
+        return u
+    }
+    // A bare id: YouTube ids are exactly 11 chars of ASCII [A-Za-z0-9_-]. `isLetter`
+    // alone is true for Arabic and CJK, which would build a bogus URL.
+    let ok = v.count == 11 && v.allSatisfy {
+        $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-")
+    }
+    return ok ? URL(string: "https://www.youtube.com/watch?v=\(v)") : nil
+}
+
+private enum S8KTrailerHosts {
+    static let allowed: Set<String> = [
+        "youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be",
+        "youtube-nocookie.com", "www.youtube-nocookie.com",
+        "vimeo.com", "www.vimeo.com", "player.vimeo.com",
+    ]
+}
+
+@MainActor
+func s8kOpenURL(_ url: URL) {
+    guard UIApplication.shared.canOpenURL(url) else { return }
+    UIApplication.shared.open(url)
+}
+
+// MARK: - Details sheet
+/// The extra facts a panel publishes about a title, in this app's own language.
+///
+/// Deliberately NOT the two-column "Label ……… Value" table every IPTV player ships:
+/// the descriptive facts are STACKED (a small tertiary caption with the value beneath
+/// it, so an Arabic value is never squeezed against a leader), and the technical facts
+/// are CHIPS — short tokens the eye takes in at a glance, which is how anyone actually
+/// reads "4K · H264 · AAC".
+///
+/// Every section disappears when it has nothing to say. A panel that publishes only a
+/// country gets a sheet with one line, not a page of empty rows — that is the whole
+/// point of a metadata-agnostic UI.
+struct S8KDetailsSheet: View {
+    let title: String
+    let details: S8KTitleDetails
+    var onTrailer: (() -> Void)? = nil
+
+    private var chipColumns: [GridItem] { [GridItem(.adaptive(minimum: 104), spacing: 10)] }
+
+    /// The sheet already prints the title, so a panel that repeats it as "original
+    /// name" — which most do for anything not foreign-language — would open with the
+    /// same words twice. Drop that row rather than show the user nothing new.
+    private var editorial: [(String, String)] {
+        details.editorial.filter { key, value in
+            !(key == "details.original_name" && value.caseInsensitiveCompare(title) == .orderedSame)
+        }
+    }
+
+    /// A fixed detent is wrong at both ends: this sheet's payload runs from one row
+    /// to a dozen, so a fraction sized for the full case opens a sparse one mostly
+    /// empty, and one sized for the sparse case opens the full one cropped. The row
+    /// count is known at build time, so size to it. `.large` stays as the fallback.
+    private var detent: Double {
+        let chipRows = details.technical.isEmpty ? 0 : 2
+        return min(0.9, max(0.32, 0.24 + 0.07 * Double(editorial.count + chipRows)))
+    }
+
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: s8kTextAlign, spacing: S8KSpace.xl) {
+                S8KDetailHeading(title: L("details.title"))
+                    .padding(.top, S8KSpace.lg)
+
+                Text(title)
+                    .font(S8KFont.subhead.weight(.semibold))
+                    .foregroundColor(.s8kTextSecondary)
+                    .multilineTextAlignment(s8kIsRTL ? .trailing : .leading)
+                    .frame(maxWidth: .infinity, alignment: s8kFrameAlign)
+
+                if !editorial.isEmpty {
+                    section(L("details.about")) {
+                        VStack(alignment: s8kTextAlign, spacing: 14) {
+                            ForEach(editorial, id: \.0) { key, value in
+                                VStack(alignment: s8kTextAlign, spacing: 3) {
+                                    Text(L(key))
+                                        .font(S8KFont.caption3)
+                                        .foregroundColor(.s8kTextTertiary)
+                                    Text(value)
+                                        .font(S8KFont.subhead)
+                                        .foregroundColor(.s8kTextPrimary)
+                                        .multilineTextAlignment(s8kIsRTL ? .trailing : .leading)
+                                }
+                                .frame(maxWidth: .infinity, alignment: s8kFrameAlign)
+                            }
+                        }
+                    }
+                }
+
+                if !details.technical.isEmpty {
+                    section(L("details.file")) {
+                        LazyVGrid(columns: chipColumns, alignment: .center, spacing: 10) {
+                            ForEach(details.technical, id: \.0) { key, value in
+                                VStack(spacing: 3) {
+                                    Text(value)
+                                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                                        .foregroundColor(.s8kGoldHigh)
+                                        .lineLimit(1).minimumScaleFactor(0.7)
+                                    Text(L(key))
+                                        .font(S8KFont.caption3)
+                                        .foregroundColor(.s8kTextTertiary)
+                                        .lineLimit(1).minimumScaleFactor(0.8)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12).padding(.horizontal, 8)
+                                .background(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+                                    .fill(Color.white.opacity(0.06)))
+                                .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+                                    .strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
+                            }
+                        }
+                    }
+                }
+
+                if let onTrailer {
+                    Button(action: onTrailer) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "play.rectangle.fill").font(.system(size: 15, weight: .semibold))
+                            Text(L("details.trailer")).font(S8KFont.subhead.weight(.semibold))
+                        }
+                        .foregroundColor(.s8kTextPrimary)
+                        .frame(maxWidth: .infinity).frame(height: 48)
+                        .background(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+                            .fill(Color.white.opacity(0.07)))
+                        .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
+                    }
+                    .buttonStyle(S8KButtonStyle())
+                }
+
+                Color.clear.frame(height: S8KSpace.xl)
+            }
+            .padding(.horizontal, S8KSpace.xl)
+        }
+        .background(Color.s8kBlack)
+        .presentationDragIndicator(.visible)
+        // A height, never .medium alone: the sheet's content ranges from one line to a
+        // dozen, and a fixed detent would either crop the full case or leave the sparse
+        // one mostly empty. `.large` is the fallback for the tallest payloads.
+        .presentationDetents([.fraction(detent), .large])
+    }
+
+    @ViewBuilder
+    private func section(_ heading: String, @ViewBuilder _ content: () -> some View) -> some View {
+        VStack(alignment: s8kTextAlign, spacing: 12) {
+            Text(heading)
+                .font(S8KFont.caption2.weight(.bold))
+                .foregroundColor(.s8kGoldHigh)
+                .frame(maxWidth: .infinity, alignment: s8kFrameAlign)
+            content()
+        }
+    }
+}
+
 // MARK: - Pinned page identity bar (Movies / Series)
 /// The section's name, in the WORDMARK's typeface, inside a frosted capsule beside the
 /// app mark — so the page identifies itself over any artwork and stays legible while the

@@ -2533,6 +2533,7 @@ struct MovieDetailView: View {
     @State private var playItem: ContentItem? = nil
     @State private var enriched: Movie? = nil
     @State private var loadingInfo = true
+    @State private var showDetails = false
 
     // The movie shown — enriched with full metadata once fetched
     private var m: Movie { enriched ?? movie }
@@ -2572,6 +2573,12 @@ struct MovieDetailView: View {
             loadingInfo = false
         }
         .fullScreenCover(item: $playItem) { PlayerView(item: $0) }
+        .sheet(isPresented: $showDetails) {
+            if let d = m.details {
+                S8KDetailsSheet(title: m.name, details: d,
+                                onTrailer: s8kTrailerURL(d.trailer).map { url in { s8kOpenURL(url) } })
+            }
+        }
     }
 
     // MARK: The fixed artwork canvas
@@ -2674,26 +2681,62 @@ struct MovieDetailView: View {
     /// category and was identical to the reference app line for line.
     private var actionRow: some View {
         let progress = hist.progress(for: m.id)
-        return HStack(spacing: 12) {
-            // Mirror by LANGUAGE: an unconditional trailing Spacer makes the HStack fill,
-            // so a trailing .frame(alignment:) can never move anything.
-            if s8kIsRTL { Spacer(minLength: 0) }
-            S8KPlayCapsule(title: progress > 0.02 && progress < 0.98
-                                  ? L("detail.resume") : L("detail.play_movie"),
-                           progress: progress) {
-                playItem = .movie(m)
+        // The details satellite adds a THIRD non-shrinkable 48pt control. Measured
+        // against the device matrix: at .compactNarrow (the 320pt iPad Slide Over
+        // pane) three satellites plus the play capsule's own fixed padding exceed the
+        // 288pt of content width before a single glyph of the title, and the download
+        // control would be pushed out and clipped. So below that breakpoint the row
+        // stacks: capsule on top, satellites centred beneath. Explicit breakpoint
+        // rather than ViewThatFits — deterministic, and it reads the same on every
+        // device instead of silently choosing a different branch per width.
+        let stacked = metrics.cls == .compactNarrow
+        // Edge-aligned, not centred: every other block in the plinth uses
+        // s8kFrameAlign, and the outer .frame(maxWidth:) centres its child unless it
+        // is given an alignment of its own — so without both, the stacked row would
+        // be the only centred thing on the page.
+        return VStack(alignment: s8kTextAlign, spacing: 12) {
+            if stacked {
+                capsule(progress)
+                HStack(spacing: 12) { satellites }
+            } else {
+                HStack(spacing: 12) {
+                    // Mirror by LANGUAGE: an unconditional trailing Spacer makes the
+                    // HStack fill, so a trailing .frame(alignment:) can never move
+                    // anything.
+                    if s8kIsRTL { Spacer(minLength: 0) }
+                    capsule(progress)
+                    satellites
+                    if !s8kIsRTL { Spacer(minLength: 0) }
+                }
             }
-            S8KSatellite(icon: favs.isMovieFav(m.id) ? "heart.fill" : "heart",
-                         tint: favs.isMovieFav(m.id) ? .s8kRed : .s8kTextSecondary,
-                         label: favs.isMovieFav(m.id) ? L("detail.fav_added") : L("detail.fav_add")) { favs.toggleMovie(m.id) }
-            DownloadControl(target: .movie(m), size: 18, showPercent: false)
-                .frame(width: 48, height: 48)
-                .background(Circle().fill(Color.white.opacity(0.07)))
-                .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
-                    .allowsHitTesting(false))
-            if !s8kIsRTL { Spacer(minLength: 0) }
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: s8kFrameAlign)
+    }
+
+    private func capsule(_ progress: Double) -> some View {
+        S8KPlayCapsule(title: progress > 0.02 && progress < 0.98
+                              ? L("detail.resume") : L("detail.play_movie"),
+                       progress: progress) {
+            playItem = .movie(m)
+        }
+    }
+
+    @ViewBuilder
+    private var satellites: some View {
+        S8KSatellite(icon: favs.isMovieFav(m.id) ? "heart.fill" : "heart",
+                     tint: favs.isMovieFav(m.id) ? .s8kRed : .s8kTextSecondary,
+                     label: favs.isMovieFav(m.id) ? L("detail.fav_added") : L("detail.fav_add")) { favs.toggleMovie(m.id) }
+        // Appears ONLY when the panel actually published something worth showing —
+        // a details button that opens an empty sheet is worse than no button.
+        if let d = m.details, !d.isEmpty {
+            S8KSatellite(icon: "list.bullet.rectangle", tint: .s8kTextSecondary,
+                         label: L("details.title")) { showDetails = true }
+        }
+        DownloadControl(target: .movie(m), size: 18, showPercent: false)
+            .frame(width: 48, height: 48)
+            .background(Circle().fill(Color.white.opacity(0.07)))
+            .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                .allowsHitTesting(false))
     }
 
     private func castList(_ s: String) -> [String] {
@@ -2719,6 +2762,10 @@ final class SeriesDetailVM: ObservableObject {
     @Published var selected: Season?   = nil
     @Published var isLoading: Bool     = true
     @Published var error:    AppError? = nil
+    /// Harvested from the very same get_series_info payload the episode list needs —
+    /// never a second request. nil for demo and raw-M3U sources, where the details
+    /// button simply does not appear.
+    @Published var details:  S8KTitleDetails? = nil
 
     func load(series: Series) async {
         isLoading = true; error = nil
@@ -2726,6 +2773,7 @@ final class SeriesDetailVM: ObservableObject {
             // M3U: seasons are parsed locally; Xtream: fetched from API
             seasons  = try await ContentService.seasons(of: series)
             selected = seasons.first
+            details  = await ContentService.seriesDetails(of: series)
         // A load cancelled by a tab remount (playlist switch / refresh) still resumes and
         // would write its URLError(.cancelled) into `error` — AFTER the fresh load had
         // already cleared it. The view checks `error` before content, so the tab would
@@ -2744,6 +2792,7 @@ struct SeriesDetailView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(\.s8kMetrics) private var metrics
     @State private var playItem: ContentItem? = nil
+    @State private var showDetails = false
 
     private var canvasHeight: CGFloat {
         // max(180, …): with iPad multitasking enabled a window can be 320pt tall, where
@@ -2776,6 +2825,12 @@ struct SeriesDetailView: View {
         }
         .task { await vm.load(series: series) }
         .fullScreenCover(item: $playItem) { PlayerView(item: $0, queue: vm.selected?.episodes ?? []) }
+        .sheet(isPresented: $showDetails) {
+            if let d = vm.details {
+                S8KDetailsSheet(title: series.name, details: d,
+                                onTrailer: s8kTrailerURL(d.trailer).map { url in { s8kOpenURL(url) } })
+            }
+        }
     }
 
     private var canvas: some View {
@@ -2876,6 +2931,11 @@ struct SeriesDetailView: View {
             S8KSatellite(icon: favs.isSeriesFav(series.id) ? "heart.fill" : "heart",
                          tint: favs.isSeriesFav(series.id) ? .s8kRed : .s8kTextSecondary,
                          label: favs.isSeriesFav(series.id) ? L("detail.fav_added") : L("detail.fav_add")) { favs.toggleSeries(series.id) }
+            // Only when the panel published something — see MovieDetailView.
+            if let d = vm.details, !d.isEmpty {
+                S8KSatellite(icon: "list.bullet.rectangle", tint: .s8kTextSecondary,
+                             label: L("details.title")) { showDetails = true }
+            }
             if !s8kIsRTL { Spacer(minLength: 0) }
         }
         .frame(maxWidth: .infinity)

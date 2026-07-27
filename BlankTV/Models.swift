@@ -178,6 +178,48 @@ struct Category: Codable, Identifiable, Hashable {
     static let favorites = Category(id: favoritesID, name: "المفضلة", parentID: nil)
 }
 
+// MARK: - Title details
+/// Everything `get_vod_info` / `get_series_info` already returns and the app used
+/// to throw away. Deliberately NOT persisted and NOT part of any Codable payload:
+/// it is derived from a call the detail page ALREADY makes, so it costs zero extra
+/// network requests, and keeping it out of the disk cache and the SQLite store means
+/// no migration and no risk to the catalogue.
+///
+/// Every field is optional on purpose. This is an IPTV player: two panels serving
+/// the same film will disagree about which of these they publish, and a great many
+/// publish almost none. The UI must render whatever survives and show nothing at all
+/// where a value is missing — never an empty row, never a dash.
+struct S8KTitleDetails: Equatable {
+    var originalName:   String?
+    var country:        String?
+    var releaseDate:    String?
+    var ageRating:      String?
+    var runtime:        String?
+    var trailer:        String?
+    var tmdbID:         String?
+    var videoCodec:     String?
+    var resolution:     String?
+    var audioCodec:     String?
+    var audioChannels:  String?
+    var bitrate:        String?
+
+    /// The descriptive half — what the title IS.
+    var editorial: [(String, String)] {
+        [("details.original_name", originalName), ("details.country", country),
+         ("details.release_date", releaseDate), ("details.age", ageRating),
+         ("details.runtime", runtime)]
+            .compactMap { k, v in v.map { (k, $0) } }
+    }
+    /// The technical half — what the FILE is. Rendered as compact chips, not rows.
+    var technical: [(String, String)] {
+        [("details.resolution", resolution), ("details.video", videoCodec),
+         ("details.audio", audioCodec), ("details.channels", audioChannels),
+         ("details.bitrate", bitrate)]
+            .compactMap { k, v in v.map { (k, $0) } }
+    }
+    var isEmpty: Bool { editorial.isEmpty && technical.isEmpty && trailer == nil }
+}
+
 // MARK: - Movie (VOD)
 struct Movie: Codable, Identifiable, Hashable {
     let id:                 String
@@ -196,6 +238,10 @@ struct Movie: Codable, Identifiable, Hashable {
     var isFavorite: Bool = false
     // Direct stream URL (M3U playlists) — not part of the API payload
     var directURL: String? = nil
+    /// Filled in only by `movieInfo` on the detail page. Absent from `CodingKeys`,
+    /// so it is never encoded, never decoded, and the disk cache / SQLite store
+    /// need no migration. See S8KTitleDetails.
+    var details: S8KTitleDetails? = nil
 
     var ratingDouble: Double { let d = Double(rating ?? "") ?? 0; return d.isFinite ? d : 0 }
 

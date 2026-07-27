@@ -536,6 +536,23 @@ enum L10n {
         "detail.fav_added": [.ar: "في المفضلة",         .en: "In Favorites",    .fr: "Dans les favoris",.tr: "Favorilerde",     .es: "En favoritos"],
         "detail.fav_add":   [.ar: "إضافة للمفضلة",      .en: "Add to Favorites",.fr: "Ajouter aux favoris", .tr: "Favorilere Ekle", .es: "Añadir a favoritos"],
 
+        // Details sheet — every row is optional, see S8KTitleDetails
+        "details.title":         [.ar: "التفاصيل",        .en: "Details",         .fr: "Détails",         .tr: "Ayrıntılar",      .es: "Detalles"],
+        "details.original_name": [.ar: "الاسم الأصلي",    .en: "Original title",  .fr: "Titre original",  .tr: "Orijinal ad",     .es: "Título original"],
+        "details.country":       [.ar: "بلد الإنتاج",     .en: "Country",         .fr: "Pays",            .tr: "Ülke",            .es: "País"],
+        "details.release_date":  [.ar: "تاريخ الإصدار",   .en: "Release date",    .fr: "Date de sortie",  .tr: "Yayın tarihi",    .es: "Fecha de estreno"],
+        "details.age":           [.ar: "التصنيف العمري",  .en: "Age rating",      .fr: "Classification",  .tr: "Yaş sınırı",      .es: "Clasificación"],
+        "details.runtime":       [.ar: "المدة",           .en: "Runtime",         .fr: "Durée",           .tr: "Süre",            .es: "Duración"],
+        "details.resolution":    [.ar: "الدقة",           .en: "Resolution",      .fr: "Résolution",      .tr: "Çözünürlük",      .es: "Resolución"],
+        "details.video":         [.ar: "ترميز الفيديو",   .en: "Video",           .fr: "Vidéo",           .tr: "Video",           .es: "Vídeo"],
+        "details.audio":         [.ar: "ترميز الصوت",     .en: "Audio",           .fr: "Audio",           .tr: "Ses",             .es: "Audio"],
+        "details.channels":      [.ar: "قنوات الصوت",     .en: "Channels",        .fr: "Canaux",          .tr: "Kanallar",        .es: "Canales"],
+        "details.bitrate":       [.ar: "معدل البت",       .en: "Bitrate",         .fr: "Débit",           .tr: "Bit hızı",        .es: "Tasa de bits"],
+        "details.trailer":       [.ar: "المقطع الدعائي",  .en: "Trailer",         .fr: "Bande-annonce",   .tr: "Fragman",         .es: "Tráiler"],
+        "details.file":          [.ar: "الملف",           .en: "File",            .fr: "Fichier",         .tr: "Dosya",           .es: "Archivo"],
+        "details.minutes":       [.ar: "دقيقة",           .en: "min",             .fr: "min",             .tr: "dk",              .es: "min"],
+        "details.about":         [.ar: "عن العمل",        .en: "About",           .fr: "À propos",        .tr: "Hakkında",        .es: "Acerca de"],
+
         // Search
         "search.title":     [.ar: "البحث",              .en: "Search",          .fr: "Recherche",       .tr: "Arama",           .es: "Buscar"],
         "search.prompt":    [.ar: "ابحث في القنوات والأفلام...", .en: "Search channels and movies…", .fr: "Rechercher chaînes et films…", .tr: "Kanal ve filmlerde ara…", .es: "Buscar canales y películas…"],
@@ -1796,7 +1813,13 @@ actor PlaylistService {
         return head.contains("#EXTM3U") || head.contains("#EXTINF")
     }
 
-    func reset() { content = nil; xtream = nil; epgCache = [:]; Self.panelTimeZone = .current }
+    func reset() {
+        content = nil; xtream = nil; epgCache = [:]; Self.panelTimeZone = .current
+        // Keyed by SERIES ID, and Xtream ids are small integers that collide across
+        // panels — left populated, a fetch that returns early on the new account
+        // would show the PREVIOUS account's metadata.
+        seriesDetailsCache = [:]; seriesDetailsOrder = []
+    }
 
     // MARK: ── EPG (Xtream-direct short program guide) ──
     private var epgCache: [String: (date: Date, programs: [EPGProgram])] = [:]
@@ -2120,6 +2143,10 @@ actor PlaylistService {
         guard let xd = xtream else { return [] }
         let data = try await apiData(xd, action: "get_series_info&series_id=\(seriesID)")
         guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return [] }
+        // Same payload, no extra request — see cacheSeriesDetails.
+        if let info = root["info"] as? [String: Any] {
+            cacheSeriesDetails(titleDetails(from: info), for: seriesID)
+        }
 
         // "episodes" is usually {"1":[...],"2":[...]} but some panels send [[...],[...]]
         var seasonsRaw: [(num: Int, eps: [[String: Any]])] = []
@@ -2174,9 +2201,88 @@ actor PlaylistService {
             cast: str(info["cast"]) ?? str(info["actors"]) ?? movie.cast,
             categoryID: movie.categoryID,
             containerExtension: str(movieData?["container_extension"]) ?? movie.containerExtension,
-            directURL: movie.directURL
+            directURL: movie.directURL,
+            details: titleDetails(from: info)
         )
     }
+
+    /// Pull the extra facts out of an `info` block. Called on payloads the app is
+    /// ALREADY fetching (`get_vod_info` for the detail page, `get_series_info` for
+    /// the episode list), so it never costs a request. Panels disagree wildly about
+    /// which keys they publish and about their spelling, hence the alternatives.
+    fileprivate func titleDetails(from info: [String: Any]) -> S8KTitleDetails {
+        var d = S8KTitleDetails()
+        d.originalName = str(info["o_name"]) ?? str(info["original_name"])
+        d.country      = str(info["country"])
+        // Three spellings in the wild — Movie.CodingKeys already maps the camelCase one.
+        d.releaseDate  = str(info["releasedate"]) ?? str(info["release_date"]) ?? str(info["releaseDate"])
+        d.ageRating    = str(info["age"]) ?? str(info["mpaa_rating"])
+        d.tmdbID       = str(info["tmdb_id"]) ?? str(info["tmdb"])
+        d.trailer      = str(info["youtube_trailer"]) ?? str(info["trailer"])
+        // Series report an array of run times ["45"]; movies a duration string.
+        // Series report a bare number of MINUTES (often inside an array); movies a
+        // formatted duration like "01:52:30". A bare "45" under the label "المدة" is
+        // ambiguous, so the number gets its unit and the two formats stop clashing.
+        let runtimeRaw = str((info["episode_run_time"] as? [Any])?.first)
+                      ?? str(info["episode_run_time"])
+        if let r = runtimeRaw {
+            d.runtime = Int(r).map { "\($0) \(L("details.minutes"))" } ?? r
+        } else {
+            d.runtime = str(info["duration"])
+        }
+        // The technical block exists only for VOD, and only on panels that probe.
+        if let v = info["video"] as? [String: Any] {
+            d.videoCodec = str(v["codec_name"])?.uppercased()
+            if let w = intVal(v["width"]), let h = intVal(v["height"]), w > 0, h > 0 {
+                d.resolution = Self.resolutionLabel(width: w, height: h)
+            }
+        }
+        if let a = info["audio"] as? [String: Any] {
+            d.audioCodec = str(a["codec_name"])?.uppercased()
+            if let ch = intVal(a["channels"]), ch > 0 { d.audioChannels = "\(ch)" }
+        }
+        // Panels report bitrate in kb/s. Below ~1 Mb/s the rounded Mb/s figure would
+        // read "0", so keep those in kb/s rather than print a wrong zero.
+        if let br = intVal(info["bitrate"]), br > 0 {
+            // Integer division read 1500 kb/s as "1 Mb/s" — and 1500–2500 is exactly
+            // where 1080p sits, so most titles were reported a full digit low.
+            d.bitrate = br >= 1000 ? String(format: "%.1f Mb/s", Double(br) / 1000)
+                                   : "\(br) kb/s"
+        }
+        return d
+    }
+
+    /// A marketing label the user recognises, derived from the real pixel size —
+    /// never trusted from a "quality" string, which panels routinely lie about.
+    /// Keyed on the LONG edge so vertical or oddly-cropped masters still classify.
+    private static func resolutionLabel(width: Int, height: Int) -> String {
+        let long = max(width, height)
+        switch long {
+        case 3400...: return "4K"
+        case 2300...: return "2K"
+        case 1800...: return "1080p"
+        case 1200...: return "720p"
+        case 800...:  return "576p"
+        default:      return "\(width)×\(height)"
+        }
+    }
+
+    /// Details harvested from the LAST `get_series_info` for a series. `seasons`
+    /// already downloads the whole payload; caching the extra facts here is what
+    /// keeps the details sheet at zero additional requests. Bounded because a
+    /// browsing session can open a lot of series.
+    private var seriesDetailsCache: [String: S8KTitleDetails] = [:]
+    private var seriesDetailsOrder: [String] = []
+    fileprivate func cacheSeriesDetails(_ d: S8KTitleDetails, for id: String) {
+        if seriesDetailsCache[id] == nil {
+            seriesDetailsOrder.append(id)
+            if seriesDetailsOrder.count > 60 {
+                seriesDetailsCache.removeValue(forKey: seriesDetailsOrder.removeFirst())
+            }
+        }
+        seriesDetailsCache[id] = d
+    }
+    func seriesDetails(for id: String) -> S8KTitleDetails? { seriesDetailsCache[id] }
 }
 
 // MARK: ════════════════════════════════════════
@@ -2225,6 +2331,16 @@ enum ContentService {
         // Raw M3U playlists embed seasons; Xtream-direct fetches them lazily.
         if !series.seasons.isEmpty { return series.seasons }
         return try await PlaylistService.shared.seasons(seriesID: series.id)
+    }
+
+    /// Details for a series. Read-only: `seasons(of:)` harvests them from the very
+    /// same `get_series_info` payload, so this NEVER issues a request. nil until the
+    /// episode list has loaded, and nil forever for demo and raw-M3U sources — the
+    /// details button simply doesn't appear then.
+    /// `async` only to hop onto the PlaylistService actor — it performs no I/O.
+    static func seriesDetails(of series: Series) async -> S8KTitleDetails? {
+        if isDemo { return nil }
+        return await PlaylistService.shared.seriesDetails(for: series.id)
     }
 
     /// Now/next program guide for a live channel. Empty when unavailable (raw
