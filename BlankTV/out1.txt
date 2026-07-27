@@ -1,0 +1,17 @@
+Traceback (most recent call last):
+  File "<string>", line 7, in <module>
+    show('Core.swift',1335,1345)
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 6, in show
+    for i in range(a-1,b): print(i+1, L[i])
+                           ~~~~~^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode characters in position 66-68: character maps to <undefined>
+=== Core.swift:1335-1345
+1335             } else if !line.isEmpty, !line.hasPrefix("#"), let info = pendingInfo {
+1336                 result.append(M3UEntry(
+1337                     name:  displayName(in: info),
+1338                     logo:  attribute("tvg-logo", in: info),
+1339 
