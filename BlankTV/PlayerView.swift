@@ -178,7 +178,7 @@ struct PlayerEngineView: View {
     @State private var showSpeedSheet    = false
     @State private var showAudioSheet    = false
 
-    // Screen-lock mode (#package: gesture lock). When on, all controls/gestures
+    // Screen-lock mode (gesture lock). When on, all controls/gestures
     // are disabled except the unlock button — prevents accidental touches.
     @State private var gestureLocked = false
 
@@ -362,7 +362,7 @@ struct PlayerEngineView: View {
 
             // Gesture layer: LEFT half = volume, RIGHT half = brightness
             // (vertical drag). Tap toggles controls; long-press = 2x boost.
-            // Disabled while the screen is locked (#package: gesture lock).
+            // Disabled while the screen is locked (gesture lock).
             if !gestureLocked {
                 HStack(spacing: 0) {
                     gestureZone(isVolume: true)
@@ -580,7 +580,7 @@ struct PlayerEngineView: View {
                 perform: { startBoost() })
     }
 
-    // MARK: - Hold-to-2x speed boost (#package)
+    // MARK: - Hold-to-2x speed boost
     private func startBoost() {
         guard !vm.isLive else { return }
         boosting = true
@@ -721,7 +721,7 @@ struct PlayerEngineView: View {
             .transition(.scale(scale: 0.6).combined(with: .opacity))
     }
 
-    // MARK: - Screen-lock overlay (#package: gesture lock)
+    // MARK: - Screen-lock overlay (gesture lock)
     private var lockOverlay: some View {
         VStack {
             Spacer()
@@ -1294,7 +1294,7 @@ struct PlayerEngineView: View {
         .buttonStyle(S8KButtonStyle()).padding(.horizontal, S8KSpace.xl)
     }
 
-    // MARK: - Playback speed sheet (#package)
+    // MARK: - Playback speed sheet
     private func speedLabel(_ r: Float) -> String {
         // Trim trailing ".0" → "2x", keep "1.5x"
         let s = String(format: "%g", Double(r))
@@ -1332,7 +1332,7 @@ struct PlayerEngineView: View {
         .presentationDetents([.medium])
     }
 
-    // MARK: - Audio track sheet (#package: audio selection + remember)
+    // MARK: - Audio track sheet (audio selection + remember)
     private var audioSheet: some View {
         NavigationStack {
             ZStack {

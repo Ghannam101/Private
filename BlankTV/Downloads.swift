@@ -464,10 +464,22 @@ final class DownloadService: NSObject, ObservableObject {
         guard let url = Self.storeURL(), let data = try? JSONEncoder().encode(items) else { return }
         try? data.write(to: url, options: .atomic)
     }
+    /// Decodes each entry INDEPENDENTLY. `decode([DownloadItem].self, …)` is
+    /// all-or-nothing: ONE entry this build cannot read — a manifest half-written when
+    /// the app was killed, or an embedded model that gained a required field — made the
+    /// whole decode throw, the `try?` swallowed it, and the user's ENTIRE download
+    /// library vanished with every file still sitting on disk, unreachable. A per-entry
+    /// decode loses only the entry that is actually broken.
+    private struct FailableItem: Decodable {
+        let value: DownloadItem?
+        init(from decoder: Decoder) throws { value = try? DownloadItem(from: decoder) }
+    }
     private static func loadItems() -> [DownloadItem] {
-        guard let url = storeURL(), let data = try? Data(contentsOf: url),
-              let arr = try? JSONDecoder().decode([DownloadItem].self, from: data) else { return [] }
-        return arr
+        guard let url = storeURL(), let data = try? Data(contentsOf: url) else { return [] }
+        if let arr = try? JSONDecoder().decode([FailableItem].self, from: data) {
+            return arr.compactMap(\.value)
+        }
+        return []
     }
 
     // MARK: Filesystem helpers (nonisolated — pure file work)

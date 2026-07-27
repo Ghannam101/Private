@@ -360,6 +360,11 @@ final class AVPlayerVM: BasePlayerVM {
     }
 
     override func load(_ newItem: ContentItem) {
+        // Save the OUTGOING item first. cleanup() saves on teardown, but load() is the
+        // zap / next-episode path and never calls it: watching episode 1 then tapping
+        // episode 2 discarded episode 1's position, so a back-to-back session recorded
+        // no "continue watching" for anything but the last thing played.
+        saveProgress()
         setItem(newItem)
         didResume = false
         resumeTarget = BasePlayerVM.savedResume(for: newItem)
@@ -429,7 +434,13 @@ final class AVPlayerVM: BasePlayerVM {
     }
 
     private func observe(_ pItem: AVPlayerItem) {
-        statusObs = pItem.observe(\.status) { [weak self] it, _ in
+        // `.initial` is not cosmetic. Plain `observe(_:)` fires on CHANGE only, so an
+        // item that is ALREADY .readyToPlay when we attach never calls back and
+        // `isLoading` stays true forever — a spinner sitting on top of a video that is
+        // playing perfectly. That is not a rare race: MediaPrefetcher exists precisely
+        // to hand `setup()` an item that finished preparing in another player. The same
+        // applies to isPlaybackLikelyToKeepUp, which is the backstop for that spinner.
+        statusObs = pItem.observe(\.status, options: [.initial, .new]) { [weak self] it, _ in
             let status = it.status
             let dur = it.duration.seconds
             Task { @MainActor in
@@ -455,11 +466,11 @@ final class AVPlayerVM: BasePlayerVM {
                 }
             }
         }
-        bufferEmptyObs = pItem.observe(\.isPlaybackBufferEmpty) { [weak self] it, _ in
+        bufferEmptyObs = pItem.observe(\.isPlaybackBufferEmpty, options: [.initial, .new]) { [weak self] it, _ in
             let empty = it.isPlaybackBufferEmpty
             Task { @MainActor [weak self] in self?.buffering = empty }
         }
-        likelyKeepUpObs = pItem.observe(\.isPlaybackLikelyToKeepUp) { [weak self] it, _ in
+        likelyKeepUpObs = pItem.observe(\.isPlaybackLikelyToKeepUp, options: [.initial, .new]) { [weak self] it, _ in
             let ok = it.isPlaybackLikelyToKeepUp
             Task { @MainActor [weak self] in if ok { self?.buffering = false; self?.isLoading = false } }
         }

@@ -115,6 +115,12 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
 
     /// Switch to a new item (e.g. the next episode) without recreating the VM.
     override func load(_ newItem: ContentItem) {
+        // Save the OUTGOING item's position first — same asymmetry the AVPlayer engine
+        // had: cleanup() saves, load() did not, and load() is the zap / next-episode
+        // path. VLC is the PREFERRED engine for movies and the user can force it in
+        // Settings, so fixing only the AV side would have left most sessions still
+        // recording no "continue watching" for anything but the last thing played.
+        saveProgress()
         setItem(newItem)
         // Cancel any in-flight retry from the PREVIOUS item and give the new item a
         // fresh budget (otherwise a pending rebuild could fire onto the new stream).
