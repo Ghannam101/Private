@@ -414,7 +414,10 @@ struct S8KSatellite: View {
                 .contentShape(Circle())
         }
         .buttonStyle(S8KButtonStyle())
-        .accessibilityLabel(label)
+        // An EMPTY label wipes the inferred VoiceOver name instead of leaving it —
+        // the first call site that forgets the argument would ship a completely silent
+        // button. Fall back to the SF Symbol name, which at least says something.
+        .accessibilityLabel(label.isEmpty ? icon : label)
     }
 }
 

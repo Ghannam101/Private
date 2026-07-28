@@ -346,6 +346,7 @@ enum L10n {
         "home.new_tag":     [.ar: "جديد",               .en: "New",             .fr: "Nouveau",         .tr: "Yeni",            .es: "Nuevo"],
         "home.top_movies":  [.ar: "الأفلام الأعلى تقييماً", .en: "Top Rated Movies", .fr: "Films les mieux notés", .tr: "En Çok Beğenilen Filmler", .es: "Películas mejor valoradas"],
         "home.top_series":  [.ar: "المسلسلات الأعلى تقييماً", .en: "Top Rated Series", .fr: "Séries les mieux notées", .tr: "En Çok Beğenilen Diziler", .es: "Series mejor valoradas"],
+        "home.edit":        [.ar: "تحرير السجل",           .en: "Edit history",            .fr: "Modifier l'historique", .tr: "Geçmişi düzenle", .es: "Editar historial"],
         "home.clear_all":   [.ar: "امسح السجل",           .en: "Clear the history",       .fr: "Tout effacer",    .tr: "Tümünü Temizle",  .es: "Borrar todo"],
         "home.remove_history":[.ar: "أزِل من السجل",     .en: "Drop from history", .fr: "Retirer de l'historique", .tr: "Geçmişten kaldır", .es: "Quitar del historial"],
         "home.content_error.title":[.ar: "تعذّر تحميل المحتوى", .en: "Couldn't load content", .fr: "Impossible de charger le contenu", .tr: "İçerik yüklenemedi", .es: "No se pudo cargar el contenido"],

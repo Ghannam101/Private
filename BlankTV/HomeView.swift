@@ -1260,10 +1260,17 @@ struct HomeView: View {
                 watchCardBody(item)
             }
             .buttonStyle(S8KButtonStyle())
-            .onLongPressGesture { withAnimation(.spring(response: 0.3)) { editingHistory = true } }
+            // Edit mode used to be a SECOND long-press recogniser on this same button.
+            // .contextMenu is itself built on a long press, so ONE hold fired both: the
+            // row entered edit mode AND the menu opened over it, leaving whichever path
+            // the user did not take half-applied. A hold now does one thing, and edit
+            // mode moves into the menu where it is still one gesture away.
             .contextMenu {
                 Button(role: .destructive) { removeHistory(item) } label: {
                     Label(L("home.remove_history"), systemImage: "trash")
+                }
+                Button { withAnimation(.spring(response: 0.3)) { editingHistory = true } } label: {
+                    Label(L("home.edit"), systemImage: "pencil")
                 }
             }
 
