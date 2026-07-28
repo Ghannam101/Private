@@ -1360,6 +1360,11 @@ struct CategoryRow<Cell: View>: View {
                     .foregroundColor(.s8kGoldMid)
                 }
                 .padding(.horizontal, S8KSpace.xl)
+                // The row has a Spacer in the middle, and a Spacer draws nothing — so
+                // without this the whole centre of every category header was dead and
+                // only the title text and the trailing chevron were tappable. This is
+                // the main entry point to every category on four different pages.
+                .contentShape(Rectangle())
             }
             .buttonStyle(S8KButtonStyle())
 
@@ -3073,7 +3078,7 @@ struct SeriesDetailView: View {
         // receives its own taps. The rebuild had dropped this control entirely, which
         // silently made every series episode in the app undownloadable.
         DownloadControl(target: .episode(ep, series), size: 18, showPercent: false)
-            .frame(width: 40)
+            .frame(width: 44)     // matches the control's own 44pt minimum
         }
     }
 

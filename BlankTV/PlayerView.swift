@@ -820,11 +820,15 @@ struct PlayerEngineView: View {
             LinearGradient(colors: [Color.black.opacity(0.7), .clear, .clear, Color.black.opacity(0.78)],
                            startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()   // dimming bleeds edge-to-edge; controls below stay inset
-                // Tapping the dimmed background (not a control) hides the overlay,
-                // so "tap again to hide" works even though the overlay sits above
-                // the gesture zones while visible.
-                .contentShape(Rectangle())
-                .onTapGesture { toggleControls() }
+                // NON-INTERACTIVE. This gradient covers the whole screen and sits ABOVE
+                // the gesture zones, so giving it a contentShape + tap handler made it
+                // swallow EVERY gesture the moment the controls appeared: double-tap to
+                // seek ±10s, the volume and brightness drags, the live channel swipe and
+                // the hold-to-2x all died while the controls were on screen. Letting
+                // touches fall through costs nothing — gestureZone's own tap calls
+                // handleTap, which toggles the controls, so "tap again to hide" still
+                // works and everything else works with it.
+                .allowsHitTesting(false)
 
             VStack(spacing: 0) {
                 // Top bar

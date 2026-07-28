@@ -630,6 +630,13 @@ struct DownloadControl: View {
                 }
                 stateIcon(it?.state, progress: it?.progress ?? 0)
             }
+            // The icon is 18pt in an episode row. Callers wrap this control in a 40-48pt
+            // frame, but that frame is applied OUTSIDE the Button and so does nothing for
+            // the hit area — the tappable region was the glyph itself, and a miss landed
+            // on the row behind it and PLAYED the episode instead of downloading it.
+            // The minimum has to live inside the label, where the Button can see it.
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
         }
         .buttonStyle(S8KButtonStyle())
         .alert(L("downloads.space_low.title"), isPresented: $showLowSpace) {
