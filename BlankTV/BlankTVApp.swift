@@ -193,6 +193,25 @@ struct BlankTVApp: App {
     private var content: some View {
         if !splashDone {
             SplashView { splashDone = true }
+                // Load the catalogue DURING the brand beat instead of after it.
+                //
+                // The splash holds a hard ~750ms (AuthViews.swift startAnimation: 0.5s
+                // hold + 0.25s fade) and until now that window was completely idle — the
+                // content tree only mounts once `splashDone` flips, so nothing could even
+                // begin. The user paid three quarters of a second on every single launch
+                // for an animation, and THEN started waiting for their catalogue.
+                //
+                // Now the two overlap. Combined with the stale-while-revalidate serve,
+                // the disk copy is usually in the actor before the animation finishes, so
+                // the tabs' own `load()` joins a result that is already there and the
+                // first poster is on screen as the splash lifts. Single-flight makes this
+                // safe: it cannot become a second fetch, only the same one started earlier.
+                //
+                // Guarded, not speculative — no login, no demo, no work.
+                .task {
+                    guard !Store.shared.demoMode, Store.shared.m3uURL != nil else { return }
+                    _ = try? await PlaylistService.shared.load()
+                }
         } else {
             // Activation gate sits in front of all content: the device must be
             // allowed (active/trial) before it can reach login or the tabs.
