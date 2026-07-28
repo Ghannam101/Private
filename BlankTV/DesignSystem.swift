@@ -2361,6 +2361,13 @@ struct S8KConfirm: View {
             .padding(28)
             .transition(.scale(scale: 0.92).combined(with: .opacity))
         }
+        // The floating tab bar is a SIBLING of the whole TabView, so no zIndex set
+        // inside a tab page can out-rank it — its nav puck stayed drawn over this
+        // scrim and stayed tappable, which meant the navigation bar could be opened
+        // on top of a "delete my account" confirmation. Declaring the block here
+        // rather than at each call site means it can never be forgotten.
+        .onAppear    { AppRouter.shared.modalDepth += 1 }
+        .onDisappear { AppRouter.shared.modalDepth = max(0, AppRouter.shared.modalDepth - 1) }
     }
 }
 

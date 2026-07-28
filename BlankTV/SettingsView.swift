@@ -792,8 +792,10 @@ struct PlaylistsView: View {
                 }
             } label: {
                 Image(systemName: "ellipsis").foregroundColor(.s8kTextSecondary)
-                    .frame(width: 30, height: 30)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
+            .accessibilityLabel(L("common.more"))
         }
         .padding(S8KSpace.lg)
         .background(Color.s8kSurface)

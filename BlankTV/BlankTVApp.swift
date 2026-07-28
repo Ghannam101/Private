@@ -14,6 +14,12 @@ final class AppRouter: ObservableObject {
     static let shared = AppRouter()
     private init() {}
     @Published var tab: AppTab = .home
+    /// How many blocking confirmations are on screen. A DEPTH rather than a flag so a
+    /// second confirm appearing before the first finishes dismissing cannot leave the
+    /// tab bar hidden for good. S8KConfirm maintains this itself — see its onAppear —
+    /// so no call site has to remember to set it.
+    @Published var modalDepth: Int = 0
+    var modalBlocking: Bool { modalDepth > 0 }
     /// Legacy signal, kept so the eight flows in Services.swift that mean "the catalog
     /// must be rebuilt" did not have to change. It is COMPUTED, not stored: writing
     /// `false` bumps `contentGen`, which is what actually remounts the tab stack.
@@ -208,6 +214,19 @@ struct BlankTVApp: App {
                 }
             }
             .animation(.easeInOut(duration: 0.35), value: auth.loggedIn)
+            // SELF-HEALING. modalDepth is app-lifetime state, and both live confirms
+            // tear down their OWN hosting hierarchy from inside onConfirm — logout and
+            // deleteAccount both flip `loggedIn`, which swaps this whole branch while
+            // the confirm is still mid-removal-transition. `onDisappear` for a view
+            // whose removal is interrupted by an ancestor identity change is not
+            // guaranteed, and a single miss would hide the tab bar — the only
+            // navigation in the app — for the rest of the session, invisibly.
+            // These three are the moments no confirm can legitimately still be up.
+            // They must sit OUTSIDE `.id(router.contentGen)`, or the fresh subtree
+            // would never observe the change that reset it.
+            .onChange(of: router.contentGen) { _, _ in router.modalDepth = 0 }
+            .onChange(of: auth.loggedIn)     { _, _ in router.modalDepth = 0 }
+            .onChange(of: router.tab)        { _, _ in router.modalDepth = 0 }
         }
     }
 
@@ -244,6 +263,14 @@ struct BlankTVApp: App {
             // a comfortable margin above the home indicator (not glued to the edge).
             AppTabBar(selected: $router.tab)
                 .zIndex(1)   // always above content so its taps never fall through
+                // …but NOT above a modal confirmation. The bar lives outside the
+                // TabView, so a confirm presented inside a tab page can never out-rank
+                // it locally — the puck stayed live over the scrim and could open the
+                // nav bar on top of a destructive confirm. Pages raise this flag while
+                // a confirm is up.
+                .opacity(router.modalBlocking ? 0 : 1)
+                .allowsHitTesting(!router.modalBlocking)
+                .animation(.easeOut(duration: 0.16), value: router.modalBlocking)
         }
         // Top-bar presentations live HERE (stable host) so they present identically in
         // demo and real playlist mode and can never be lost by a HomeView re-render.

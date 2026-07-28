@@ -184,6 +184,11 @@ struct PlayerEngineView: View {
 
     // Hold-to-2x speed boost (YouTube style) — replaces hold-to-seek.
     @State private var boosting = false
+    /// When the 2x hold last ENDED. A SwiftUI TapGesture has no maximum duration, so
+    /// lifting the finger after a long press also satisfies the tap — every boost
+    /// finished by toggling the control layer, and that phantom tap additionally primed
+    /// the double-tap detector, so the next real tap within 0.32s jumped 10 seconds.
+    @State private var boostEndedAt: Date? = nil
 
     // Netflix-style double-tap ripple (visual feedback on the tapped side).
     @State private var ripple: (forward: Bool, id: Int)? = nil
@@ -591,6 +596,7 @@ struct PlayerEngineView: View {
     private func stopBoost() {
         guard boosting else { return }
         boosting = false
+        boostEndedAt = Date()
         vm.boostSpeed(false)
     }
 
@@ -647,6 +653,11 @@ struct PlayerEngineView: View {
     // starts a YouTube-style ±10s seek, and EVERY further tap on that side while
     // the indicator is up keeps adding +10 (accumulating), with no toggle.
     private func handleTap(isVolume: Bool) {
+        // Swallow the release of a 2x hold — see boostEndedAt.
+        if let end = boostEndedAt, Date().timeIntervalSince(end) < 0.2 {
+            boostEndedAt = nil
+            return
+        }
         let forward = !isVolume   // right half (isVolume == false) = forward
         // Already seeking on this side → keep accumulating (+10 each), no toggle.
         if !vm.isLive, let hs = holdSeek, hs.forward == forward {
