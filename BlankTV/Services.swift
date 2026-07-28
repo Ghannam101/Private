@@ -12,7 +12,12 @@ import UIKit
 @MainActor
 final class AuthService: ObservableObject {
     static let shared = AuthService()
-    private init() { restore() }
+    private init() {
+        // Before anything reads a credential: rewrite stored Keychain items so they
+        // carry the current accessibility class. One-shot, guarded by a flag.
+        Keychain.shared.upgradeAccessibilityIfNeeded()
+        restore()
+    }
 
     @Published var loggedIn:   Bool      = false
     @Published var isLoading:  Bool      = false

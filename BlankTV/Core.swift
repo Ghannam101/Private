@@ -742,6 +742,21 @@ final class Keychain {
          Key.m3uURL].forEach { delete($0) }
     }
 
+    /// One-shot: rewrite every stored item so it carries the CURRENT accessibility
+    /// class. `save()` is delete-then-add, so an item written by an older build keeps
+    /// `WhenUnlocked` until something rewrites it — which for `deviceID` (deliberately
+    /// preserved across reinstall) and for a token that is only refreshed on login can
+    /// be never. Without this the background-relaunch fix reaches `m3uURL` and stops
+    /// there, and the token beside it stays unreadable on a locked device.
+    func upgradeAccessibilityIfNeeded() {
+        let flag = "s8k.kc.accessibility.v2"
+        guard !UserDefaults.standard.bool(forKey: flag) else { return }
+        for k in [Key.token, .host, .user, .pass, .userID, .tokenExpiry, .deviceID, .m3uURL] {
+            if let v = load(k) { save(k, value: v) }   // rewrites with the new class
+        }
+        UserDefaults.standard.set(true, forKey: flag)
+    }
+
     /// Deleted ONLY by account deletion. `clearAll()` deliberately keeps the device ID
     /// because logout calls it, and minting a new identity on every logout would break
     /// the activation binding.
@@ -983,7 +998,15 @@ final class Store {
             // the whole change cosmetic for every existing user.
             if let legacy = ud.string(forKey: K.m3uURL.rawValue), !legacy.isEmpty {
                 Keychain.shared.m3uURL = legacy
-                ud.removeObject(forKey: K.m3uURL.rawValue)
+                // READ IT BACK before destroying the only other copy. `Keychain.save`
+                // discards SecItemAdd's status, so a failure — no first unlock yet, a
+                // keychain-access-group misconfiguration — would otherwise delete the
+                // plaintext, leave nothing behind, and silently log the user out at the
+                // NEXT launch with no way back. If the write did not take, keep the
+                // plaintext and try again next time.
+                if Keychain.shared.m3uURL == legacy {
+                    ud.removeObject(forKey: K.m3uURL.rawValue)
+                }
                 m3uURLCache = .some(legacy)
                 return legacy
             }

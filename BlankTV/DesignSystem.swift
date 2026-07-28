@@ -562,7 +562,11 @@ struct S8KNoTouchDelay: UIViewRepresentable {
 func s8kHeroPixels(_ compact: Bool) -> CGFloat { compact ? 1400 : 2000 }
 
 extension View {
-    /// Guarantee Apple's 44pt minimum touch target WITHOUT moving anything on screen.
+    /// Enlarge a control's touch target toward Apple's 44pt minimum WITHOUT moving
+    /// anything on screen. "Toward", not "to": the inset is capped by the distance to
+    /// the next control, so a 30pt icon in a row spaced 12pt apart reaches 42, not 44.
+    /// Widening that row's spacing is the only way to close the last two points, and
+    /// that is a layout decision, not something this modifier can take.
     ///
     /// Pads the hit region outward, freezes the shape there, then removes the padding
     /// from LAYOUT with a negative pad. The control draws exactly where it did; only
