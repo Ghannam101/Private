@@ -323,6 +323,18 @@ struct HeroCarouselView: View {
         withAnimation(.easeInOut(duration: 0.6)) { currentID = items[next].id }
     }
 
+    /// The hero headline. Was a flat 32pt everywhere, which reads oversized over two
+    /// lines of Arabic on a phone (owner-reported). Scaled by window class so a large
+    /// iPad window still carries the weight the layout was designed around.
+    private var heroTitleSize: CGFloat {
+        switch metrics.cls {
+        case .compactNarrow:                 return 23
+        case .compactRegular, .compactWide:  return 26
+        case .regularMedium:                 return 28
+        case .regularLarge, .regularXL:      return 32
+        }
+    }
+
     private func heroCard(_ item: HomeVM.HeroItem) -> some View {
         ZStack(alignment: .bottom) {
             // ONLY the artwork + its scrim stretch. The modifier used to wrap the whole
@@ -340,7 +352,16 @@ struct HeroCarouselView: View {
                     // art — where the subject sits. Anchoring at the top keeps it and
                     // crops the bottom, where the scrim already is.
                     .overlay(alignment: .top) {
-                        S8KImage(url: item.backdropURL, placeholder: "film", maxPixel: 1400)
+                        // Start the artwork BELOW the system's reserved strip. It used
+                        // to run to the physical top, so the status bar, the Dynamic
+                        // Island and the pinned bar were all drawn over the part of a
+                        // poster that carries the subject and the title. The band left
+                        // above is the page background, which is what the bar should sit
+                        // on. `alignment: .top` still biases the crop upward from there.
+                        VStack(spacing: 0) {
+                            Color.clear.frame(height: metrics.safeTop)
+                            S8KImage(url: item.backdropURL, placeholder: "film", maxPixel: 1400)
+                        }
                     }
                     .clipped()
                 LinearGradient(
@@ -365,7 +386,7 @@ struct HeroCarouselView: View {
                     tag(L("home.featured"), isGold: true)
                     tag(L("home.new_tag"), color: .s8kBlue)
                 }
-                Text(item.name).font(.system(size: 32, weight: .black)).foregroundColor(.s8kTextPrimary)
+                Text(item.name).font(.system(size: heroTitleSize, weight: .black)).foregroundColor(.s8kTextPrimary)
                     .lineLimit(2).multilineTextAlignment(.trailing)
                     .shadow(color: .black.opacity(0.7), radius: 6)
                     .frame(maxWidth: .infinity, alignment: .trailing)

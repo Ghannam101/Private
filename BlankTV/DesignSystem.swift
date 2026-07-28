@@ -154,7 +154,13 @@ struct S8KMetrics: Equatable {
     /// How much of the NEXT row must stay visible under the hero: a rail heading
     /// (21pt heavy + 3pt underline + 8pt gap) plus 56pt of the first card.
     var heroPeek: CGFloat { 88 }
-    var heroMaxHeight: CGFloat { cls.isCompact ? 660 : 560 }
+    /// + safeTop for the same reason heroHeight adds it: the card reserves that strip
+    /// as an empty band so the poster clears the status bar. On a regular window this
+    /// cap ALREADY binds (an iPad's ideal is 650-765 against a 560 cap), so without
+    /// carrying the strip through, iPad would take the band without the compensating
+    /// height — the hero would stay the same size and the artwork inside it would
+    /// simply get 24pt smaller. Strictly worse than before on that device class.
+    var heroMaxHeight: CGFloat { (cls.isCompact ? 660 : 560) + safeTop }
 
     /// ONE hero formula for the whole app, full-bleed (it already spans the area
     /// under the status bar — call sites must NOT add `+ topInset`).
@@ -167,7 +173,12 @@ struct S8KMetrics: Equatable {
         let r = size.height / size.width                 // page shape
         let t = min(max((r - 1.15) / 1.15, 0), 1)        // 0 = landscape-ish, 1 = very tall
         let aspect = 0.56 + 0.90 * t                     // 16:9 → tall cinematic crop
-        let ideal = size.width * aspect
+        // + safeTop: the card now starts its artwork BELOW the system's reserved strip
+        // (see heroCard), because the status bar, the Dynamic Island and the pinned bar
+        // were all being drawn over the top of the poster. Without adding that strip
+        // back, lowering the artwork would simply have made it shorter. Every clamp
+        // below still applies, so a short window is unaffected.
+        let ideal = size.width * aspect + safeTop
         let ceiling = size.height - bottomClearance - heroPeek   // the peek guarantee
         let capped = min(ideal, heroMaxHeight, ceiling, size.height * 0.80)
         // FLOOR = the hero card's own incompressible copy stack (tag row + a 2-line
