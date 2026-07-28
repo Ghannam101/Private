@@ -384,7 +384,7 @@ struct S8KPlayCapsule: View {
                 Text(title).font(.system(size: 16, weight: .semibold))
                     .lineLimit(1).minimumScaleFactor(0.8)
             }
-            .foregroundColor(.s8kBlack)
+            .foregroundColor(S8KBrand.accentInk)
             .padding(.horizontal, 26)
             .frame(minHeight: 54)
             .background(Capsule(style: .continuous).fill(Color.s8kGoldHigh))
@@ -2236,7 +2236,7 @@ struct AppTabBar: View {
         } label: {
             Image(systemName: "house.fill")
                 .font(.system(size: 23, weight: .bold))
-                .foregroundColor(.s8kBlack)
+                .foregroundColor(S8KBrand.accentInk)
                 .frame(width: 58, height: 58)
                 .background(Circle().fill(S8KGradient.goldFlat))
                 .overlay(Circle().strokeBorder(Color.s8kBlack.opacity(0.12), lineWidth: 2))

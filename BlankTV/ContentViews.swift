@@ -448,7 +448,7 @@ struct LiveTVView: View {
                 .buttonStyle(S8KButtonStyle())
                 Button { playerItem = .live(ch) } label: {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
-                        .font(.system(size: 13, weight: .bold)).foregroundColor(.s8kBlack)
+                        .font(.system(size: 13, weight: .bold)).foregroundColor(S8KBrand.accentInk)
                         .frame(width: 34, height: 34).background(S8KGradient.goldFlat).clipShape(Circle())
                 }
                 .buttonStyle(S8KButtonStyle())
@@ -612,7 +612,7 @@ struct ChannelRow: View {
                 RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
                     .fill(S8KGradient.goldFlat).frame(width: 32, height: 32)
                     .overlay(Image(systemName: "play.fill").font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.s8kBlack))
+                        .foregroundColor(S8KBrand.accentInk))
                     .shadow(color: .s8kGoldMid.opacity(0.3), radius: 4)
             }
             .buttonStyle(S8KButtonStyle())
@@ -1808,7 +1808,7 @@ struct MoviesView: View {
                             Image(systemName: "play.fill").font(.system(size: 11, weight: .bold))
                             Text(L("common.play")).font(S8KFont.caption1.weight(.bold))
                         }
-                        .foregroundColor(.s8kBlack)
+                        .foregroundColor(S8KBrand.accentInk)
                         .padding(.horizontal, 18).padding(.vertical, 9)
                         .background(S8KGradient.goldFlat)
                         .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
@@ -1983,7 +1983,7 @@ struct MoviePosterCell: View {
                         .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
                             .strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
                     if let y = movie.year {
-                        Text(y).font(S8KFont.caption3.weight(.bold)).foregroundColor(.s8kBlack)
+                        Text(y).font(S8KFont.caption3.weight(.bold)).foregroundColor(S8KBrand.accentInk)
                             .padding(.horizontal, 6).padding(.vertical, 2)
                             .background(S8KGradient.goldFlat)
                             .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous)).padding(5)
@@ -2340,7 +2340,7 @@ struct SeriesListView: View {
                             Image(systemName: "play.fill").font(.system(size: 11, weight: .bold))
                             Text(L("common.details")).font(S8KFont.caption1.weight(.bold))
                         }
-                        .foregroundColor(.s8kBlack)
+                        .foregroundColor(S8KBrand.accentInk)
                         .padding(.horizontal, 18).padding(.vertical, 9)
                         .background(S8KGradient.goldFlat)
                         .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
@@ -2671,7 +2671,7 @@ struct MovieDetailView: View {
         return HStack(spacing: 10) {
             if let r = m.rating, let rv = Double(r), rv > 0, rv.isFinite {
                 Text(String(format: "%.1f", rv))
-                    .font(S8KFont.caption1.weight(.heavy)).foregroundColor(.s8kBlack)
+                    .font(S8KFont.caption1.weight(.heavy)).foregroundColor(S8KBrand.accentInk)
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(Capsule().fill(Color.s8kGoldHigh))
             }
@@ -2904,7 +2904,7 @@ struct SeriesDetailView: View {
         return HStack(spacing: 10) {
             if let r = series.rating, let rv = Double(r), rv > 0, rv.isFinite {
                 Text(String(format: "%.1f", rv))
-                    .font(S8KFont.caption1.weight(.heavy)).foregroundColor(.s8kBlack)
+                    .font(S8KFont.caption1.weight(.heavy)).foregroundColor(S8KBrand.accentInk)
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(Capsule().fill(Color.s8kGoldHigh))
             }

@@ -425,7 +425,7 @@ struct HeroCarouselView: View {
                     .buttonStyle(S8KButtonStyle())
                     Button(action: { onOpen(item) }) {
                         Image(systemName: "play.fill").font(.system(size: 20, weight: .black))
-                            .foregroundColor(.s8kBlack)
+                            .foregroundColor(S8KBrand.accentInk)
                             .frame(width: 52, height: 52)
                             .background(S8KGradient.goldFlat)
                             .clipShape(Circle())
@@ -578,7 +578,7 @@ struct RankRail: View {
             ForEach(Array(offs.enumerated()), id: \.offset) { _, o in
                 base.foregroundColor(.s8kGoldHigh).offset(x: o.0, y: o.1)
             }
-            base.foregroundColor(.s8kBlack)
+            base.foregroundColor(S8KBrand.accentInk)
         }
         .shadow(color: .black.opacity(0.5), radius: 3)
         // Flatten the 9 stacked 94pt glyph layers into a single GPU texture so a

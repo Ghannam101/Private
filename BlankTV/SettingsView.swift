@@ -191,12 +191,12 @@ struct SettingsProV2: View {
             ZStack {
                 Circle().fill(S8KGradient.goldFlat).frame(width: 84, height: 84)
                     .shadow(color: .s8kGoldHigh.opacity(0.45), radius: 18, y: 5)
-                Text(initials).font(.system(size: 29, weight: .black)).foregroundColor(.s8kBlack)
+                Text(initials).font(.system(size: 29, weight: .black)).foregroundColor(S8KBrand.accentInk)
             }
             Text(displayName).font(.system(size: 23, weight: .black))
                 .foregroundColor(.s8kTextPrimary).lineLimit(1)
             HStack(spacing: 8) {
-                Text(planText).font(S8KFont.caption3.weight(.heavy)).foregroundColor(.s8kBlack)
+                Text(planText).font(S8KFont.caption3.weight(.heavy)).foregroundColor(S8KBrand.accentInk)
                     .padding(.horizontal, 11).padding(.vertical, 4)
                     .background(Capsule().fill(S8KGradient.goldFlat))
                 HStack(spacing: 5) {
@@ -646,7 +646,7 @@ struct AccountSwitcherView: View {
                     Circle().fill(S8KGradient.goldFlat).frame(width: 88, height: 88)
                         .shadow(color: .s8kGoldMid.opacity(0.40), radius: 12, y: 4)
                     Text(String(acc.name.prefix(2).uppercased()))
-                        .font(.system(size: 30, weight: .black)).foregroundColor(.s8kBlack)
+                        .font(.system(size: 30, weight: .black)).foregroundColor(S8KBrand.accentInk)
                 }
                 .overlay(alignment: .bottomTrailing) {
                     Image(systemName: acc.kind == .m3u ? "link" : "person.badge.key.fill")

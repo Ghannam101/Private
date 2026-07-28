@@ -433,11 +433,11 @@ struct GatewayView: View {
                     .fill(Color.s8kGoldHigh)
                     .frame(width: 34, height: 34)
                 if isEntering {
-                    ProgressView().tint(.s8kBlack).scaleEffect(0.7)
+                    ProgressView().tint(S8KBrand.accentInk).scaleEffect(0.7)
                 } else {
                     Text(String(acc.name.prefix(1)).uppercased())
                         .font(S8KFont.headline.weight(.heavy))
-                        .foregroundColor(.s8kBlack)
+                        .foregroundColor(S8KBrand.accentInk)
                 }
             }
             .contentShape(Rectangle())
@@ -477,7 +477,7 @@ struct GatewayView: View {
                     RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
                         .fill(S8KGradient.goldFlat).frame(width: 50, height: 50)
                     Image(systemName: acc.kind == .xtream ? "person.badge.key.fill" : "link")
-                        .font(.system(size: 19, weight: .bold)).foregroundColor(.s8kBlack)
+                        .font(.system(size: 19, weight: .bold)).foregroundColor(S8KBrand.accentInk)
                 }
                 VStack(alignment: .trailing, spacing: 3) {
                     Text(acc.name).font(S8KFont.headline).foregroundColor(.s8kTextPrimary).lineLimit(1)
@@ -518,7 +518,7 @@ struct GatewayView: View {
                 Text(loc.lang.display).font(S8KFont.subhead.weight(.heavy))
                 Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold))
             }
-            .foregroundColor(.s8kBlack)
+            .foregroundColor(S8KBrand.accentInk)
             .padding(.horizontal, 14).padding(.vertical, 10)
             .background(Capsule().fill(S8KGradient.goldFlat))
             .shadow(color: .black.opacity(0.4), radius: 9, y: 3)

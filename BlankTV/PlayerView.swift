@@ -895,7 +895,7 @@ struct PlayerEngineView: View {
                                 .shadow(color: .s8kGoldHigh.opacity(0.4), radius: 14)
                             Image(systemName: vm.isPlaying ? "pause.fill" : "play.fill")
                                 .font(.system(size: 27, weight: .black))
-                                .foregroundColor(.s8kBlack)
+                                .foregroundColor(S8KBrand.accentInk)
                         }
                     }
                     .buttonStyle(S8KButtonStyle())

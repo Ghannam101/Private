@@ -533,7 +533,7 @@ struct SubscriptionsGateView: View {
                         .frame(width: 52, height: 52)
                         .shadow(color: .s8kGoldMid.opacity(0.4), radius: 8, y: 3)
                     Image(systemName: isXtream ? "person.badge.key.fill" : "link")
-                        .font(.system(size: 20, weight: .bold)).foregroundColor(.s8kBlack)
+                        .font(.system(size: 20, weight: .bold)).foregroundColor(S8KBrand.accentInk)
                 }
                 VStack(alignment: .trailing, spacing: 3) {
                     Text(acc.name).font(S8KFont.title3).foregroundColor(.s8kTextPrimary).lineLimit(1)
