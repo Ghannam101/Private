@@ -396,6 +396,16 @@ enum ContentItem: Identifiable {
         case .episode(let ep, _):   return "ep_\(ep.id)"
         }
     }
+
+    /// Artwork to hold under the video surface until the first frame arrives.
+    /// Backdrop first — it is already the right shape for a full-bleed screen.
+    var artURL: String? {
+        switch self {
+        case .live(let ch):          return ch.logoURL
+        case .movie(let m):          return m.backdropURL ?? m.posterURL
+        case .episode(let ep, let s): return ep.posterURL ?? s.backdropURL ?? s.coverURL
+        }
+    }
 }
 
 // MARK: - Stream Quality

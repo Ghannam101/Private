@@ -132,6 +132,7 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
         player.delegate = self
         cancelPendingSkip()  // a skip aimed at the OLD item must never land on the new one
         lastTickTime = -1   // a stale tick from the previous item must not block "advanced"
+        advancedTicks = 0
         didResume = false
         resumeTarget = BasePlayerVM.savedResume(for: newItem)
         currentTime = 0; duration = 0
@@ -288,6 +289,13 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
             // position. This is VLC's equivalent of a seek tolerance, and it is the
             // difference between a jump that feels instant and one that thinks about it.
             media.addOption(":input-fast-seek")
+            // VOD ONLY. libvlc permits the buffer to inflate up to `clock-jitter`
+            // (default 5000ms, libvlc-module.c) before it will show a first frame —
+            // es_out.c reads it as the ceiling on that inflation. On VOD that ceiling
+            // buys nothing: the server answers byte ranges, so a shortfall is simply
+            // re-requested. On LIVE it is the reliability mechanism — exceeding it makes
+            // VLC RESET the clock, which the user sees as a stutter — so it stays there.
+            media.addOption(":clock-jitter=0")
         }
         return media
     }
@@ -669,6 +677,7 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
     }
 
     private var lastTickTime: Double = -1
+    private var advancedTicks = 0
     func mediaPlayerTimeChanged(_ aNotification: Notification) {
         let t = Double(player.time.intValue) / 1000
         let advanced = t > lastTickTime
@@ -686,6 +695,16 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
         // the assignments also stops re-publishing unchanged @Published state every
         // tick (which re-rendered the whole controls tree — visible jank).
         if advanced {
+            // `hasVideoOut` is the real answer to "is there a picture yet". The tick
+            // count is a BOUND, not a second opinion: on an audio-only stream, or a
+            // libvlc build that raises the flag late, it guarantees the artwork we hold
+            // over the surface cannot end up sitting on top of playing video.
+            if !hasFirstFrame {
+                advancedTicks += 1
+                if player.hasVideoOut || advancedTicks >= 2 {
+                    withAnimation(.easeOut(duration: 0.28)) { hasFirstFrame = true }
+                }
+            }
             if isLoading { isLoading = false }
             if buffering { buffering = false }
             if reconnecting { reconnecting = false }

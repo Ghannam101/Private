@@ -337,6 +337,25 @@ struct PlayerEngineView: View {
             Color.black.ignoresSafeArea()
             PlayerSurfaceView(vm: vm).ignoresSafeArea()
 
+            // Hold the title's OWN artwork over the surface until there is a real frame.
+            //
+            // A remote MKV needs 1-2s to produce one — index at the file tail, two extra
+            // round trips — and until now that second was flat black with a spinner. The
+            // bytes cannot arrive faster, but black is what makes it FEEL slow: the user
+            // gets no confirmation that the thing they tapped is the thing that is
+            // opening. Showing the poster answers that instantly, at zero network cost,
+            // because it is already in the image cache from the screen they tapped from.
+            //
+            // Above the surface, not behind it: the video layer is opaque black before
+            // its first frame, so artwork underneath would simply never be seen.
+            if !vm.hasFirstFrame, let art = vm.item.artURL {
+                S8KImage(url: art, contentMode: .fill)
+                    .ignoresSafeArea()
+                    .overlay(Color.black.opacity(0.5).ignoresSafeArea())
+                    .allowsHitTesting(false)          // never intercept the tap-to-toggle
+                    .transition(.opacity)
+            }
+
             // Loading / buffering — debounced (see updateBufferingUI) so a quick
             // re-buffer doesn't flash the spinner on and off.
             if showBufferingUI {

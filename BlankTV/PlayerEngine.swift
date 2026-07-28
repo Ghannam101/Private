@@ -63,6 +63,12 @@ enum KeepAwake {
 // All @Published playback state + helpers live here so PlayerView binds to ONE
 // type. Concrete engines override the control methods + the video surface.
 class BasePlayerVM: NSObject, ObservableObject {
+    /// True once the decoder has actually put a picture on the surface.
+    ///
+    /// NOT the same as `isPlaying` or `!isLoading`: those flip when playback is
+    /// underway, which on a remote MKV is still a beat before anything is visible.
+    /// The gap is what the user reads as a black screen, so it needs its own signal.
+    @Published var hasFirstFrame:  Bool   = false
     @Published var isPlaying:      Bool   = false
     @Published var isLoading:      Bool   = true
     @Published var buffering:      Bool   = false
@@ -99,7 +105,7 @@ class BasePlayerVM: NSObject, ObservableObject {
         self.resumeTarget = BasePlayerVM.savedResume(for: item)
         super.init()
     }
-    func setItem(_ i: ContentItem) { item = i }
+    func setItem(_ i: ContentItem) { item = i; hasFirstFrame = false }
 
     /// Start the mid-stream stall monitor (call from each engine's setup()).
     func startStallMonitor() {
@@ -515,7 +521,11 @@ final class AVPlayerVM: BasePlayerVM {
                 self.lastRequestedTime = nil
             }
             let playing = self.avPlayer.timeControlStatus == .playing
-            if self.isPlaying != playing { self.isPlaying = playing }   // guard: no re-publish when unchanged
+            if self.isPlaying != playing { self.isPlaying = playing }
+            // Playing AND the clock has moved => a picture is on screen.
+            if !self.hasFirstFrame, playing, ct > 0 {
+                withAnimation(.easeOut(duration: 0.28)) { self.hasFirstFrame = true }
+            }   // guard: no re-publish when unchanged
             if playing {
                 KeepAwake.keep(self)   // re-assert every tick while playing
                 // Belt-and-suspenders: a genuinely-playing stream is not stuck, even
