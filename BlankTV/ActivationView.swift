@@ -291,7 +291,7 @@ struct ActivationRequiredView: View {
         VStack(spacing: S8KSpace.lg) {
             BrandLogo(size: 96)
                 .shadow(color: .s8kGoldHigh.opacity(0.4), radius: 26)
-            Text("Blank Prime")
+            Text(S8KBrand.name)
                 .font(.system(size: 26, weight: .black)).tracking(6)
                 .foregroundStyle(S8KGradient.goldFlat)
         }

@@ -293,7 +293,7 @@ enum L10n {
         "subs.choose":      [.ar: "اختر اشتراكاً للمتابعة", .en: "Choose a subscription to continue", .fr: "Choisissez un abonnement", .tr: "Devam etmek için bir abonelik seçin", .es: "Elige una suscripción para continuar"],
         "subs.add":         [.ar: "إضافة اشتراك",        .en: "Add subscription", .fr: "Ajouter un abonnement", .tr: "Abonelik ekle", .es: "Añadir suscripción"],
         "subs.add_first":   [.ar: "أضف اشتراكك الأول",    .en: "Add your first subscription", .fr: "Ajoutez votre premier abonnement", .tr: "İlk aboneliğinizi ekleyin", .es: "Añade tu primera suscripción"],
-        "subs.welcome":     [.ar: "مرحباً بك في Blank Prime", .en: "Welcome to Blank Prime", .fr: "Bienvenue sur Blank Prime", .tr: "Blank Prime'ye hoş geldiniz", .es: "Bienvenido a Blank Prime"],
+        "subs.welcome":     [.ar: "مرحباً بك في %@", .en: "Welcome to %@", .fr: "Bienvenue sur %@", .tr: "Hoş geldiniz — %@", .es: "Bienvenido a %@"],
 
         // About
         "about.subtitle":   [.ar: "Premium IPTV Player", .en: "Premium IPTV Player", .fr: "Lecteur IPTV Premium", .tr: "Premium IPTV Oynatıcı", .es: "Reproductor IPTV Premium"],
@@ -408,7 +408,7 @@ enum L10n {
 
         // Terms
         "terms.accept.t":    [.ar: "موافقتك",       .en: "Your agreement", .fr: "Acceptation des conditions", .tr: "Şartların Kabulü", .es: "Aceptación de los términos"],
-        "terms.accept.b":    [.ar: "باستخدام تطبيق Blank Prime، فإنك تقبل هذه الشروط والأحكام بالكامل.", .en: "By using the Blank Prime app, you fully accept these terms and conditions.", .fr: "En utilisant l'application Blank Prime, vous acceptez pleinement ces conditions générales.", .tr: "Blank Prime uygulamasını kullanarak bu şartları ve koşulları tamamen kabul edersiniz.", .es: "Al usar la aplicación Blank Prime, aceptas plenamente estos términos y condiciones."],
+        "terms.accept.b":    [.ar: "باستخدام تطبيق %@، فإنك تقبل هذه الشروط والأحكام بالكامل.", .en: "By using the %@ app, you fully accept these terms and conditions.", .fr: "En utilisant l'application %@, vous acceptez pleinement ces conditions générales.", .tr: "%@ uygulamasını kullanarak bu şartları ve koşulları tamamen kabul edersiniz.", .es: "Al usar la aplicación %@, aceptas plenamente estos términos y condiciones."],
         "terms.use.t":       [.ar: "حدود الاستخدام", .en: "Limits of use",   .fr: "Utilisation autorisée", .tr: "İzin Verilen Kullanım", .es: "Uso permitido"],
         "terms.use.b":       [.ar: "التطبيق للاستخدام الشخصي وحده. إعادة التوزيع أو الاستخدام التجاري ممنوعان.", .en: "The app is for personal use alone. Redistribution and commercial use are not permitted.", .fr: "L'app est réservée à un usage personnel. La redistribution ou l'usage commercial est interdit.", .tr: "Uygulama yalnızca kişisel kullanım içindir. Yeniden dağıtım veya ticari kullanım yasaktır.", .es: "La app es solo para uso personal. Se prohíbe la redistribución o el uso comercial."],
         "terms.content.t":   [.ar: "من يتحمّل مسؤولية المحتوى",   .en: "Who is responsible for the content", .fr: "Responsabilité du contenu", .tr: "İçerik Sorumluluğu", .es: "Responsabilidad del contenido"],

@@ -82,7 +82,7 @@ struct S8KLogoMark: View {
     var showGlow: Bool = false
 
     var body: some View {
-        Image("Logo")
+        Image(S8KBrand.logoAsset)
             .resizable()
             .scaledToFit()
             .frame(width: size, height: size)
@@ -399,7 +399,7 @@ struct TermsView: View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 14) {
-                    termsSection(L("terms.accept.t"), L("terms.accept.b"))
+                    termsSection(L("terms.accept.t"), String(format: L("terms.accept.b"), S8KBrand.name))
                     termsSection(L("terms.use.t"), L("terms.use.b"))
                     termsSection(L("terms.content.t"), L("terms.content.b"))
                     termsSection(L("terms.terminate.t"), L("terms.terminate.b"))
@@ -585,7 +585,7 @@ struct SubscriptionsGateView: View {
     // MARK: Empty state (first run)
     private var emptyState: some View {
         VStack(spacing: 22) {
-            Text(L("subs.welcome")).font(S8KFont.title3).foregroundColor(.s8kTextPrimary)
+            Text(String(format: L("subs.welcome"), S8KBrand.name)).font(S8KFont.title3).foregroundColor(.s8kTextPrimary)
             Text(L("login.welcome")).font(S8KFont.subhead).foregroundColor(.s8kTextSecondary)
                 .multilineTextAlignment(.center)
             GoldButton(title: L("subs.add_first"), icon: "plus") { showAdd = true }

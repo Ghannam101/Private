@@ -940,7 +940,7 @@ final class AppTheme: ObservableObject {
 
     @Published var primaryColor: Color   = .s8kGoldMid
     @Published var accentColor:  Color   = .s8kGoldHigh
-    @Published var serverName:   String  = "Blank Prime"
+    @Published var serverName:   String  = S8KBrand.name
     @Published var logoURL:      String? = nil
     @Published var isCustom:     Bool    = false
     /// Bumped whenever the active BRAND palette (colors) changes → the root uses
@@ -965,7 +965,7 @@ final class AppTheme: ObservableObject {
         withAnimation(.easeInOut(duration: 0.3)) {
             primaryColor = .s8kGoldMid
             accentColor  = .s8kGoldHigh
-            serverName   = "Blank Prime"
+            serverName   = S8KBrand.name
             logoURL      = nil
             isCustom     = false
         }
@@ -1045,14 +1045,14 @@ struct GoldButton: View {
                 }
                 .opacity(isLoading ? 0 : 1)
                 if isLoading {
-                    ProgressView().progressViewStyle(.circular).tint(.s8kBlack).scaleEffect(0.85)
+                    ProgressView().progressViewStyle(.circular).tint(S8KBrand.accentInk).scaleEffect(0.85)
                 }
             }
             // Deep-green ink (not pure black) so the CTA re-skins with BrandTheme.
             // Disabled ink is WHITE at 45%: the old black-on-white@0.15 was 1.6:1 —
             // an unreadable empty slab, and that is the button's DEFAULT state on the
             // login gateway (disabled until a username and password are typed).
-            .foregroundColor(isDisabled ? Color.white.opacity(0.45) : Color.s8kBlack)
+            .foregroundColor(isDisabled ? Color.white.opacity(0.45) : S8KBrand.accentInk)
             .frame(maxWidth: .infinity, minHeight: 52)
             .background(isDisabled ? AnyShapeStyle(Color.white.opacity(0.10))
                                    : AnyShapeStyle(Color.s8kGoldHigh))   // FLAT, not a gradient
@@ -1664,9 +1664,9 @@ struct S8KWatermark: View {
                         .frame(width: 22, height: 22)
                         .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                 } else {
-                    Image("Logo").resizable().scaledToFit().frame(width: 22, height: 22)
+                    Image(S8KBrand.logoAsset).resizable().scaledToFit().frame(width: 22, height: 22)
                 }
-                Text(BrandKit.customName ?? "Blank Prime")
+                Text(BrandKit.customName ?? S8KBrand.name)
                     .font(S8KFont.caption1.weight(.black))
                     .tracking(1.5)
                     .foregroundColor(.s8kGoldHigh)
@@ -1682,6 +1682,53 @@ struct S8KWatermark: View {
 
 // MARK: - Brand wordmark (premium "BLANK TV")
 // MARK: - Brand kit (per-reseller white-label: name / logo / accent)
+/// THE IDENTITY. Everything that makes this app *this* brand is decided here and
+/// nowhere else, so changing identity is editing one type rather than hunting through
+/// views. `BrandTheme` already owned the palette; this owns the rest of it.
+///
+/// RULE: never write the app's name into a sentence. Put a `%@` in the localised
+/// string and inject `S8KBrand.name`, or the name becomes unchangeable in five
+/// languages at once — which is exactly what it was.
+enum S8KBrand {
+    /// The product name as the user reads it.
+    static let name = "Blank Prime"
+    /// The short form, for the wordmark and other tight places.
+    static let shortName = "Blank"
+    /// The bundled logo asset. Swapping identity = replacing the file under this name.
+    static let logoAsset = "Logo"
+    // NOTE: there is deliberately no `palette` here. The palette's home is
+    // `BrandTheme.active`, which the reseller path mutates at runtime; a second copy
+    // pinned to `.blankGreen` would only invite ink to be computed against a colour
+    // the button is not actually drawn on.
+
+    /// Ink for text and glyphs drawn ON the accent colour.
+    ///
+    /// COMPUTED, never fixed. It was a hard-coded black, which is right for this app's
+    /// lime accent and silently wrong for a dark one — the first buyer who picked a
+    /// deep blue would have shipped buttons whose labels were invisible, and nothing
+    /// in the code would have complained. Derived from luminance, a rebrand cannot
+    /// produce an unreadable button.
+    static var accentInk: Color {
+        // `.s8kBlack`, NOT `.black`: s8kBlack is BrandTheme.active.base, a deep brand
+        // tone rather than #000000, and that was a deliberate choice — the CTA is meant
+        // to re-skin with the palette. What was missing is only the white branch, for
+        // an accent too dark to read a deep ink on.
+        BrandTheme.active.accentHigh.s8kLuminance > 0.55 ? .s8kBlack : .white
+    }
+}
+
+extension Color {
+    /// Relative luminance (Rec. 709). Used to pick legible ink for any accent.
+    var s8kLuminance: CGFloat {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        // Guarded like `adjusted(brightness:)` below, and failing toward 1 (deep ink) —
+        // the app's status quo. An unguarded read would leave r/g/b at 0 on failure and
+        // silently turn every button's label white.
+        guard UIColor(self).getRed(&r, green: &g, blue: &b, alpha: &a) else { return 1 }
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
+}
+
 enum BrandKit {
     /// Reseller brand name, or nil for default BLANK TV.
     static var customName: String? {
@@ -1703,7 +1750,7 @@ struct BrandLogo: View {
                 .frame(width: size, height: size)
                 .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
         } else {
-            Image("Logo").resizable().scaledToFit().frame(width: size, height: size)
+            Image(S8KBrand.logoAsset).resizable().scaledToFit().frame(width: size, height: size)
         }
     }
 }
@@ -1720,7 +1767,7 @@ struct S8KWordmark: View {
                 .shadow(color: .black.opacity(0.35), radius: 6, y: 1)
         } else {
             HStack(spacing: size * 0.24) {
-                Text("Blank")
+                Text(S8KBrand.shortName)
                     .font(.system(size: size, weight: .semibold, design: .rounded))
                     .tracking(size * 0.10)
                     .foregroundColor(.s8kTextPrimary)
@@ -2394,7 +2441,7 @@ struct S8KConfirm: View {
                         // must not disagree (one flat, one gradient-with-a-glow).
                         Text(confirmTitle).font(S8KFont.field.weight(.semibold))
                             .lineLimit(1).minimumScaleFactor(0.85)
-                            .foregroundColor(destructive ? .white : .s8kBlack)
+                            .foregroundColor(destructive ? .white : S8KBrand.accentInk)
                             .frame(maxWidth: .infinity, minHeight: 50)
                             .background(destructive ? AnyShapeStyle(Color.s8kRed)
                                                     : AnyShapeStyle(Color.s8kGoldHigh))

@@ -316,8 +316,8 @@ struct SettingsProV2: View {
 
     private var footer: some View {
         VStack(spacing: 5) {
-            Image("Logo").resizable().scaledToFit().frame(width: 28, height: 28).opacity(0.8)
-            Text("Blank Prime").font(S8KFont.caption1.weight(.black)).tracking(2).foregroundColor(.s8kTextDisabled)
+            Image(S8KBrand.logoAsset).resizable().scaledToFit().frame(width: 28, height: 28).opacity(0.8)
+            Text(S8KBrand.name).font(S8KFont.caption1.weight(.black)).tracking(2).foregroundColor(.s8kTextDisabled)
             Text("v\(appVersion)").font(.system(size: 10, design: .monospaced)).foregroundColor(.s8kTextDisabled.opacity(0.5))
         }
         .padding(.top, 10)
@@ -880,13 +880,13 @@ struct AboutView: View {
                 Color.s8kBlack.ignoresSafeArea()
                 VStack(spacing: 28) {
                     Spacer()
-                    Image("Logo")
+                    Image(S8KBrand.logoAsset)
                         .resizable()
                         .scaledToFit()
                         .frame(width: 96, height: 96)
                         .shadow(color: .s8kGoldHigh.opacity(0.3), radius: 24)
                     VStack(spacing: 8) {
-                        Text("Blank Prime")
+                        Text(S8KBrand.name)
                             .font(S8KFont.title1.weight(.black)).tracking(5)
                             .foregroundStyle(S8KGradient.goldFlat)
                         Text(L("about.subtitle"))
