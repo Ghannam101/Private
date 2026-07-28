@@ -519,11 +519,24 @@ enum L10n {
 // NETWORK — API CLIENT
 // ════════════════════════════════════════════
 enum APIConfig {
-    // Legacy proxy endpoint (the Xtream-proxy login path is no longer used — all
-    // login flows go DIRECT to the user's provider). Kept on HTTPS + the domain
-    // so no raw cleartext-HTTP IP ships in the binary (App Store / security).
-    static let primary  = "https://strong8k.app/api/v1"
-    static let fallback = "https://strong8k.app/api/v1"
+    // UNREACHABLE, and the address says so on purpose.
+    //
+    // Every caller of `APIClient.request` passes requiresAuth: true except
+    // `AuthService.login`, which throws on a nil Keychain token — and `login` is
+    // itself dead: the UI only ever calls loginXtream / loginM3U, which go DIRECT to
+    // the user's own provider. So `Keychain.shared.token` is never written anywhere
+    // in the app, and no request here can reach the network. Verified by tracing
+    // every call site, not assumed.
+    //
+    // It used to read `https://strong8k.app/api/v1`, and that shipped as a literal in
+    // the binary. `strings` on the IPA showed the REFERENCE app's live domain sitting
+    // inside an app we are arguing is independent — which is precisely the kind of
+    // evidence that makes a Guideline 4.3 rejection stick. `.invalid` is reserved by
+    // RFC 2606 and can never resolve, so it also documents the truth: there is no
+    // endpoint. The right end state is deleting this subsystem outright; that is a
+    // wide change across ~15 call sites and wants its own reviewed commit.
+    static let primary  = "https://api.invalid/v1"
+    static let fallback = "https://api.invalid/v1"
     static let timeout: TimeInterval = 25
     static var version: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"

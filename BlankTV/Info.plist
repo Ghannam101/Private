@@ -9,7 +9,7 @@
 		<string>audio</string>
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>للتواصل مع أجهزة AirPlay على نفس الشبكة</string>
+	<string>يستخدم التطبيق الشبكة المحلية للعثور على شاشات AirPlay القريبة وبثّ ما تشاهده إليها. لا يُجمع أي شيء عن شبكتك.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
