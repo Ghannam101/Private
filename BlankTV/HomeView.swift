@@ -360,7 +360,8 @@ struct HeroCarouselView: View {
                         // on. `alignment: .top` still biases the crop upward from there.
                         VStack(spacing: 0) {
                             Color.clear.frame(height: metrics.safeTop)
-                            S8KImage(url: item.backdropURL, placeholder: "film", maxPixel: 1400)
+                            S8KImage(url: item.backdropURL, placeholder: "film",
+                                     maxPixel: s8kHeroPixels(metrics.cls.isCompact))
                         }
                     }
                     .clipped()
@@ -815,6 +816,10 @@ struct HomeView: View {
                 .frame(maxWidth: metrics.contentMaxWidth)
                 .frame(maxWidth: .infinity)
             }
+            // Planted on the CONTENT, not the ScrollView: the probe walks UP to find
+            // the UIScrollView, and on the ScrollView itself it lands as a sibling
+            // behind it and clears nothing.
+            .s8kInstantTaps()
         }
         // Without a bounce there is no over-scroll, and with no over-scroll there is no
         // stretch. Movies/Series already declare it; Home was relying on `.refreshable`.
@@ -1129,6 +1134,16 @@ struct HomeView: View {
                 // (see heroCard) — scaling the whole card also inflated the title and
                 // pushed the controls off-screen.
                 .frame(height: heroHeight)
+        } else {
+            // NO HERO: reserve what the pinned bar occupies. Without this the first
+            // section starts at physical y=0 under the bar and cannot be scrolled into
+            // view — it is already at the top of the content. The Movies and Series
+            // pages have carried this reserve since they were built (their
+            // `Color.clear.frame(height: topInset + 62)`); Home never got it.
+            // safeTop + 66: Home's bar is taller than the Movies/Series one — a 48pt
+            // avatar with 8 above and 10 below — so topBarReserve's compact 62 left
+            // the first section 4pt under the frosted strip.
+            Color.clear.frame(height: metrics.safeTop + 66)
         }
     }
 

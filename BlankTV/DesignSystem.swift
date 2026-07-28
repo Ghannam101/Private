@@ -525,6 +525,50 @@ func s8kOpenURL(_ url: URL) {
     UIApplication.shared.open(url)
 }
 
+/// Removes UIScrollView's ~150ms content-touch delay for the enclosing scroll view.
+///
+/// UIKit holds a touch back to decide whether it is the start of a scroll, so a button
+/// inside a ScrollView does not highlight until the finger has been down long enough to
+/// rule that out. On a browsing app that reads as lag on EVERY tap. The gateway already
+/// carried a private copy of this — it is what fixed the "sticky fields" — and this is
+/// the same probe promoted so the rest of the app can have it too.
+///
+/// `canCancelContentTouches` stays true, so a drag that starts on a button still scrolls;
+/// only the highlight becomes immediate.
+struct S8KNoTouchDelay: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView { Probe(frame: .zero) }
+    func updateUIView(_ v: UIView, context: Context) {}
+    private final class Probe: UIView {
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            var v: UIView? = superview
+            while let cur = v {
+                if let sv = cur as? UIScrollView {
+                    sv.delaysContentTouches = false
+                    sv.canCancelContentTouches = true
+                    break
+                }
+                v = cur.superview
+            }
+        }
+    }
+}
+
+/// Decode budget for hero artwork. One function so the PREFETCH and the VIEW cannot
+/// disagree: `S8KImageCache` keys on the URL alone and ignores `maxPixel`, so whoever
+/// asks first fixes the size for everyone — and the prefetch always runs first.
+/// 2000 clears an iPad Pro's 2732px at a magnification no one can see after the crop,
+/// and keeps eight heroes inside the 96 MB cache. 2600 does not.
+func s8kHeroPixels(_ compact: Bool) -> CGFloat { compact ? 1400 : 2000 }
+
+extension View {
+    /// Attach to a scroll view's CONTENT (not the ScrollView itself) — the probe walks
+    /// up from where it is planted to find the enclosing UIScrollView.
+    func s8kInstantTaps() -> some View {
+        background(S8KNoTouchDelay().frame(width: 0, height: 0))
+    }
+}
+
 // MARK: - Details sheet
 /// The extra facts a panel publishes about a title, in this app's own language.
 ///

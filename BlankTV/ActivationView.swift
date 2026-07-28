@@ -95,6 +95,11 @@ struct MaintenanceView: View {
                         .frame(maxWidth: 200)
                 }
                 .padding(.vertical, 32)
+                // Capped and centred. This view sits OUTSIDE S8KMetricsRoot, so it has
+                // no layout metrics of its own — unbounded, its buttons stretched to
+                // 1326pt on a 12.9" iPad and 1960pt in a Mac window. 460 is the same
+                // order as the gateway's own 400pt login card.
+                .frame(maxWidth: 460)
                 .frame(maxWidth: .infinity)
             }
             // CENTRES content that is shorter than the screen (iOS 17+) — without this
@@ -142,6 +147,11 @@ struct UpdateRequiredView: View {
                     .frame(maxWidth: 220)
                 }
                 .padding(.vertical, 32)
+                // Capped and centred. This view sits OUTSIDE S8KMetricsRoot, so it has
+                // no layout metrics of its own — unbounded, its buttons stretched to
+                // 1326pt on a 12.9" iPad and 1960pt in a Mac window. 460 is the same
+                // order as the gateway's own 400pt login card.
+                .frame(maxWidth: 460)
                 .frame(maxWidth: .infinity)
             }
             // Centre when it fits (see MaintenanceView) — this gate is the whole screen.
@@ -266,7 +276,12 @@ struct ActivationRequiredView: View {
 
                     Spacer(minLength: 40)
                 }
-                .padding(.top, 70)   // literal: this gate renders OUTSIDE S8KMetricsRoot, so metrics.safeTop would be 0
+                .padding(.top, 70)
+                // Capped like the other two gates. This is the screen an Apple reviewer
+                // sees on an unactivated device, and uncapped its buttons ran to 1326pt
+                // on a 12.9" iPad.
+                .frame(maxWidth: 460)
+                .frame(maxWidth: .infinity)   // literal: this gate renders OUTSIDE S8KMetricsRoot, so metrics.safeTop would be 0
             }
         }
     }

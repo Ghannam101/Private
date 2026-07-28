@@ -117,24 +117,6 @@ private struct GatewayPosterWall: View, Equatable {
 // respond". SwiftUI exposes no API for this, so this zero-size probe walks up to the
 // enclosing UIScrollView once and turns the delay off. `canCancelContentTouches` stays
 // true, so dragging still cancels an in-progress tap and scrolling is unaffected.
-private struct GWNoTouchDelay: UIViewRepresentable {
-    func makeUIView(context: Context) -> UIView { Probe(frame: .zero) }
-    func updateUIView(_ v: UIView, context: Context) {}
-    private final class Probe: UIView {
-        override func didMoveToWindow() {
-            super.didMoveToWindow()
-            var v: UIView? = superview
-            while let cur = v {
-                if let sv = cur as? UIScrollView {
-                    sv.delaysContentTouches = false
-                    sv.canCancelContentTouches = true
-                    break
-                }
-                v = cur.superview
-            }
-        }
-    }
-}
 
 // NOTE: there is deliberately NO `defaultScrollAnchor` here any more.
 // It caused the reported "the keyboard is very far away and the screen jumps up" bug.
@@ -277,10 +259,10 @@ struct GatewayView: View {
             // appeared the layout would flip branches, every text field would be torn
             // down and rebuilt, focus would be lost and the keyboard would drop again.
             // The touch delay a ScrollView normally adds is removed directly instead
-            // (`GWNoTouchDelay` below), and the row-wide tap target added to
+            // (`s8kInstantTaps` below), and the row-wide tap target added to
             // S8KTextField is what actually fixed the "sticky fields".
             ScrollView(.vertical, showsIndicators: false) {
-                loginBlock.background(GWNoTouchDelay().frame(width: 0, height: 0))
+                loginBlock.s8kInstantTaps()
             }
             // 20pt of breathing room under the content: iOS scrolls a focused field
             // FLUSH against the viewport edge, which puts it right on the keyboard.

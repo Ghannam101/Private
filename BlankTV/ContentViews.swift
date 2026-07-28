@@ -369,9 +369,10 @@ struct LiveTVView: View {
                     }
                     Color.clear.frame(height: metrics.bottomClearance)
                 }
+                .s8kInstantTaps()   // on the CONTENT — the probe walks UP to the UIScrollView
             }
             .scrollBounceBehavior(.always)
-            .reportsScrollToTabBar()   // collapse the corner puck on scroll (owner #4)
+        .reportsScrollToTabBar()   // collapse the corner puck on scroll (owner #4)
         }
         // Same footing as Movies/Series: the page ZStack is inflated to the full screen
         // by its `ignoresSafeArea` background, so `topInset` must be measured from the
@@ -1712,6 +1713,7 @@ struct MoviesView: View {
                 }
                 Color.clear.frame(height: metrics.bottomClearance)
             }
+            .s8kInstantTaps()   // on the CONTENT — the probe walks UP to the UIScrollView
         }
         // `.always`: without a bounce there is no over-scroll, and with no over-scroll
         // there is no stretch — on a short page the effect would silently not exist.
@@ -2255,6 +2257,7 @@ struct SeriesListView: View {
                 }
                 Color.clear.frame(height: metrics.bottomClearance)
             }
+            .s8kInstantTaps()   // on the CONTENT — the probe walks UP to the UIScrollView
         }
         .scrollBounceBehavior(.always)   // no bounce → no over-scroll → no stretch
         .reportsScrollToTabBar()         // collapse the corner puck on scroll (owner #4)
