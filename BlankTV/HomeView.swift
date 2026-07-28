@@ -524,7 +524,7 @@ struct RankRail: View {
                 .overlay(alignment: .topTrailing) {
                     if let y = year, !y.trimmingCharacters(in: .whitespaces).isEmpty {
                         Text(y)
-                            .font(.system(size: 9, weight: .bold)).foregroundColor(.white)
+                            .font(S8KFont.caption3).foregroundColor(.white)
                             .padding(.horizontal, 5).padding(.vertical, 2)
                             .background(Color.black.opacity(0.72)).clipShape(Capsule())
                             .padding(5)
@@ -919,7 +919,7 @@ struct HomeView: View {
                     let unread = activation.unreadCount
                     if unread > 0 {
                         Text("\(min(unread, 9))")
-                            .font(.system(size: 9, weight: .black))
+                            .font(S8KFont.caption3.weight(.black))
                             .foregroundColor(.white)
                             .frame(minWidth: 16, minHeight: 16)
                             .background(Color.s8kRed)
@@ -1186,7 +1186,7 @@ struct HomeView: View {
                 Spacer(minLength: 0)
                 if let tag = rail.networkTag {
                     Text(tag)
-                        .font(.system(size: 10, weight: .black))
+                        .font(S8KFont.caption2.weight(.black))
                         .foregroundColor(.s8kGoldHigh)
                         .padding(.horizontal, 7).padding(.vertical, 3)
                         .background(Color.s8kGoldMid.opacity(0.14))

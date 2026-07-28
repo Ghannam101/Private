@@ -454,7 +454,7 @@ struct GatewayView: View {
                     ProgressView().tint(.s8kBlack).scaleEffect(0.7)
                 } else {
                     Text(String(acc.name.prefix(1)).uppercased())
-                        .font(.system(size: 15, weight: .heavy))
+                        .font(S8KFont.headline.weight(.heavy))
                         .foregroundColor(.s8kBlack)
                 }
             }

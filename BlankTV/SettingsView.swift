@@ -31,7 +31,7 @@ enum SetUI {
             HStack {
                 Spacer(minLength: 0)
                 Text(title.uppercased())
-                    .font(.system(size: 12, weight: .heavy)).tracking(0.5)
+                    .font(S8KFont.footnote.weight(.heavy)).tracking(0.5)
                     .foregroundColor(.s8kTextTertiary)
             }
             .padding(.horizontal, 28).padding(.bottom, 7)
@@ -317,7 +317,7 @@ struct SettingsProV2: View {
     private var footer: some View {
         VStack(spacing: 5) {
             Image("Logo").resizable().scaledToFit().frame(width: 28, height: 28).opacity(0.8)
-            Text("Blank Prime").font(.system(size: 11, weight: .black)).tracking(2).foregroundColor(.s8kTextDisabled)
+            Text("Blank Prime").font(S8KFont.caption1.weight(.black)).tracking(2).foregroundColor(.s8kTextDisabled)
             Text("v\(appVersion)").font(.system(size: 10, design: .monospaced)).foregroundColor(.s8kTextDisabled.opacity(0.5))
         }
         .padding(.top, 10)
@@ -887,7 +887,7 @@ struct AboutView: View {
                         .shadow(color: .s8kGoldHigh.opacity(0.3), radius: 24)
                     VStack(spacing: 8) {
                         Text("Blank Prime")
-                            .font(.system(size: 28, weight: .black)).tracking(5)
+                            .font(S8KFont.title1.weight(.black)).tracking(5)
                             .foregroundStyle(S8KGradient.goldFlat)
                         Text(L("about.subtitle"))
                             .font(S8KFont.footnote).foregroundColor(.s8kTextTertiary).tracking(2)
@@ -1339,7 +1339,7 @@ struct LockedCategoriesView: View {
             HStack(spacing: 5) {
                 Text(title).font(S8KFont.caption1.weight(.bold))
                 if n > 0 {
-                    Text("\(n)").font(.system(size: 10, weight: .black))
+                    Text("\(n)").font(S8KFont.caption2.weight(.black))
                         .foregroundColor(on ? .black : .s8kGoldMid)
                         .padding(.horizontal, 5).padding(.vertical, 1)
                         .background((on ? Color.black.opacity(0.15) : Color.s8kGoldMid.opacity(0.15)))

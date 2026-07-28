@@ -920,7 +920,7 @@ struct ContentTitleBar: View {
             }
             // Editorial: an oversized black-weight title with a short lime underline.
             VStack(alignment: .trailing, spacing: 6) {
-                Text(title).font(.system(size: 28, weight: .black)).foregroundColor(.s8kTextPrimary).lineLimit(1)
+                Text(title).font(S8KFont.title1.weight(.black)).foregroundColor(.s8kTextPrimary).lineLimit(1)
                 RoundedRectangle(cornerRadius: 1.5)
                     .fill(S8KGradient.goldFlat)
                     .frame(width: 30, height: 3)
@@ -1220,7 +1220,7 @@ struct CategoryReorderView: View {
         HStack(spacing: 8) {
             Text(text).font(S8KFont.caption1.weight(.bold)).foregroundColor(.s8kTextSecondary)
             if let c = count {
-                Text("\(c)").font(.system(size: 11, weight: .heavy)).foregroundColor(.black)
+                Text("\(c)").font(S8KFont.caption1.weight(.heavy)).foregroundColor(.black)
                     .padding(.horizontal, 7).padding(.vertical, 1)
                     .background(S8KGradient.goldFlat).clipShape(Capsule())
             }
@@ -1234,7 +1234,7 @@ struct CategoryReorderView: View {
     private func arrangedRow(_ cat: Category, number: Int) -> some View {
         HStack(spacing: 12) {
             Text("\(number)")
-                .font(.system(size: 13, weight: .heavy)).foregroundColor(.black)
+                .font(S8KFont.subhead.weight(.heavy)).foregroundColor(.black)
                 .frame(width: 26, height: 26)
                 .background(S8KGradient.goldFlat).clipShape(Circle())
             Text(cat.name).font(S8KFont.subhead).foregroundColor(.s8kTextPrimary)
@@ -1303,7 +1303,7 @@ struct ContentTabBar: View {
                                 Text(t.title).font(S8KFont.subhead.weight(.bold))
                                 if t == .all && allCount > 0 {
                                     Text("\(allCount)")
-                                        .font(.system(size: 10, weight: .black))
+                                        .font(S8KFont.caption2.weight(.black))
                                         .foregroundColor(on ? .s8kGoldHigh : .s8kTextTertiary)
                                 }
                             }
@@ -1347,7 +1347,7 @@ struct CategoryRow<Cell: View>: View {
                     }
                     if count > 0 {
                         Text("\(count)")
-                            .font(.system(size: 11, weight: .bold))
+                            .font(S8KFont.caption1.weight(.bold))
                             .foregroundColor(.s8kGoldMid)
                             .padding(.horizontal, 7).padding(.vertical, 2)
                             .background(Color.s8kGoldMid.opacity(0.12)).clipShape(Capsule())

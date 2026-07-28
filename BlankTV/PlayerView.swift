@@ -976,7 +976,7 @@ struct PlayerEngineView: View {
                             Spacer()
                             Text(vm.durationFmt)
                         }
-                        .font(.system(size: 11, weight: .medium)).monospacedDigit()
+                        .font(S8KFont.caption1).monospacedDigit()
                         .foregroundColor(.s8kTextTertiary)
                     }
 
@@ -1158,7 +1158,7 @@ struct PlayerEngineView: View {
         let longForm = vm.duration >= 3600
         VStack(spacing: 2) {
             Text(fmtTime(target, forceHours: longForm))
-                .font(.system(size: 16, weight: .bold)).monospacedDigit()
+                .font(S8KFont.field.weight(.bold)).monospacedDigit()
                 .foregroundColor(.white)
             if abs(delta) >= 1 {
                 Text("\(delta >= 0 ? "+" : "−")\(fmtTime(abs(delta)))")

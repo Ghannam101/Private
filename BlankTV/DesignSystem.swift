@@ -1612,7 +1612,7 @@ struct S8KWatermark: View {
                     Image("Logo").resizable().scaledToFit().frame(width: 22, height: 22)
                 }
                 Text(BrandKit.customName ?? "Blank Prime")
-                    .font(.system(size: 11, weight: .black))
+                    .font(S8KFont.caption1.weight(.black))
                     .tracking(1.5)
                     .foregroundColor(.s8kGoldHigh)
                     .lineLimit(1)
@@ -2163,7 +2163,7 @@ struct AppTabBar: View {
     // Small red (n) notification badge — shown on the home puck when unread > 0.
     private func notifBadge(_ n: Int) -> some View {
         Text("\(min(n, 9))")
-            .font(.system(size: 10, weight: .black)).foregroundColor(.white)
+            .font(S8KFont.caption2.weight(.black)).foregroundColor(.white)
             .frame(minWidth: 18, minHeight: 18)
             .background(Color.s8kRed).clipShape(Circle())
             .overlay(Circle().strokeBorder(Color.s8kBlack, lineWidth: 1.5))
@@ -2337,7 +2337,7 @@ struct S8KConfirm: View {
                     Button(action: onConfirm) {
                         // Same flat treatment as GoldButton — the app's two primary CTAs
                         // must not disagree (one flat, one gradient-with-a-glow).
-                        Text(confirmTitle).font(.system(size: 16, weight: .semibold))
+                        Text(confirmTitle).font(S8KFont.field.weight(.semibold))
                             .lineLimit(1).minimumScaleFactor(0.85)
                             .foregroundColor(destructive ? .white : .s8kBlack)
                             .frame(maxWidth: .infinity, minHeight: 50)

@@ -504,7 +504,7 @@ struct SubscriptionsGateView: View {
     private var accountList: some View {
         VStack(alignment: .trailing, spacing: 14) {
             HStack {
-                Text(L("subs.title")).font(.system(size: 22, weight: .black)).foregroundColor(.s8kTextPrimary)
+                Text(L("subs.title")).font(S8KFont.title2.weight(.black)).foregroundColor(.s8kTextPrimary)
                 Spacer()
                 Text("\(accounts.count)")
                     .font(S8KFont.caption2.weight(.bold)).foregroundColor(.s8kGoldHigh)
