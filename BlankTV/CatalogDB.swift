@@ -286,6 +286,21 @@ enum CatalogDB {
         return rows.map { Category(id: $0.id, name: $0.name, parentID: nil) }
     }
 
+    /// Empty EVERY scope. Account deletion only — "delete all my data" has to mean
+    /// the catalogue as well as the login. Rows are dropped inside the existing queue
+    /// rather than unlinking the file: `dbQueue` is opened once for the process
+    /// lifetime, so pulling the file out from under it would leave every later read
+    /// failing silently instead of rebuilding.
+    static func deleteEverything() {
+        guard let q = dbQueue else { return }
+        try? q.write { db in
+            for t in ["channel", "movie", "series", "category", "catalog_fts",
+                      "catalog_meta", "image_hash"] {
+                try? db.execute(sql: "DELETE FROM \(t)")
+            }
+        }
+    }
+
     // MARK: - Bulk write (replace-all for scope inside ONE transaction, off-main by caller)
     static func save(_ c: M3UContent, scope: String) {
         guard let q = dbQueue else { return }

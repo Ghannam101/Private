@@ -177,11 +177,6 @@ enum L10n {
         "home.see_all":  [.ar: "استعرض الكل", .en: "Browse all", .fr: "Tout voir", .tr: "Tümünü gör", .es: "Ver todo"],
 
         // Reseller code
-        "code.have_code":[.ar: "معي كود من موزّع", .en: "I've got a code from a reseller", .fr: "J'ai un code revendeur", .tr: "Bayi kodum var", .es: "Tengo un código de distribuidor"],
-        "code.title":    [.ar: "كود التفعيل", .en: "Activation code", .fr: "Code revendeur", .tr: "Bayi Kodu", .es: "Código de distribuidor"],
-        "code.hint":     [.ar: "الكود الذي أعطاك إيّاه موزّعك يفعّل التطبيق ويضبطه على علامته.", .en: "The code your reseller gave you activates the app and applies their branding.", .fr: "Saisissez le code fourni par votre revendeur.", .tr: "Bayinizin verdiği kodu girin.", .es: "Introduce el código que te dio tu distribuidor."],
-        "code.activate": [.ar: "تفعيل", .en: "Activate", .fr: "Activer", .tr: "Etkinleştir", .es: "Activar"],
-        "code.invalid":  [.ar: "الكود غير صحيح أو انتهت صلاحيته", .en: "That code is wrong or has expired", .fr: "Code invalide ou inactif", .tr: "Geçersiz veya pasif kod", .es: "Código no válido o inactivo"],
 
         // Parental control hub
         "pc.title":          [.ar: "الرقابة الأبوية", .en: "Parental Control", .fr: "Contrôle parental", .tr: "Ebeveyn Denetimi", .es: "Control parental"],
@@ -382,7 +377,8 @@ enum L10n {
         "login.m3u_hint":   [.ar: "ألصق رابط M3U أو M3U8 — يُقرأ على جهازك ولا يغادره", .en: "Paste an M3U or M3U8 link — read on your device, never sent anywhere", .fr: "Collez une URL de liste M3U / M3U8 — analysée localement sur votre appareil", .tr: "Bir M3U / M3U8 liste bağlantısı yapıştırın — cihazınızda yerel olarak işlenir", .es: "Pega una URL de lista M3U / M3U8 — se analiza localmente en tu dispositivo"],
         "login.signin":     [.ar: "دخول",       .en: "Sign In",         .fr: "Se connecter",    .tr: "Giriş Yap",       .es: "Iniciar sesión"],
         "login.load_playlist":[.ar: "افتح القائمة", .en: "Open the playlist", .fr: "Charger la liste", .tr: "Listeyi Yükle",  .es: "Cargar lista"],
-        "login.server_or_code":[.ar: "رابط السيرفر أو كود التفعيل", .en: "Server URL or activation code", .fr: "URL du serveur ou code revendeur", .tr: "Sunucu adresi veya bayi kodu", .es: "URL del servidor o código de distribuidor"],
+        "login.need_url":      [.ar: "أدخل رابط السيرفر كاملاً — مثل http://host:8080", .en: "Enter the full server URL — e.g. http://host:8080", .fr: "Saisissez l'URL complète du serveur — ex. http://host:8080", .tr: "Tam sunucu adresini girin — örn. http://host:8080", .es: "Introduce la URL completa del servidor — p. ej. http://host:8080"],
+        "login.server_or_code":[.ar: "رابط السيرفر", .en: "Server URL", .fr: "URL du serveur", .tr: "Sunucu adresi", .es: "URL del servidor"],
         "login.server_hint":[.ar: "يعطيك إيّاه مزوّدك · مثل http://host:8080", .en: "Your provider gives you this · e.g. http://host:8080", .fr: "De votre fournisseur · ex. http://host:8080", .tr: "Sağlayıcınızdan · örn. http://host:8080", .es: "De tu proveedor · ej. http://host:8080"],
         "login.demo":       [.ar: "ادخل للتجربة أولاً", .en: "Try it first", .fr: "Parcourir en mode démo", .tr: "Demo olarak gözat", .es: "Explorar en modo demo"],
         "login.need_help":  [.ar: "تعثّر التفعيل؟ الدعم جاهز", .en: "Activation stuck? Support is here", .fr: "Besoin d'aide pour l'activation ? Contactez le support", .tr: "Etkinleştirmede yardım mı lazım? Destekle iletişime geçin", .es: "¿Necesitas ayuda para activar? Contacta con soporte"],
@@ -731,6 +727,18 @@ final class Keychain {
     func clearAll() {
         [Key.token, Key.host, Key.user, Key.pass, Key.userID, Key.tokenExpiry].forEach { delete($0) }
     }
+
+    /// Deleted ONLY by account deletion. `clearAll()` deliberately keeps the device ID
+    /// because logout calls it, and minting a new identity on every logout would break
+    /// the activation binding.
+    ///
+    /// HONEST LIMIT: this removes the STORED copy, and a Keychain item otherwise
+    /// survives deleting the app itself. It does NOT make the device unrecognisable —
+    /// `DeviceIdentity.generate()` is a pure function of `identifierForVendor`, so the
+    /// next read mints the identical value. Seeding the identity from a random UUID
+    /// instead is a deliberate decision about activation binding, not a cleanup, so it
+    /// is not made here.
+    func deleteDeviceID() { delete(.deviceID) }
 
     // MARK: - Private CRUD
     private func save(_ key: Key, value: String) {
@@ -1595,6 +1603,13 @@ enum CatalogDiskCache {
         c.movieCategories = e.movieCategories
         c.seriesCategories = e.seriesCategories
         return c
+    }
+
+    /// Drop every cached catalogue, all scopes. Account deletion only.
+    static func purgeAll() {
+        let fm = FileManager.default
+        guard let base = fm.urls(for: .cachesDirectory, in: .userDomainMask).first else { return }
+        try? fm.removeItem(at: base.appendingPathComponent("S8KCatalog", isDirectory: true))
     }
 
     private static func fileURL(_ scope: String) -> URL? {

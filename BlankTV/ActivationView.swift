@@ -129,11 +129,17 @@ struct UpdateRequiredView: View {
                             .font(S8KFont.caption1).foregroundColor(.s8kTextTertiary)
                     }
                     GoldButton(title: L("update.button"), icon: "arrow.up.forward.app") {
-                        if let s = urlString, let u = URL(string: s) { UIApplication.shared.open(u) }
+                        // Without a configured URL this button was DISABLED — and this
+                        // screen offers no other control, no dismiss and no re-check, so
+                        // anyone who reached it was locked in for good. Unreachable today
+                        // (`updateRequired` is hardcoded false), but it costs two lines to
+                        // make sure it can never become a trap if force-update returns.
+                        let raw = urlString ?? ""
+                        if let u = URL(string: raw.isEmpty ? "itms-apps://apps.apple.com" : raw) {
+                            UIApplication.shared.open(u)
+                        }
                     }
                     .frame(maxWidth: 220)
-                    .opacity((urlString?.isEmpty == false) ? 1 : 0.5)
-                    .disabled(urlString?.isEmpty != false)
                 }
                 .padding(.vertical, 32)
                 .frame(maxWidth: .infinity)
@@ -151,10 +157,6 @@ struct ActivationRequiredView: View {
     @StateObject private var auth = AuthService.shared
     @State private var copied = false
     @State private var refreshing = false
-    @State private var showCode = false
-    @State private var codeText = ""
-    @State private var codeBusy = false
-    @State private var codeError = ""
 
     var body: some View {
         ZStack {
@@ -238,20 +240,10 @@ struct ActivationRequiredView: View {
                         .padding(.top, S8KSpace.sm)
                     }
 
-                    // Reseller code entry — activates the customer instantly
-                    Button(action: { codeText = ""; codeError = ""; showCode = true }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "number")
-                            Text(L("code.have_code"))
-                        }
-                        .font(S8KFont.subhead).foregroundColor(.s8kGoldMid)
-                        .frame(maxWidth: .infinity, minHeight: 50)
-                        .overlay(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
-                            .strokeBorder(Color.s8kGoldHigh.opacity(0.4), lineWidth: 1.5))
-                    }
-                    .buttonStyle(S8KButtonStyle())
-                    .padding(.horizontal, S8KSpace.xl)
-                    .padding(.top, S8KSpace.sm)
+                    // The reseller-code entry lived here. It called resolveCode, which
+                    // returns false unconditionally since the resolver was removed — a
+                    // button that could only ever fail. Removed rather than left to
+                    // advertise a feature the binary cannot deliver (Guideline 2.1).
 
                     // Demo Mode entry (App Review, Guideline 2.1)
                     Button(L("actgate.demo")) { auth.enterDemo() }
@@ -277,57 +269,8 @@ struct ActivationRequiredView: View {
                 .padding(.top, 70)   // literal: this gate renders OUTSIDE S8KMetricsRoot, so metrics.safeTop would be 0
             }
         }
-        .sheet(isPresented: $showCode) { codeSheet }
     }
 
-    private var codeSheet: some View {
-        NavigationStack {
-            ZStack {
-                Color.s8kBlack.ignoresSafeArea()
-                // SCROLLABLE + resizable detent: the keyboard opens on this sheet, and
-                // on a medium detent it would otherwise cover the Activate button —
-                // the only way to redeem a code.
-                ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 16) {
-                    Image(systemName: "number.circle.fill").font(.system(size: 44)).foregroundColor(.s8kGoldMid)
-                    Text(L("code.title")).font(S8KFont.title3).foregroundColor(.s8kTextPrimary)
-                    Text(L("code.hint")).font(S8KFont.callout).foregroundColor(.s8kTextSecondary)
-                        .multilineTextAlignment(.center).padding(.horizontal, S8KSpace.xl)
-                    TextField("", text: $codeText,
-                              prompt: Text("100 / strong").foregroundColor(Color.s8kTextDisabled))
-                        .font(.system(size: 22, weight: .bold, design: .monospaced))
-                        .multilineTextAlignment(.center).autocorrectionDisabled()
-                        .textInputAutocapitalization(.never).foregroundColor(.s8kTextPrimary)
-                        .padding().frame(maxWidth: 260)
-                        .background(Color.s8kSurface).clipShape(RoundedRectangle(cornerRadius: S8KRadius.md))
-                        .overlay(RoundedRectangle(cornerRadius: S8KRadius.md).strokeBorder(Color.s8kBorder, lineWidth: 1))
-                    if !codeError.isEmpty {
-                        Text(codeError).font(S8KFont.caption1).foregroundColor(.s8kRed)
-                    }
-                    GoldButton(title: L("code.activate"), icon: "checkmark.circle", isLoading: codeBusy,
-                               isDisabled: codeText.trimmingCharacters(in: .whitespaces).isEmpty) {
-                        codeBusy = true; codeError = ""
-                        Task {
-                            let ok = await act.resolveCode(codeText)
-                            codeBusy = false
-                            if ok { showCode = false } else { codeError = L("code.invalid") }
-                        }
-                    }
-                    .padding(.horizontal, S8KSpace.xl)
-                }
-                .padding(.top, 30)
-                .padding(.bottom, 24)
-                .frame(maxWidth: .infinity)
-                }
-                .scrollBounceBehavior(.basedOnSize)
-                .scrollDismissesKeyboard(.interactively)
-            }
-            .navigationTitle(L("code.title")).navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .topBarLeading) {
-                Button(L("common.close")) { showCode = false }.foregroundColor(.s8kGoldMid) } }
-        }
-        .presentationDetents([.medium, .large])
-    }
 
     private var header: some View {
         VStack(spacing: S8KSpace.lg) {

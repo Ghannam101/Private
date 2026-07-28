@@ -334,6 +334,12 @@ final class AuthService: ObservableObject {
         await PlaylistService.shared.reset()
         Store.shared.demoMode = false
         Keychain.shared.clearAll()
+        // Everything below this line is what "delete all my data" actually has to
+        // reach. Logout deliberately keeps all of it; deletion must not.
+        Keychain.shared.deleteDeviceID()        // a Keychain item outlives the APP itself
+        DownloadService.shared.clearAll()       // the downloaded files on disk
+        CatalogDiskCache.purgeAll()             // every cached catalogue, all scopes
+        await Task.detached(priority: .utility) { CatalogDB.deleteEverything() }.value
         Store.shared.clearAll()                 // wipes the whole UserDefaults domain
         AppTheme.shared.reset()
         AppTheme.shared.applyBrandTheme(hex: nil)   // revert to the official BLANK TV palette

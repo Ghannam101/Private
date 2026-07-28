@@ -94,7 +94,6 @@ struct LoginView: View {
     @Environment(\.s8kMetrics) private var metrics
     @StateObject private var auth  = AuthService.shared
     @StateObject private var theme = AppTheme.shared
-    @StateObject private var activation = ActivationService.shared
     @StateObject private var loc   = LocalizationManager.shared
 
     @State private var loginMode    = LoginMode.xtream
@@ -220,32 +219,18 @@ struct LoginView: View {
                             Task {
                                 if loginMode == .xtream {
                                     let typed = advancedURL.trimmingCharacters(in: .whitespacesAndNewlines)
+                                    // A bare token was sent to resolveCode, which returns false
+                                    // unconditionally — the user always got "invalid code" for a
+                                    // feature the binary cannot deliver. Say what the field wants.
                                     if looksLikeResellerCode(typed) {
-                                        // Bare token → resolve it as a reseller code, then log
-                                        // in with the returned host + the user/pass typed. This
-                                        // is the activated-device path (the dedicated code sheet
-                                        // only exists on the activation gate, which an activated
-                                        // device never sees).
-                                        auth.error = nil
-                                        auth.isLoading = true
-                                        let ok = await activation.resolveCode(typed)
-                                        guard ok, let host = Store.shared.resellerHost, !host.isEmpty else {
-                                            auth.isLoading = false
-                                            auth.error = .server(L("code.invalid"))
-                                            return
-                                        }
-                                        // Clear the loading flag first — loginXtream early-returns
-                                        // if isLoading is already true.
-                                        auth.isLoading = false
-                                        await auth.loginXtream(host: host, username: username, password: password)
-                                    } else {
-                                        // DIRECT connection. Reseller-code customers use the
-                                        // injected reseller host automatically (they only type
-                                        // user/pass); independent users type the server above.
-                                        let host = !typed.isEmpty ? typed
-                                            : (Store.shared.resellerHost ?? "")
-                                        await auth.loginXtream(host: host, username: username, password: password)
+                                        auth.error = .server(L("login.need_url"))
+                                        return
                                     }
+                                    // DIRECT connection. A reseller host injected by remote
+                                    // branding is still used when the field is left empty.
+                                    let host = !typed.isEmpty ? typed
+                                        : (Store.shared.resellerHost ?? "")
+                                    await auth.loginXtream(host: host, username: username, password: password)
                                 } else {
                                     await auth.loginM3U(urlString: m3uURL)
                                 }

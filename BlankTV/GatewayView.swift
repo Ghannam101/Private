@@ -660,6 +660,19 @@ struct GatewayView: View {
                 Button(L("set.privacy")) { showPrivacy = true }.foregroundColor(.s8kTextTertiary)
             }
             .font(S8KFont.caption2)
+
+            // The player-only disclaimer, ON THE FIRST SCREEN. It used to live in
+            // Settings -> About and on the activation gate, i.e. two places a reviewer
+            // assessing an IPTV app under Guideline 5.2.3 may never open. This is the
+            // one screen they are guaranteed to see.
+            Text(S8KLegal.disclaimer)
+                .font(S8KFont.caption3)
+                .foregroundColor(.s8kTextDisabled)
+                .multilineTextAlignment(.center)
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, S8KSpace.xl)
+                .padding(.top, 4)
         }
         .padding(.bottom, 22)
     }
@@ -669,18 +682,14 @@ struct GatewayView: View {
         Task {
             if loginMode == .xtream {
                 let typed = serverOrCode.trimmingCharacters(in: .whitespacesAndNewlines)
+                // A bare token used to be sent to resolveCode, which cannot succeed —
+                // the user always got "invalid code" for a feature that does not exist.
+                // Say what the field actually wants instead.
                 if looksLikeResellerCode(typed) {
-                    auth.error = nil; auth.isLoading = true
-                    let ok = await activation.resolveCode(typed)
-                    guard ok, let host = Store.shared.resellerHost, !host.isEmpty else {
-                        auth.isLoading = false; auth.error = .server(L("code.invalid")); return
-                    }
-                    auth.isLoading = false
-                    await auth.loginXtream(host: host, username: username, password: password)
-                } else {
-                    let host = !typed.isEmpty ? typed : (Store.shared.resellerHost ?? "")
-                    await auth.loginXtream(host: host, username: username, password: password)
+                    auth.error = .server(L("login.need_url")); return
                 }
+                let host = !typed.isEmpty ? typed : (Store.shared.resellerHost ?? "")
+                await auth.loginXtream(host: host, username: username, password: password)
             } else {
                 await auth.loginM3U(urlString: m3uURL)
             }
