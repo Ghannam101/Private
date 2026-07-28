@@ -868,8 +868,25 @@ final class MoviesVM: ObservableObject {
     // Editorial rows: Top-10 by rating (Movie has a ratingDouble helper) + a
     // newest-movies hero.
     private func rebuildEditorial() {
-        topRanked = Array(s8kUniqueByID(movies.sorted { $0.ratingDouble > $1.ratingDouble }, { $0.id }).prefix(10))
-        let newest = s8kUniqueByID(movies.sorted { (Int($0.id) ?? 0) > (Int($1.id) ?? 0) }, { $0.id })
+        // SORT INDICES, NOT ELEMENTS — the same fix HomeVM.rebuildHero already carries
+        // (HomeView.swift:75-98). These two were left behind.
+        //
+        // The old comparators parsed a String into a Double/Int on EVERY comparison —
+        // twice per compare, over ~n·log n compares — and moved a 424-byte struct with
+        // a dozen refcounted String fields on every swap, twice over. On a large line
+        // that is hundreds of milliseconds of BLOCKED MAIN THREAD plus a multi-copy
+        // transient spike, to produce ten rows and a six-item hero.
+        //
+        // Now each key is parsed once, only Ints move during the sort, and only the few
+        // dozen we might keep are ever materialised — the headroom absorbs duplicate
+        // ids that s8kUniqueByID then removes.
+        let rate = movies.map(\.ratingDouble)
+        let byRate: [Int] = movies.indices.sorted { rate[$0] > rate[$1] }
+        topRanked = Array(s8kUniqueByID(byRate.prefix(40).map { movies[$0] }, { $0.id }).prefix(10))
+
+        let ids = movies.map { Int($0.id) ?? 0 }
+        let byID: [Int] = movies.indices.sorted { ids[$0] > ids[$1] }
+        let newest = s8kUniqueByID(byID.prefix(24).map { movies[$0] }, { $0.id })
         heroItems = newest.prefix(6).map { HomeVM.HeroItem(kind: .movie($0)) }
         S8KImageCache.shared.prefetch(heroItems.compactMap { $0.backdropURL }, maxPixel: 1200)
     }
@@ -2090,8 +2107,14 @@ final class SeriesVM: ObservableObject {
     // Build the editorial rows (Top-10 by rating + a newest-series hero). Series
     // has no `ratingDouble` helper, so parse the String rating inline (as Home does).
     private func rebuildEditorial() {
-        topRanked = Array(s8kUniqueByID(series.sorted { s8kRating($0.rating) > s8kRating($1.rating) }, { $0.id }).prefix(10))
-        let newest = s8kUniqueByID(series.sorted { (Int($0.id) ?? 0) > (Int($1.id) ?? 0) }, { $0.id })
+        // Indices, not elements — see the note in MoviesVM.rebuildEditorial.
+        let rate = series.map { s8kRating($0.rating) }
+        let byRate: [Int] = series.indices.sorted { rate[$0] > rate[$1] }
+        topRanked = Array(s8kUniqueByID(byRate.prefix(40).map { series[$0] }, { $0.id }).prefix(10))
+
+        let ids = series.map { Int($0.id) ?? 0 }
+        let byID: [Int] = series.indices.sorted { ids[$0] > ids[$1] }
+        let newest = s8kUniqueByID(byID.prefix(24).map { series[$0] }, { $0.id })
         heroItems = newest.prefix(6).map { HomeVM.HeroItem(kind: .series($0)) }
         S8KImageCache.shared.prefetch(heroItems.compactMap { $0.backdropURL }, maxPixel: 1200)
     }
