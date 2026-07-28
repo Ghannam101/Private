@@ -262,9 +262,30 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
         // — the #1 intermittent Xtream-VOD failure (default is OFF). Verified against
         // the VideoLAN http module docs.
         media.addOption(":http-reconnect")
-        // Prebuffer 1500ms: rides out micro-drops (reliability-leaning; lowering it
-        // trades reliability for a little start speed, and the symptom here is failures).
-        media.addOption(":network-caching=1500")
+        if isLive {
+            // Prebuffer 1500ms: rides out micro-drops (reliability-leaning; lowering it
+            // trades reliability for a little start speed, and on LIVE the symptom is
+            // failures). A live stream cannot be re-requested — you get what arrives.
+            media.addOption(":network-caching=1500")
+        } else {
+            // VOD IS A DIFFERENT PROBLEM. Owner-reported: seeking in movies and series
+            // was slow. Every jump throws the buffer away, and with 1500ms of prebuffer
+            // the picture waits that long before it can show anything — on every single
+            // seek. The reliability that 1500 buys is against live micro-drops; a VOD
+            // server answers byte ranges and simply re-sends what was missed, so the
+            // cost was being paid for a risk that does not apply here.
+            // 1000 is libVLC's OWN default for network input, not a number invented
+            // here — 1500 was an increase above it, bought for live reliability. Going
+            // back to the shipped default is defensible without a measurement; going
+            // below it would be a guess, and a starved buffer would surface as stutter,
+            // which is a worse report than a slow seek.
+            media.addOption(":network-caching=1000")
+            // And favour speed over precision while seeking: land on the nearest index
+            // point instead of demuxing forward from the preceding keyframe to the exact
+            // position. This is VLC's equivalent of a seek tolerance, and it is the
+            // difference between a jump that feels instant and one that thinks about it.
+            media.addOption(":input-fast-seek")
+        }
         return media
     }
 
@@ -352,12 +373,38 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
     }
     // Two-phase scrub. VLC keeps rendering the seeked frame, so setting position
     // while dragging gives a live preview; on release we land on an absolute time.
-    override func beginScrub() { didResume = true }             // user navigating → cancel auto-resume
+    //
+    // THROTTLED, and this is the whole reason seeking felt slow. The Slider writes its
+    // binding continuously while the thumb moves — up to 120 times a second on a
+    // ProMotion screen — and every write here was a synchronous main-thread
+    // `libvlc_media_player_set_position`, which takes the input-thread lock and forces
+    // a demux seek plus a fresh HTTP range request. Dragging for two seconds fired a
+    // couple of hundred of them, on the engine that actually plays every movie and
+    // episode. Making each seek cheaper does not help when there are hundreds; the fix
+    // is to stop issuing them. `endScrub` still applies the exact final position, so
+    // the landing is unchanged — only the preview is coarser.
+    private var lastScrubWrite: TimeInterval = 0
+    private var wasPlayingBeforeScrub = false
+
+    override func beginScrub() {
+        didResume = true                       // user navigating → cancel auto-resume
+        // Decoding while re-seeking on every frame is the worst of both. The AV engine
+        // already freezes during a scrub; this brings VLC in line.
+        wasPlayingBeforeScrub = player.isPlaying
+        if wasPlayingBeforeScrub { player.pause() }
+        lastScrubWrite = 0
+    }
     override func scrub(to progress: Double) {
-        player.position = Float(min(1, max(0, progress)))       // live preview
+        let now = Date().timeIntervalSinceReferenceDate
+        guard now - lastScrubWrite > 0.25 else { return }        // preview at ≤4 Hz
+        lastScrubWrite = now
+        player.position = Float(min(1, max(0, progress)))        // live preview
     }
     override func endScrub(to progress: Double) {
         player.position = Float(min(1, max(0, progress)))
+        // Resume only if the user was actually playing when the drag began — a scrub
+        // performed while paused must leave the player paused.
+        if wasPlayingBeforeScrub { player.play() }
     }
     override func toggleMute() {
         isMuted.toggle()

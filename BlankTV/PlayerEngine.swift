@@ -279,6 +279,8 @@ final class AVPlayerVM: BasePlayerVM {
     // pending target instead of the stale (0.5s-old) currentTime.
     private var chaseTarget: CMTime = .invalid
     private var chasePrecise = false
+    /// Whether the instant-start forward-buffer cap has been handed back to AVPlayer.
+    private var bufferRelaxed = false
     private var isChasing = false
     private var lastRequestedTime: Double?
     private var wasPlayingBeforeScrub = false
@@ -370,6 +372,10 @@ final class AVPlayerVM: BasePlayerVM {
         // no "continue watching" for anything but the last thing played.
         saveProgress()
         setItem(newItem)
+        // The next item gets its own instant start — without this reset the relaxed
+        // buffer would carry over and the FIRST frame of every later episode would be
+        // slow, which is the trade this cap exists to avoid.
+        bufferRelaxed = false
         didResume = false
         resumeTarget = BasePlayerVM.savedResume(for: newItem)
         currentTime = 0; duration = 0; isLoading = true; buffering = false; errorMsg = nil
@@ -487,9 +493,25 @@ final class AVPlayerVM: BasePlayerVM {
             // Playback genuinely advanced → cancel the start/stall watchdog (it only
             // guards the "stuck at 0" case; a mid-stream stall is handled elsewhere).
             if ct > 0, self.stallWatchdog != nil { self.stallWatchdog?.invalidate(); self.stallWatchdog = nil }
+            // …and hand buffering back to AVPlayer. `preferredForwardBufferDuration = 1`
+            // exists to make the FIRST frame arrive fast; leaving it there for the rest
+            // of the film means every seek lands with one chunk in hand and the picture
+            // waits on the network to refill. That is what "seeking is slow" was.
+            // 0 = automatic, which is what the property means, and AVPlayer then keeps
+            // a healthy read-ahead. Done once, on the first real tick.
+            if ct > 0, !self.isLive, self.bufferRelaxed == false {
+                self.bufferRelaxed = true
+                self.avPlayer.currentItem?.preferredForwardBufferDuration = 0
+            }
             // Once playback reaches the last requested seek, drop it so the next
             // ±10 skip accumulates from the live position, not a stale target.
-            if let req = self.lastRequestedTime, !self.isChasing, abs(ct - req) < 1.0 {
+            // `|| ct > req`: the ±10 skip seeks with INFINITE tolerance, so on a
+            // long-GOP file it can land several seconds past the request. The playhead
+            // then starts beyond req + 1.0 and only grows, so the window never opened
+            // and lastRequestedTime was stranded — ten minutes later the next +10 tap
+            // computed from that stale value and jumped BACKWARDS.
+            if let req = self.lastRequestedTime, !self.isChasing,
+               abs(ct - req) < 1.0 || ct > req {
                 self.lastRequestedTime = nil
             }
             let playing = self.avPlayer.timeControlStatus == .playing
@@ -585,7 +607,13 @@ final class AVPlayerVM: BasePlayerVM {
         isChasing = true
         let target = chaseTarget
         let precise = chasePrecise
-        let tol: CMTime = precise ? .zero : .positiveInfinity
+        // NOT .zero. Zero tolerance forces the decoder to walk from the preceding
+        // keyframe to the exact frame, which on a networked movie is seconds. A bounded
+        // window lands on the next keyframe instead — invisible to the viewer, and the
+        // difference between a seek that feels instant and one that does not.
+        // Still bounded rather than .positiveInfinity, which would let it land anywhere.
+        let tol: CMTime = precise ? CMTime(seconds: 0.6, preferredTimescale: 600)
+                                  : .positiveInfinity
         avPlayer.seek(to: target, toleranceBefore: tol, toleranceAfter: tol) { [weak self] _ in
             guard let self else { return }
             // Target moved (or precision changed) while seeking → chase the newest.
