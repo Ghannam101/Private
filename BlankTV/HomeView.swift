@@ -620,6 +620,11 @@ private struct HomeSearchResults: View {
                             Divider().background(Color.s8kBorder).padding(.leading, 74)
                         }
                     }
+                    // Capped and centred: this list is a full-screen overlay with no
+                    // width limit, so on a 12.9" iPad each row put ~1256pt of nothing
+                    // between a thumbnail and its own title.
+                    .frame(maxWidth: metrics.readableMaxWidth)
+                    .frame(maxWidth: .infinity)
                     .padding(.top, max(66, metrics.safeTop + S8KSpace.sm))
                     Color.clear.frame(height: metrics.bottomClearance)
                 }

@@ -1324,6 +1324,15 @@ struct LockedCategoriesView: View {
                         }
                     }
                 }
+                // Capped and centred. This screen takes the whole window, so on a 12.9"
+                // iPad each 44pt row put ~1200pt between a category name and its toggle,
+                // and the three type chips became 439pt capsules around a 60pt word.
+                // The cap sits on the COLUMN, not the ZStack — the ZStack carries the
+                // black backdrop, and capping that would leave the sides unpainted.
+                // Mis-tapping the wrong row silently unlocks a category; this is a
+                // parental control, not a list.
+                .frame(maxWidth: 640)
+                .frame(maxWidth: .infinity)
             }
             .navigationTitle(L("app.locked_cats")).navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarLeading) {
