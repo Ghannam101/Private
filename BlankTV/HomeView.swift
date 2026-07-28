@@ -423,7 +423,9 @@ struct HeroCarouselView: View {
                             .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
                     }
                     .buttonStyle(S8KButtonStyle())
-                    .accessibilityLabel(isFav ? L("detail.fav_added") : L("detail.fav_add"))
+                    // heroIsFav(item), not `isFav`: that binding is declared INSIDE the
+                    // label closure and does not exist out here.
+                    .accessibilityLabel(heroIsFav(item) ? L("detail.fav_added") : L("detail.fav_add"))
                     Button(action: { onOpen(item) }) {
                         Image(systemName: "play.fill").font(.system(size: 20, weight: .black))
                             .foregroundColor(S8KBrand.accentInk)
