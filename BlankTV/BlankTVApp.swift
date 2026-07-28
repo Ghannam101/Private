@@ -325,7 +325,14 @@ struct BlankTVApp: App {
                 .playback, mode: .moviePlayback,
                 options: [.allowAirPlay, .allowBluetoothHFP, .allowBluetoothA2DP]
             )
-            try AVAudioSession.sharedInstance().setActive(true)
+            // The category is DECLARED here and the session is ACTIVATED at playback,
+            // never at launch. Activating a `.playback` session takes audio away from
+            // whatever the user was listening to — Music, a podcast, another app — and
+            // this ran in `BlankTVApp.init`, so merely opening the app silenced them
+            // even if they never pressed play. Setting the category alone interrupts
+            // nothing. `NowPlayingManager.configure()` (VLCPlayer.swift:766-771) does
+            // the activation, and BOTH engines call it when playback starts
+            // (PlayerEngine.swift:370, VLCPlayer.swift:319), so nothing is lost.
         } catch {
             print("Audio session: \(error)")
         }

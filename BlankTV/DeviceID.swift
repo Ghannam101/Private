@@ -13,12 +13,23 @@ import UIKit
 enum DeviceIdentity {
 
     /// Cached, stable ID in the form `AA:BB:CC:DD:EE:FF` (uppercase).
-    static var current: String {
+    ///
+    /// The doc comment said "cached" long before the code was. Every read was a
+    /// Keychain round trip PLUS an NSRegularExpression compile inside `isValid`, and it
+    /// is read several times during launch alone. A `static let` is initialised exactly
+    /// once by the runtime, with no lock needed.
+    ///
+    /// Safe to hold for the process lifetime: `Keychain.clearAll()` deliberately does
+    /// NOT delete `deviceID` (Core.swift:753-756) — it survives logout and reinstall
+    /// because the owner panel activates this exact string — so the value cannot change
+    /// underneath us.
+    private static let resolved: String = {
         if let saved = Keychain.shared.deviceID, isValid(saved) { return saved }
         let generated = generate()
         Keychain.shared.deviceID = generated
         return generated
-    }
+    }()
+    static var current: String { resolved }
 
     static func isValid(_ id: String) -> Bool {
         id.range(of: "^([0-9A-F]{2}:){5}[0-9A-F]{2}$", options: .regularExpression) != nil
