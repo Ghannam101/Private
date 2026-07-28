@@ -608,6 +608,10 @@ struct ChannelRow: View {
                     .font(.system(size: 15))
                     .foregroundColor(isFav ? .s8kRed : .s8kTextDisabled)
                     .frame(width: 30, height: 30)
+                    // 6, not 8: the row's HStack spacing is 12, so 6 + 6 makes the two
+                    // rings touch without overlapping. At 8 the play button — the later
+                    // sibling, drawn in front — would have taken 3pt of the heart.
+                    .s8kMinTouch(6)
             }
             .buttonStyle(S8KButtonStyle())
             .accessibilityLabel(isFav ? L("detail.fav_added") : L("detail.fav_add"))
@@ -618,6 +622,7 @@ struct ChannelRow: View {
                     .overlay(Image(systemName: "play.fill").font(.system(size: 12, weight: .bold))
                         .foregroundColor(S8KBrand.accentInk))
                     .shadow(color: .s8kGoldMid.opacity(0.3), radius: 4)
+                    .s8kMinTouch(6)   // matches the heart; 12pt spacing, no overlap
             }
             .buttonStyle(S8KButtonStyle())
             .accessibilityLabel(L("common.play"))
@@ -1451,7 +1456,7 @@ struct SearchField: View {
                 Button(action: { text = "" }) {
                     Image(systemName: "xmark.circle.fill").foregroundColor(.s8kTextDisabled)
                 }
-                .accessibilityLabel(L("a11y.clear_text"))
+                    .accessibilityLabel(L("a11y.clear_text"))
             }
         }
         .padding(.horizontal, S8KSpace.lg).frame(height: 46)
@@ -3398,7 +3403,7 @@ struct SearchView: View {
                 Button(action: { vm.query = ""; vm.results = []; vm.failed = false }) {
                     Image(systemName: "xmark.circle.fill").foregroundColor(.s8kTextDisabled)
                 }
-                .accessibilityLabel(L("a11y.clear_text"))
+                    .accessibilityLabel(L("a11y.clear_text"))
             }
         }
         .padding(.horizontal, S8KSpace.lg).frame(height: 50)

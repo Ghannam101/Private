@@ -562,6 +562,27 @@ struct S8KNoTouchDelay: UIViewRepresentable {
 func s8kHeroPixels(_ compact: Bool) -> CGFloat { compact ? 1400 : 2000 }
 
 extension View {
+    /// Guarantee Apple's 44pt minimum touch target WITHOUT moving anything on screen.
+    ///
+    /// Pads the hit region outward, freezes the shape there, then removes the padding
+    /// from LAYOUT with a negative pad. The control draws exactly where it did; only
+    /// the area that responds to a finger grows.
+    ///
+    /// MUST be applied INSIDE a Button's `label:`, never to the Button itself.
+    /// `contentShape` sets the hit shape of the node it modifies — it does not extend
+    /// the hit region of a gesture-owning descendant, so on the outside it does not
+    /// enlarge anything and merely absorbs taps in the ring. Every one of the ~30
+    /// existing `contentShape` uses in this app is inside the label; this is not an
+    /// exception.
+    ///
+    /// CAUTION: the enlarged area is invisible and can overlap a neighbour. Keep the
+    /// inset at or below the spacing between the two controls.
+    func s8kMinTouch(_ inset: CGFloat = 12) -> some View {
+        padding(inset)
+            .contentShape(Rectangle())
+            .padding(-inset)
+    }
+
     /// Attach to a scroll view's CONTENT (not the ScrollView itself) — the probe walks
     /// up from where it is planted to find the enclosing UIScrollView.
     func s8kInstantTaps() -> some View {
@@ -2191,9 +2212,13 @@ struct AppTabBar: View {
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 16)).foregroundColor(.s8kTextTertiary)
+                            .s8kMinTouch(9)   // 16pt glyph; HStack spacing is 9
                     }
                     .buttonStyle(S8KButtonStyle())
-                    .accessibilityLabel(L("common.close"))
+                    // Clears the query — it does NOT close. It was labelled "Close",
+                    // which is also what the real close button 13 lines up says, so
+                    // VoiceOver read out two adjacent "Close" buttons.
+                    .accessibilityLabel(L("a11y.clear_text"))
                 }
                 TextField(searchPlaceholder, text: $searchDraft)
                     .focused($searchFocused)

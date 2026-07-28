@@ -682,13 +682,20 @@ final class Keychain {
     private let service = "com.blanktv.app"
 
     private enum Key: String {
-        case token, host, user, pass, userID, tokenExpiry, deviceID
+        case token, host, user, pass, userID, tokenExpiry, deviceID, m3uURL
     }
 
     /// Persistent device identity (survives app reinstall — stays in Keychain)
     var deviceID: String? {
         get { load(.deviceID) }
         set { newValue == nil ? delete(.deviceID) : save(.deviceID, value: newValue!) }
+    }
+
+    /// The playlist URL. For an Xtream line this CONTAINS the username and password
+    /// in its query string, which is why it belongs here and not in UserDefaults.
+    var m3uURL: String? {
+        get { load(.m3uURL) }
+        set { newValue == nil ? delete(.m3uURL) : save(.m3uURL, value: newValue!) }
     }
 
     var token: String? {
@@ -731,7 +738,8 @@ final class Keychain {
     }
 
     func clearAll() {
-        [Key.token, Key.host, Key.user, Key.pass, Key.userID, Key.tokenExpiry].forEach { delete($0) }
+        [Key.token, Key.host, Key.user, Key.pass, Key.userID, Key.tokenExpiry,
+         Key.m3uURL].forEach { delete($0) }
     }
 
     /// Deleted ONLY by account deletion. `clearAll()` deliberately keeps the device ID
@@ -755,7 +763,7 @@ final class Keychain {
             kSecAttrAccount: key.rawValue,
             kSecAttrService: service,
             kSecValueData:   data,
-            kSecAttrAccessible: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         ]
         SecItemAdd(query as CFDictionary, nil)
     }
@@ -950,13 +958,58 @@ final class Store {
         get { LoginMode(rawValue: ud.string(forKey: K.loginMode.rawValue) ?? "") ?? .xtream }
         set { ud.set(newValue.rawValue, forKey: K.loginMode.rawValue) }
     }
+    /// Outer nil = not read yet. Inner nil = read, and there is no URL. Cached
+    /// because this is read on ~30 paths and a Keychain round trip costs far more than
+    /// a UserDefaults read.
+    ///
+    /// LOCKED, and not optionally. `Store` has no isolation, and two of the readers —
+    /// `PlaylistService._load` and `.validateCredentials` — sit inside an `actor`, so
+    /// they run OFF the main thread while `AuthService` writes on it. UserDefaults was
+    /// thread-safe and hid this; a plain stored `String??` is not, and its payload is a
+    /// refcounted String, which makes the race a crash rather than a stale read.
+    private var m3uURLCache: String??  = nil
+    private let m3uLock = NSLock()
+
+    /// The playlist URL — **credentials**. For an Xtream line the username and password
+    /// are in its query string, so this lives in the Keychain. It used to live in
+    /// UserDefaults, which is an unencrypted plist inside the app container and is
+    /// carried into an unencrypted device backup.
     var m3uURL: String? {
-        get { ud.string(forKey: K.m3uURL.rawValue) }
+        get {
+            m3uLock.lock(); defer { m3uLock.unlock() }
+            if let cached = m3uURLCache { return cached }
+            // MIGRATION, once per install: an older build wrote this in the clear.
+            // Move it, then delete the plaintext copy — leaving it behind would make
+            // the whole change cosmetic for every existing user.
+            if let legacy = ud.string(forKey: K.m3uURL.rawValue), !legacy.isEmpty {
+                Keychain.shared.m3uURL = legacy
+                ud.removeObject(forKey: K.m3uURL.rawValue)
+                m3uURLCache = .some(legacy)
+                return legacy
+            }
+            let v = Keychain.shared.m3uURL
+            // Cache a VALUE, never an absence. A Keychain read returns nil when the
+            // device has not been unlocked since boot, and `restore()` reads this on
+            // every launch INCLUDING a background relaunch for a finished download.
+            // Memoising that nil would log the user out for the whole process.
+            if v != nil { m3uURLCache = .some(v) }
+            return v
+        }
         set {
-            if let v = newValue { ud.set(v, forKey: K.m3uURL.rawValue) }
-            else { ud.removeObject(forKey: K.m3uURL.rawValue) }
+            m3uLock.lock(); defer { m3uLock.unlock() }
+            // Keychain FIRST, then the cache: a concurrent reader must never observe
+            // `.some(nil)` while the item still exists.
+            Keychain.shared.m3uURL = newValue
+            m3uURLCache = .some(newValue)
+            // Belt and braces: never leave a plaintext copy behind, even if a legacy
+            // value was written by an older build after this one first read.
+            ud.removeObject(forKey: K.m3uURL.rawValue)
         }
     }
+
+    /// Drop the cached URL. Anything that clears the session must call this, or the
+    /// next read would hand back credentials that were just deleted.
+    func invalidateM3UCache() { m3uLock.lock(); m3uURLCache = nil; m3uLock.unlock() }
 
     // MARK: - Config Cache
     func save<T: Encodable>(_ val: T, key: K) {
@@ -1129,12 +1182,16 @@ final class Store {
 
     // MARK: - Clear
     func clearSession() {
+        // The URL itself now lives in the Keychain (see m3uURL) and is removed by
+        // Keychain.clearAll(); this drops the in-memory copy and any legacy plaintext.
+        invalidateM3UCache()
         [K.userInfo, K.serverInfo, K.theme, K.features,
          K.appConfig, K.lastConfigFetch, K.m3uURL, K.loginMode].forEach {
             ud.removeObject(forKey: $0.rawValue)
         }
     }
     func clearAll() {
+        invalidateM3UCache()
         if let id = Bundle.main.bundleIdentifier {
             ud.removePersistentDomain(forName: id)
         }

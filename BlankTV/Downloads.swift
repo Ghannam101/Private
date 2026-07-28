@@ -776,10 +776,10 @@ struct DownloadsView: View {
             }
             // Per-state action + delete
             switch d.state {
-            case .completed:   ctlBtn("play.circle.fill", 30) { play = svc.contentItem(for: d) }
-            case .downloading: ctlBtn("pause.circle.fill", 28) { svc.pause(d.id) }
-            case .paused:      ctlBtn("play.circle.fill", 28)  { svc.resume(d.id) }
-            case .failed:      ctlBtn("arrow.clockwise.circle.fill", 28) { svc.resume(d.id) }
+            case .completed:   ctlBtn("play.circle.fill", 30, a11y: L("common.play")) { play = svc.contentItem(for: d) }
+            case .downloading: ctlBtn("pause.circle.fill", 28, a11y: L("a11y.pause")) { svc.pause(d.id) }
+            case .paused:      ctlBtn("play.circle.fill", 28, a11y: L("common.play"))  { svc.resume(d.id) }
+            case .failed:      ctlBtn("arrow.clockwise.circle.fill", 28, a11y: L("a11y.refresh")) { svc.resume(d.id) }
             case .queued:      Image(systemName: "hourglass").font(.system(size: 22))
                                    .foregroundColor(.s8kTextTertiary)   // waiting; delete to cancel
             }

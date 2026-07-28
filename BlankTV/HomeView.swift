@@ -936,9 +936,9 @@ struct HomeView: View {
                 if refreshing {
                     ProgressView().tint(.s8kGoldMid).frame(width: 38, height: 38)
                 } else {
-                    navBtn(icon: "arrow.clockwise") { showRefreshConfirm = true }
+                    navBtn(icon: "arrow.clockwise", a11y: L("a11y.refresh")) { showRefreshConfirm = true }
                 }
-                navBtn(icon: "magnifyingglass") {
+                navBtn(icon: "magnifyingglass", a11y: L("search.title")) {
                     AppRouter.shared.homeSheet = .search
                 }
                 // My downloads (offline)
