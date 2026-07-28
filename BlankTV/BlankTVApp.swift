@@ -95,6 +95,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         // Install the app-wide "tap anywhere to dismiss the keyboard" gesture.
         KeyboardDismisser.shared.install()
         UNUserNotificationCenter.current().delegate = self
+        // Merely TOUCHING the singleton is the point, and it is load-bearing: its
+        // init rebuilds the background URLSession — which is what re-attaches us to
+        // transfers still running — and then runs reconcileOnLaunch, which restarts
+        // the ones iOS killed at force-quit. Nothing referenced it at a normal
+        // launch, so both only happened if the user opened the Downloads screen. A
+        // download interrupted by a force-quit therefore stayed frozen (the owner
+        // saw it stuck at 1%) no matter what reconcileOnLaunch did.
+        _ = DownloadService.shared
     }
 }
 

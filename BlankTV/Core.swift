@@ -871,14 +871,19 @@ final class Store {
         set { ud.set(newValue, forKey: "s8k.engine") }
     }
 
-    // MARK: - Turbo downloads (opt-in, OFF by default)
-    // Parallel segmented download (multi-connection Range) for a big speedup on
-    // servers that throttle per-connection. OFF by default because Xtream lines
-    // limit simultaneous connections — moderate (3 segments) + auto-fallback.
-    var turboDownloads: Bool {
-        get { ud.bool(forKey: "s8k.turboDownloads") }
-        set { ud.set(newValue, forKey: "s8k.turboDownloads") }
-    }
+    // MARK: - Turbo downloads (disabled)
+    /// Parallel ("turbo") segmented downloading, over multi-connection HTTP Range.
+    /// FORCED OFF, and deliberately no longer a stored preference.
+    ///
+    /// It runs on a `Task`, not on the background URLSession — and a `Task` is
+    /// suspended the moment the app leaves the foreground, so a turbo download stops
+    /// dead when the user switches away and never reports why. Its settings toggle was
+    /// removed at some point WITHOUT clearing the key, which left anyone who had
+    /// enabled it stranded on the broken path with no UI to turn it off.
+    ///
+    /// Reading `false` here also heals those installs: `launch` takes the background
+    /// path for everyone. Re-enable only if turbo is rebuilt on the background session.
+    var turboDownloads: Bool { false }
     /// Download only on Wi-Fi (waits for Wi-Fi instead of using cellular). OFF by default.
     var downloadWifiOnly: Bool {
         get { ud.bool(forKey: "s8k.downloadWifiOnly") }
@@ -1784,7 +1789,14 @@ actor PlaylistService {
             // relaunch. Serving the partial for THIS session is fine; recording it
             // as the truth is not.
             if !built.isPartial {
-                CatalogDiskCache.save(built, scope: urlString)
+                // BOTH writes are detached. `CatalogDiskCache.save` used to run
+                // SYNCHRONOUSLY here, before `return built` — it JSON-encodes the whole
+                // catalogue (tens of megabytes for a large line) and writes it, and the
+                // seven tab view models were all blocked behind that on the actor's
+                // return path, for seconds, before a single one of them could ask for
+                // its first row. The content is already in hand at this point; caching
+                // it is bookkeeping and belongs behind the user, not in front of them.
+                Task.detached(priority: .utility) { CatalogDiskCache.save(built, scope: urlString) }
                 // Shadow-write the same catalog into the SQLite store (off-actor, off-main).
                 // No reader yet (step 3) — this only POPULATES the DB so a later switch to
                 // paged reads is instant. Never blocks the return; store failure is a no-op.

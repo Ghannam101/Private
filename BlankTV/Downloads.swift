@@ -98,9 +98,17 @@ final class DownloadService: NSObject, ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 var changed = false
+                // OWNER-REPORTED: a download sat at 1% and never moved again. iOS
+                // CANCELS background transfers when the user force-quits the app, so on
+                // the next launch the task is gone — and this used to mark the item
+                // `.paused` and stop there. Nothing anywhere called `resume`, so the
+                // download was simply over, silently, and looked like a broken app.
+                // `.queued` instead: `pump()` below restarts it in a free slot, and
+                // `launchBackground` picks up the saved resume data, so it continues
+                // from where it stopped rather than from zero.
                 for i in self.items.indices
                 where self.items[i].state == .downloading && !live.contains(self.items[i].id) {
-                    self.items[i].state = .paused; changed = true
+                    self.items[i].state = .queued; changed = true
                 }
                 if changed { self.persist() }
                 self.pump()   // start any queued items in the freed slot(s)
@@ -436,7 +444,18 @@ final class DownloadService: NSObject, ObservableObject {
         // A fresh download starts at 0, so max() is a no-op there.
         items[i].receivedBytes = max(items[i].receivedBytes, received)
         if total > 0 { items[i].totalBytes = total }
+        // Persist the figure, throttled. This ran in memory ONLY, so a relaunch showed
+        // whatever percentage happened to be saved when the state last changed —
+        // usually 0 — no matter how far the transfer had actually got. Throttled to
+        // once every 3s because the delegate fires on every chunk and this writes the
+        // whole manifest.
+        let now = Date().timeIntervalSinceReferenceDate
+        if now - lastProgressPersist > 3 {
+            lastProgressPersist = now
+            persist()
+        }
     }
+    private var lastProgressPersist: TimeInterval = 0
     private func finish(id: String, success: Bool) {
         guard let i = items.firstIndex(where: { $0.id == id }) else { return }
         if success {

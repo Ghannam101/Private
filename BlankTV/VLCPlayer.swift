@@ -130,6 +130,7 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
         // delegate and the pending rebuild is now cancelled — re-attach so setup()'s
         // fresh media on this player still delivers state/time callbacks.
         player.delegate = self
+        cancelPendingSkip()  // a skip aimed at the OLD item must never land on the new one
         lastTickTime = -1   // a stale tick from the previous item must not block "advanced"
         didResume = false
         resumeTarget = BasePlayerVM.savedResume(for: newItem)
@@ -363,9 +364,39 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
     override func play()  { player.play();  isPlaying = true;  updateNowPlaying() }
     override func pause() { player.pause(); isPlaying = false; updateNowPlaying() }
 
+    /// Accumulated and coalesced, like the AVPlayer engine.
+    ///
+    /// Each tap used to be an immediate `jumpForward`, i.e. a demux seek plus a fresh
+    /// HTTP range request. Five quick taps of +10 fired five of them and only the last
+    /// one mattered — the other four were round trips the user waited through. Now the
+    /// taps add up in memory and ONE seek is issued shortly after the last one, which
+    /// is what makes repeated skipping feel immediate on remote content.
+    private var skipTarget: Double? = nil
+    private var skipWork: DispatchWorkItem?
+
     override func skip(_ seconds: Int32) {
         didResume = true   // manual navigation cancels the one-shot auto-resume
-        if seconds >= 0 { player.jumpForward(seconds) } else { player.jumpBackward(-seconds) }
+        guard duration > 0 else {
+            // Live, or duration not known yet — nothing to accumulate against.
+            if seconds >= 0 { player.jumpForward(seconds) } else { player.jumpBackward(-seconds) }
+            return
+        }
+        let base = skipTarget ?? currentTime
+        skipTarget = max(0, min(duration, base + Double(seconds)))
+        skipWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, let t = self.skipTarget, self.duration > 0 else { return }
+            self.skipTarget = nil
+            self.player.position = Float(max(0, min(1, t / self.duration)))
+        }
+        skipWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
+    }
+
+    /// Drop an accumulated skip that has not fired yet. Called whenever something
+    /// else takes over navigation — a new item, or a scrub.
+    private func cancelPendingSkip() {
+        skipWork?.cancel(); skipWork = nil; skipTarget = nil
     }
     override func seek(to progress: Double) {
         guard duration > 0 else { return }
@@ -388,6 +419,7 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
 
     override func beginScrub() {
         didResume = true                       // user navigating → cancel auto-resume
+        cancelPendingSkip()                    // the drag supersedes any pending ±skip
         // Decoding while re-seeking on every frame is the worst of both. The AV engine
         // already freezes during a scrub; this brings VLC in line.
         wasPlayingBeforeScrub = player.isPlaying

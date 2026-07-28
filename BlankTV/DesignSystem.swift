@@ -1386,16 +1386,21 @@ final class S8KImageCache: @unchecked Sendable {
     func thumbHashImage(_ key: String) -> UIImage? {
         let k = key as NSString
         if let hit = hashMemory.object(forKey: k) { return hit }
-        // The lock is held ACROSS the database read, not just around the Set. If it
-        // weren't, `forgetHashMiss` could land between the read and the insert, its
-        // `remove` would be a no-op, and the stale miss would suppress that key's
-        // placeholder for the rest of the process. The read is ~1 ms and always
-        // off-main, and it happens at most once per key.
+        // The lock guards the MEMO ONLY — never the database read.
+        //
+        // It used to be held across the SQLite call, to close a race where a concurrent
+        // `forgetHashMiss` could be lost and a key's placeholder suppressed for the
+        // process. That reasoning was right about the race and wrong about the cost: it
+        // put every image cell in the app behind ONE lock, and that lock behind a
+        // database that a catalogue import holds for a minute at a time. A lost
+        // negative memo costs one extra query. A serialised lock costs the whole screen.
         hashLock.lock()
-        defer { hashLock.unlock() }
-        if hashMisses.contains(key) { return nil }
+        let knownMiss = hashMisses.contains(key)
+        hashLock.unlock()
+        if knownMiss { return nil }
+
         guard let data = CatalogDB.imageHash(key), data.count >= 5 else {
-            hashMisses.insert(key)
+            hashLock.lock(); hashMisses.insert(key); hashLock.unlock()
             return nil
         }
         let img = thumbHashToImage(hash: data)      // non-optional
@@ -1519,13 +1524,28 @@ struct S8KImage: View {
         // read a main-actor-isolated stored property of this View.
         let mp = maxPixel
         async let downloaded = S8KImageCache.shared.load(imageURL, key: u, maxPixel: mp)
-        let ph = await Task.detached(priority: .utility) { S8KImageCache.shared.thumbHashImage(u) }.value
-        guard !Task.isCancelled else { return }
-        if image == nil { placeholderImage = ph }
+
+        // The placeholder is OPPORTUNISTIC — it is applied only if it happens to win
+        // the race, and it never gates the artwork.
+        //
+        // This used to `await` the ThumbHash before applying the downloaded image. The
+        // hash lives in SQLite, and during a catalogue import that database is held by
+        // a single ~192,000-statement write transaction, so the await could block for a
+        // minute — and no poster appeared for the whole import even though the artwork
+        // had already arrived. That was most of the "three minutes before I see
+        // anything" report.
+        let phTask = Task.detached(priority: .utility) { S8KImageCache.shared.thumbHashImage(u) }
+        Task { @MainActor in
+            let ph = await phTask.value
+            // Only if the real image has not landed yet, and still for THIS url.
+            if let ph, image == nil, shownURL != u { placeholderImage = ph }
+        }
+
         let img = await downloaded
-        guard !Task.isCancelled else { return }
+        guard !Task.isCancelled else { phTask.cancel(); return }
         if let img {
-            withAnimation(.easeOut(duration: 0.25)) { image = img }
+            phTask.cancel()
+            withAnimation(.easeOut(duration: 0.25)) { image = img; placeholderImage = nil }
             shownURL = u
         } else { failed = true }
     }
