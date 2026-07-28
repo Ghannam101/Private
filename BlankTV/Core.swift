@@ -1736,11 +1736,20 @@ enum CatalogDiskCache {
 
     /// Returns a fresh (within TTL) cached catalog, or nil if missing/stale/empty.
     static func load(scope: String) -> M3UContent? {
-        guard let url = fileURL(scope), let data = try? Data(contentsOf: url),
-              let env = try? JSONDecoder().decode(Envelope.self, from: data),
-              Date().timeIntervalSince1970 - env.savedAt < ttl else { return nil }
+        read(scope: scope)?.content
+    }
+
+    /// The cached catalogue plus how old it is, with NO freshness test. `load` keeps
+    /// the 12h contract for callers that want it; this one lets the caller decide.
+    static func read(scope: String) -> (content: M3UContent, age: TimeInterval)? {
+        guard let url = fileURL(scope),
+              // Memory-mapped: a large line writes tens of megabytes here, and reading
+              // it into a Data first doubled the peak for no benefit.
+              let data = try? Data(contentsOf: url, options: .mappedIfSafe),
+              let env = try? JSONDecoder().decode(Envelope.self, from: data) else { return nil }
         let c = content(from: env)
-        return (c.channels.isEmpty && c.movies.isEmpty && c.series.isEmpty) ? nil : c
+        if c.channels.isEmpty && c.movies.isEmpty && c.series.isEmpty { return nil }
+        return (c, max(0, Date().timeIntervalSince1970 - env.savedAt))
     }
 }
 
@@ -1761,6 +1770,20 @@ actor PlaylistService {
     /// home). Single-flight makes it exactly ONE fetch shared by all callers.
     private var inFlight: Task<M3UContent, Error>?
 
+    /// Refresh from the network and replace what a stale serve just handed out.
+    ///
+    /// Separate from `load(force:)` on purpose — that one joins an in-flight fetch,
+    /// which is right for a concurrent pull-to-refresh and wrong here. The flag is
+    /// enough to keep two revalidations from overlapping: actor isolation makes the
+    /// check and the set one step.
+    private var revalidating = false
+    func revalidate() async {
+        if revalidating { return }
+        revalidating = true
+        defer { revalidating = false }
+        _ = try? await _load(force: true)
+    }
+
     func load(force: Bool = false) async throws -> M3UContent {
         if let content, !force { return content }
         if let inFlight { return try await inFlight.value }   // join the running fetch
@@ -1780,12 +1803,27 @@ actor PlaylistService {
         // Instant cold-start: serve the last good catalog from disk immediately
         // (within TTL) instead of blocking on a full network parse. A refresh
         // (pull-to-refresh / playlist switch) passes force:true to bypass this.
-        if !force, let cached = CatalogDiskCache.load(scope: urlString) {
-            content = cached
+        if !force, let cached = CatalogDiskCache.read(scope: urlString) {
+            content = cached.content
             // Re-parse credentials (pure string work, no network) so lazy
             // series episodes / movie detail still resolve in Xtream-direct mode.
             if let xd = XtreamDirect.parse(urlString) { xtream = xd }
-            return cached
+            // STALE-WHILE-REVALIDATE. The comment above this function claimed it for a
+            // long time; the code was a hard 12h cliff. Past the TTL the whole cache was
+            // thrown away and the user waited out a full network parse with a perfectly
+            // good catalogue sitting on disk — so anyone who opens the app once a day
+            // ALWAYS took the slow path. That is a large part of the owner's "three
+            // minutes after signing in".
+            //
+            // Serve the stale copy now, refresh behind it. The refresh is detached so it
+            // cannot delay this return, and it deliberately does NOT go through
+            // `load(force:)`: that joins any fetch already in flight, and the fetch in
+            // flight right now is THIS one — so it would hand back the same stale
+            // catalogue and the revalidation would silently never happen.
+            if cached.age >= CatalogDiskCache.ttl {
+                Task.detached(priority: .utility) { await PlaylistService.shared.revalidate() }
+            }
+            return cached.content
         }
 
         // get.php / player_api.php link → talk to the Xtream API directly
