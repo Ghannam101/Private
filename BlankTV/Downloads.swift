@@ -479,9 +479,20 @@ final class DownloadService: NSObject, ObservableObject {
     }
 
     // MARK: Persistence
+    /// Serial, so snapshots always land in the order they were taken. Two detached
+    /// tasks could otherwise finish out of order and leave the OLDER state on disk.
+    private static let persistQueue = DispatchQueue(label: "com.blanktv.downloads.persist",
+                                                    qos: .utility)
     private func persist() {
-        guard let url = Self.storeURL(), let data = try? JSONEncoder().encode(items) else { return }
-        try? data.write(to: url, options: .atomic)
+        guard let url = Self.storeURL() else { return }
+        // Snapshot on the main actor, encode off it. `DownloadItem` embeds the whole
+        // `Series` tree — every season and episode — so this encode is not small, and
+        // progress persistence now calls it every 3s for the life of a transfer.
+        let snapshot = items
+        Self.persistQueue.async {
+            guard let data = try? JSONEncoder().encode(snapshot) else { return }
+            try? data.write(to: url, options: .atomic)
+        }
     }
     /// Decodes each entry INDEPENDENTLY. `decode([DownloadItem].self, …)` is
     /// all-or-nothing: ONE entry this build cannot read — a manifest half-written when
@@ -598,14 +609,26 @@ extension DownloadService: URLSessionDownloadDelegate {
     nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         guard let error else { return }                       // success handled in didFinishDownloadingTo
         let ns = error as NSError
-        if ns.code == NSURLErrorCancelled { return }          // user removed it
         let id = (task.taskDescription ?? "").components(separatedBy: "|").first ?? ""
-        // Persist resume data (if any) so a later retry continues from where it
-        // stopped instead of from zero.
+        // Save resume data BEFORE the cancellation check below — it used to return
+        // first, and that discarded the resume data on the one failure it exists for.
+        // iOS CANCELS background transfers when the user force-quits, so the owner's
+        // "stuck at 1%" download arrives here as NSURLErrorCancelled. With nothing
+        // saved, the relaunch restarted it from byte 0 while the progress bar still
+        // showed the old percentage — the download looked frozen all over again.
         if let data = ns.userInfo[NSURLSessionDownloadTaskResumeData] as? Data,
            let rf = Self.resumeFileURL(id) {
             try? data.write(to: rf, options: .atomic)
+            // `remove()` deletes the resume file BEFORE this callback arrives, so a
+            // cancellation the USER caused would otherwise leave an orphan on disk
+            // forever. Sweep it as soon as we can read `items`.
+            Task { @MainActor in
+                if !self.items.contains(where: { $0.id == id }) {
+                    try? FileManager.default.removeItem(at: rf)
+                }
+            }
         }
+        if ns.code == NSURLErrorCancelled { return }          // user removed it, or we were force-quit
         Task { @MainActor in self.fail(id: id) }
     }
 

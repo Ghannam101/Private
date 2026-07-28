@@ -1484,6 +1484,11 @@ struct S8KImage: View {
     /// re-appearance (sheet dismiss, tab return), so "did the url change?" cannot
     /// be inferred from the task alone.
     @State private var shownURL: String?
+    /// The url whose load is CURRENTLY in flight. `url` itself cannot answer this from
+    /// inside an escaping closure: `S8KImage` is a struct, so the closure captures a
+    /// frozen copy and `url` there is forever the value it had when the load started.
+    /// `@State` reads through its storage box, so this one stays live.
+    @State private var requestedURL: String?
 
     var body: some View {
         ZStack {
@@ -1517,6 +1522,7 @@ struct S8KImage: View {
         // artwork while scrolling fast" report. Gated on `shownURL` so a plain
         // re-appearance with an evicted bitmap doesn't blank a correct image.
         if shownURL != u { image = nil; placeholderImage = nil }
+        requestedURL = u
         // Start the download FIRST and decode the ThumbHash while it is in flight.
         // Awaiting the hash first delayed every real image by a database read plus
         // a decode, for a placeholder that is thrown away moments later.
@@ -1537,8 +1543,15 @@ struct S8KImage: View {
         let phTask = Task.detached(priority: .utility) { S8KImageCache.shared.thumbHashImage(u) }
         Task { @MainActor in
             let ph = await phTask.value
-            // Only if the real image has not landed yet, and still for THIS url.
-            if let ph, image == nil, shownURL != u { placeholderImage = ph }
+            // `requestedURL == u` is the load-bearing half. This Task is unstructured,
+            // so `.task(id:)` cancellation does not reach it, and `phTask.cancel()`
+            // cannot stop `thumbHashImage` either — it is synchronous and never checks
+            // cancellation, so its value still arrives. On a fast scroll the cell has
+            // already recycled to another poster by then, and without this check the
+            // PREVIOUS url's blur would be painted over it: the exact wrong-artwork bug
+            // the reset above exists to prevent. `shownURL != u` only means "no final
+            // image for this url yet"; it says nothing about which poster we are now.
+            if let ph, requestedURL == u, image == nil, shownURL != u { placeholderImage = ph }
         }
 
         let img = await downloaded

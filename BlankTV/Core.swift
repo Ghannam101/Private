@@ -1842,7 +1842,10 @@ actor PlaylistService {
             throw AppError.server("قائمة التشغيل فارغة")
         }
         content = parsed
-        CatalogDiskCache.save(parsed, scope: urlString)
+        // Detached for the same reason as the Xtream branch above: this encodes the
+        // entire catalogue and writes it, and every tab view model was blocked behind
+        // it on the return path before it could ask for its first row.
+        Task.detached(priority: .utility) { CatalogDiskCache.save(parsed, scope: urlString) }
         // Shadow-write into the SQLite store too (off-actor, off-main; no reader yet).
         Task.detached(priority: .utility) { CatalogDB.save(parsed, scope: urlString) }
         return parsed

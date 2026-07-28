@@ -147,6 +147,8 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
     /// Jump to an absolute time in seconds (used by "skip intro").
     override func seekToTime(_ seconds: Double) {
         guard duration > 0 else { return }
+        cancelPendingSkip()          // Skip-Intro must not be undone by a pending ±10
+        skipTarget = max(0, min(duration, seconds))
         player.position = Float(min(1, max(0, seconds / duration)))
     }
 
@@ -364,15 +366,24 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
     override func play()  { player.play();  isPlaying = true;  updateNowPlaying() }
     override func pause() { player.pause(); isPlaying = false; updateNowPlaying() }
 
-    /// Accumulated and coalesced, like the AVPlayer engine.
-    ///
-    /// Each tap used to be an immediate `jumpForward`, i.e. a demux seek plus a fresh
-    /// HTTP range request. Five quick taps of +10 fired five of them and only the last
-    /// one mattered — the other four were round trips the user waited through. Now the
-    /// taps add up in memory and ONE seek is issued shortly after the last one, which
-    /// is what makes repeated skipping feel immediate on remote content.
+    // Skip accumulation + coalescing, mirroring the AVPlayer engine's
+    // `lastRequestedTime` / `chaseSeek` pair.
+    //
+    // Each tap used to be an immediate `jumpForward` — a demux seek plus a fresh HTTP
+    // range request. Five quick taps of +10 fired five of them and only the last one
+    // mattered; the other four were round trips the user sat through.
+    //
+    // `skipTarget` is the ACCUMULATOR, and the whole design turns on when it is
+    // cleared. It survives being issued and is dropped only once the playhead actually
+    // reaches it (in mediaPlayerTimeChanged). Clearing it on issue looks harmless and
+    // is not: a seek takes ~1-2s to land, `currentTime` still reads the OLD position
+    // for all of it, so the next tap would compute from there and pressing forward
+    // during an in-flight seek would jump backwards. PlayerEngine.swift:508-516
+    // records that same bug being fixed in the AV engine.
     private var skipTarget: Double? = nil
     private var skipWork: DispatchWorkItem?
+    private var lastSkipIssued: TimeInterval = 0
+    private let skipCoalesceWindow: TimeInterval = 0.3
 
     override func skip(_ seconds: Int32) {
         didResume = true   // manual navigation cancels the one-shot auto-resume
@@ -383,23 +394,39 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
         }
         let base = skipTarget ?? currentTime
         skipTarget = max(0, min(duration, base + Double(seconds)))
-        skipWork?.cancel()
-        let work = DispatchWorkItem { [weak self] in
-            guard let self, let t = self.skipTarget, self.duration > 0 else { return }
-            self.skipTarget = nil
-            self.player.position = Float(max(0, min(1, t / self.duration)))
+        skipWork?.cancel(); skipWork = nil
+
+        // LEADING edge. A pure trailing debounce would delay the ordinary single tap
+        // by the whole window — and the tap already waits out the double-tap gate
+        // before reaching here, so it would be a visible regression, and the "+10"
+        // badge would sit on screen with the picture not moving. Only the taps that
+        // arrive while a seek is already in flight are folded into one trailing seek.
+        if Date().timeIntervalSinceReferenceDate - lastSkipIssued >= skipCoalesceWindow {
+            issueSkip()
+        } else {
+            let work = DispatchWorkItem { [weak self] in self?.issueSkip() }
+            skipWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + skipCoalesceWindow, execute: work)
         }
-        skipWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: work)
     }
 
-    /// Drop an accumulated skip that has not fired yet. Called whenever something
-    /// else takes over navigation — a new item, or a scrub.
+    private func issueSkip() {
+        guard let t = skipTarget, duration > 0 else { return }
+        skipWork = nil
+        lastSkipIssued = Date().timeIntervalSinceReferenceDate
+        player.position = Float(max(0, min(1, t / duration)))
+    }
+
+    /// Drop an accumulated skip. Called whenever something else takes over navigation
+    /// — a new item, a scrub, an absolute seek, or teardown — so a pending jump can
+    /// never land on the wrong item or fight the newer intent.
     private func cancelPendingSkip() {
         skipWork?.cancel(); skipWork = nil; skipTarget = nil
     }
     override func seek(to progress: Double) {
         guard duration > 0 else { return }
+        cancelPendingSkip()
+        skipTarget = min(1, max(0, progress)) * duration
         player.position = Float(min(1, max(0, progress)))
     }
     // Two-phase scrub. VLC keeps rendering the seeked frame, so setting position
@@ -433,6 +460,7 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
         player.position = Float(min(1, max(0, progress)))        // live preview
     }
     override func endScrub(to progress: Double) {
+        skipTarget = duration > 0 ? min(1, max(0, progress)) * duration : nil
         player.position = Float(min(1, max(0, progress)))
         // Resume only if the user was actually playing when the drag began — a scrub
         // performed while paused must leave the player paused.
@@ -584,6 +612,7 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
     // progress / fmt / currentFmt / durationFmt / saveProgress now live in
     // BasePlayerVM (shared by both engines).
     override func cleanup() {
+        cancelPendingSkip()
         startWatchdog?.invalidate(); startWatchdog = nil
         retryTimer?.invalidate(); retryTimer = nil
         reconnecting = false
@@ -599,6 +628,7 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
     // StateObject edge case), make sure VLC's background decode thread is torn
     // down rather than left running.
     deinit {
+        skipWork?.cancel()
         startWatchdog?.invalidate()
         retryTimer?.invalidate()
         stopStallMonitor()
@@ -644,6 +674,13 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
         let advanced = t > lastTickTime
         lastTickTime = t
         if currentTime != t { currentTime = t }
+        // The accumulated skip target is spent once playback reaches it, so the NEXT
+        // tap measures from the live position again. `|| t > req` matters: VLC lands on
+        // the nearest keyframe and can overshoot, and without it the window never opens
+        // — the target would be stranded and every later tap would compute from it.
+        if let req = skipTarget, skipWork == nil, abs(t - req) < 1.0 || t > req {
+            skipTarget = nil
+        }
         // Clear loading/buffering ONLY when time actually ADVANCES — during a stall
         // (time frozen) keep the buffering UI instead of falsely hiding it. Guarding
         // the assignments also stops re-publishing unchanged @Published state every
