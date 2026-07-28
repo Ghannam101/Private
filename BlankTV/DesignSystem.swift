@@ -2180,6 +2180,7 @@ struct AppTabBar: View {
                     .overlay(Circle().strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
             }
             .buttonStyle(S8KButtonStyle())
+            .accessibilityLabel(L("common.close"))
 
             HStack(spacing: 9) {
                 // Clear ⊗ on the LEFT, magnifier on the RIGHT (matches the Arabic
@@ -2192,6 +2193,7 @@ struct AppTabBar: View {
                             .font(.system(size: 16)).foregroundColor(.s8kTextTertiary)
                     }
                     .buttonStyle(S8KButtonStyle())
+                    .accessibilityLabel(L("common.close"))
                 }
                 TextField(searchPlaceholder, text: $searchDraft)
                     .focused($searchFocused)

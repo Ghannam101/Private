@@ -314,6 +314,7 @@ struct LiveTVView: View {
                         .foregroundColor(favs.isChannelFav(ch.id) ? .s8kRed : .s8kTextSecondary)
                 }
                 .buttonStyle(S8KButtonStyle())
+                .accessibilityLabel(favs.isChannelFav(ch.id) ? L("detail.fav_added") : L("detail.fav_add"))
                 Button(action: { playerItem = .live(ch) }) {
                     Label(L("live.fullscreen"), systemImage: "arrow.up.left.and.arrow.down.right")
                         .font(S8KFont.caption1.weight(.semibold)).foregroundColor(.black)
@@ -446,12 +447,14 @@ struct LiveTVView: View {
                         .foregroundColor(favs.isChannelFav(ch.id) ? .s8kRed : .s8kTextSecondary)
                 }
                 .buttonStyle(S8KButtonStyle())
+                .accessibilityLabel(favs.isChannelFav(ch.id) ? L("detail.fav_added") : L("detail.fav_add"))
                 Button { playerItem = .live(ch) } label: {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
                         .font(.system(size: 13, weight: .bold)).foregroundColor(S8KBrand.accentInk)
                         .frame(width: 34, height: 34).background(S8KGradient.goldFlat).clipShape(Circle())
                 }
                 .buttonStyle(S8KButtonStyle())
+                .accessibilityLabel(L("live.fullscreen"))
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(ch.name).font(S8KFont.subhead).foregroundColor(.s8kTextPrimary).lineLimit(1)
@@ -607,6 +610,7 @@ struct ChannelRow: View {
                     .frame(width: 30, height: 30)
             }
             .buttonStyle(S8KButtonStyle())
+            .accessibilityLabel(isFav ? L("detail.fav_added") : L("detail.fav_add"))
 
             Button(action: onTap) {
                 RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
@@ -616,6 +620,7 @@ struct ChannelRow: View {
                     .shadow(color: .s8kGoldMid.opacity(0.3), radius: 4)
             }
             .buttonStyle(S8KButtonStyle())
+            .accessibilityLabel(L("common.play"))
         }
         .padding(.horizontal, S8KSpace.xl).padding(.vertical, 10)
     }
@@ -706,6 +711,7 @@ private struct InlineLiveEngineView: View {
                             .background(Color.black.opacity(0.45)).clipShape(Circle())
                     }
                     .buttonStyle(S8KButtonStyle())
+                    .accessibilityLabel(L("live.fullscreen"))
                     Spacer()
                 }
                 Spacer()
@@ -955,7 +961,7 @@ struct ContentTitleBar: View {
     }
 
     // Editorial: crisp rounded-square icon button (was a circle).
-    private func squareButton(_ icon: String, action: @escaping () -> Void) -> some View {
+    private func squareButton(_ icon: String, a11y: String = "", action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 15, weight: .bold)).foregroundColor(.s8kGoldMid)
@@ -966,6 +972,7 @@ struct ContentTitleBar: View {
                     .strokeBorder(Color.s8kBorder, lineWidth: 1))
         }
         .buttonStyle(S8KButtonStyle())
+        .accessibilityLabel(a11y.isEmpty ? icon : a11y)
     }
 }
 
@@ -1444,6 +1451,7 @@ struct SearchField: View {
                 Button(action: { text = "" }) {
                     Image(systemName: "xmark.circle.fill").foregroundColor(.s8kTextDisabled)
                 }
+                .accessibilityLabel(L("a11y.clear_text"))
             }
         }
         .padding(.horizontal, S8KSpace.lg).frame(height: 46)
@@ -1509,6 +1517,7 @@ struct CategorySidebar: View {
                             .overlay(Circle().strokeBorder(Color.s8kBorder, lineWidth: 1))
                     }
                     .buttonStyle(S8KButtonStyle())
+                    .accessibilityLabel(L("a11y.reorder"))
                 }
                 Spacer()
                 Text(title)
@@ -3389,6 +3398,7 @@ struct SearchView: View {
                 Button(action: { vm.query = ""; vm.results = []; vm.failed = false }) {
                     Image(systemName: "xmark.circle.fill").foregroundColor(.s8kTextDisabled)
                 }
+                .accessibilityLabel(L("a11y.clear_text"))
             }
         }
         .padding(.horizontal, S8KSpace.lg).frame(height: 50)

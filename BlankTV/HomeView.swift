@@ -423,6 +423,7 @@ struct HeroCarouselView: View {
                             .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
                     }
                     .buttonStyle(S8KButtonStyle())
+                    .accessibilityLabel(isFav ? L("detail.fav_added") : L("detail.fav_add"))
                     Button(action: { onOpen(item) }) {
                         Image(systemName: "play.fill").font(.system(size: 20, weight: .black))
                             .foregroundColor(S8KBrand.accentInk)
@@ -432,6 +433,7 @@ struct HeroCarouselView: View {
                             .shadow(color: .s8kGoldHigh.opacity(0.5), radius: 12, y: 3)
                     }
                     .buttonStyle(S8KButtonStyle())
+                    .accessibilityLabel(L("common.play"))
                 }
                 .frame(maxWidth: .infinity, alignment: .trailing)
 
@@ -967,7 +969,7 @@ struct HomeView: View {
         .padding(.bottom, S8KSpace.lg)
     }
 
-    private func navBtn(icon: String, action: @escaping () -> Void) -> some View {
+    private func navBtn(icon: String, a11y: String = "", action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 15, weight: .medium))
@@ -981,6 +983,7 @@ struct HomeView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(S8KButtonStyle())
+        .accessibilityLabel(a11y.isEmpty ? icon : a11y)
     }
 
     // MARK: - Home Top Bar (profile · logo) — Filmm-style
@@ -1328,6 +1331,7 @@ struct HomeView: View {
                 .buttonStyle(S8KButtonStyle())
                 .padding(7)
                 .transition(.scale.combined(with: .opacity))
+                .accessibilityLabel(L("home.remove_history"))
             }
         }
     }

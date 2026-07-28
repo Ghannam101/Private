@@ -786,6 +786,7 @@ struct DownloadsView: View {
             Button(action: { svc.remove(d.id) }) {
                 Image(systemName: "trash").font(.system(size: 16)).foregroundColor(.s8kTextTertiary)
             }.buttonStyle(S8KButtonStyle())
+            .accessibilityLabel(L("common.delete"))
         }
         .padding(12)
         .background(Color.s8kSurface)
@@ -793,11 +794,12 @@ struct DownloadsView: View {
         .overlay(RoundedRectangle(cornerRadius: S8KRadius.md).strokeBorder(Color.s8kBorder, lineWidth: 1))
     }
 
-    private func ctlBtn(_ icon: String, _ size: CGFloat, _ action: @escaping () -> Void) -> some View {
+    private func ctlBtn(_ icon: String, _ size: CGFloat, a11y: String = "", _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon).font(.system(size: size)).foregroundColor(.s8kGoldMid)
         }
         .buttonStyle(S8KButtonStyle())
+        .accessibilityLabel(a11y.isEmpty ? icon : a11y)
     }
 
     private func byteText(_ b: Int64) -> String {

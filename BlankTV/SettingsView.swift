@@ -297,6 +297,7 @@ struct SettingsProV2: View {
         }
         .buttonStyle(S8KButtonStyle())
         .padding(.leading, 18).padding(.top, 6)
+        .accessibilityLabel(L("common.close"))
     }
 
     private var logoutButton: some View {
@@ -612,6 +613,7 @@ struct AccountSwitcherView: View {
                             .frame(width: 38, height: 38).background(Circle().fill(Color.white.opacity(0.06)))
                             .overlay(Circle().strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
                     }.buttonStyle(S8KButtonStyle())
+                    .accessibilityLabel(L("common.close"))
                     Spacer()
                     Text(L("accounts.title")).font(.system(size: 20, weight: .black)).foregroundColor(.s8kTextPrimary)
                 }
@@ -683,6 +685,7 @@ struct AccountSwitcherView: View {
                     Image(systemName: "plus").font(.system(size: 32, weight: .bold)).foregroundColor(.s8kGoldMid)
                 }.padding(5)
             }.buttonStyle(S8KButtonStyle())
+            .accessibilityLabel(L("a11y.add_account"))
             Text(L("accounts.add")).font(S8KFont.subhead.weight(.bold)).foregroundColor(.s8kTextPrimary)
             Text("Xtream · M3U").font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
             Color.clear.frame(height: 22)   // align with the rename row height
@@ -751,9 +754,11 @@ struct PlaylistsView: View {
                         }) {
                             Image(systemName: "arrow.clockwise").foregroundColor(.s8kGoldMid)
                         }
+                        .accessibilityLabel(L("a11y.refresh"))
                         Button(action: { showAdd = true }) {
                             Image(systemName: "plus").foregroundColor(.s8kGoldMid)
                         }
+                        .accessibilityLabel(L("a11y.add_account"))
                     }
                 }
             }

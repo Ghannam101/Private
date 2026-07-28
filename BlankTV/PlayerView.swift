@@ -899,6 +899,7 @@ struct PlayerEngineView: View {
                         }
                     }
                     .buttonStyle(S8KButtonStyle())
+                    .accessibilityLabel(vm.isPlaying ? L("a11y.pause") : L("common.play"))
                     if !vm.isLive {
                         ctrlBtn(icon: "goforward.10", size: 28) { vm.skip(10) }
                     }
@@ -1015,19 +1016,21 @@ struct PlayerEngineView: View {
         }
     }
 
-    private func iconCircle(_ icon: String, action: @escaping () -> Void) -> some View {
+    private func iconCircle(_ icon: String, a11y: String = "", action: @escaping () -> Void) -> some View {
         Button(action: { action(); resetControlsTimer() }) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
                 .frame(width: 38, height: 38).background(Color.black.opacity(0.4)).clipShape(Circle())
         }
         .buttonStyle(S8KButtonStyle())
+        .accessibilityLabel(a11y.isEmpty ? icon : a11y)
     }
-    private func ctrlBtn(icon: String, size: CGFloat, action: @escaping () -> Void) -> some View {
+    private func ctrlBtn(icon: String, size: CGFloat, a11y: String = "", action: @escaping () -> Void) -> some View {
         Button(action: { action(); resetControlsTimer() }) {
             Image(systemName: icon).font(.system(size: size, weight: .medium)).foregroundColor(.white)
         }
         .buttonStyle(S8KButtonStyle())
+        .accessibilityLabel(a11y.isEmpty ? icon : a11y)
     }
     private func actionChip(_ icon: String, _ label: String, active: Bool, action: @escaping () -> Void) -> some View {
         Button(action: { action(); resetControlsTimer() }) {

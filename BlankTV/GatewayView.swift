@@ -358,6 +358,7 @@ struct GatewayView: View {
                         .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
                 }
                 .buttonStyle(S8KButtonStyle())
+                .accessibilityLabel(L("common.close"))
             }
             Spacer(minLength: 0)
             langMenu
