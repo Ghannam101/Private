@@ -746,6 +746,10 @@ struct PlayerEngineView: View {
                     .background(Color.black.opacity(0.4))
                     .clipShape(Capsule())
                     .overlay(Capsule().strokeBorder(Color.s8kBorderGold, lineWidth: 1))
+                    // ~40 → 44pt, after the clip so it isn't clipped back off. This is
+                    // the ONLY way out of a locked player: a missed tap leaves the user
+                    // with no visible exit at all.
+                    .s8kMinTouch(2)
             }
             .buttonStyle(S8KButtonStyle())
             .padding(.bottom, isLandscape ? 30 : 60)
@@ -764,6 +768,7 @@ struct PlayerEngineView: View {
                 .background(Color.black.opacity(0.6))
                 .clipShape(Capsule())
                 .overlay(Capsule().strokeBorder(Color.white.opacity(0.3), lineWidth: 1))
+                .s8kMinTouch(3)                      // ~38 → 44pt, after the clip
         }
         .buttonStyle(S8KButtonStyle())
     }
@@ -803,6 +808,9 @@ struct PlayerEngineView: View {
                             .foregroundColor(.s8kTextSecondary)
                             .padding(.horizontal, 14).padding(.vertical, 7)
                             .overlay(Capsule().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
+                            // ~28 → 44pt tall. Vertical only: this pill and the gold one
+                            // beside it are 8pt apart, so widening both would overlap.
+                            .s8kMinTouchV(8)
                     }
                     .buttonStyle(S8KButtonStyle())
                     Button(action: { goNext() }) {
@@ -810,6 +818,7 @@ struct PlayerEngineView: View {
                             .font(S8KFont.caption2.weight(.bold)).foregroundColor(.black)
                             .padding(.horizontal, 16).padding(.vertical, 7)
                             .background(S8KGradient.goldFlat).clipShape(Capsule())
+                            .s8kMinTouchV(8)         // ~28 → 44pt tall; see the note above
                     }
                     .buttonStyle(S8KButtonStyle())
                 }
@@ -857,8 +866,15 @@ struct PlayerEngineView: View {
                     Spacer()
                     // AirPlay (native route picker)
                     AirPlayButton(tint: .white)
-                        .frame(width: 38, height: 38)
-                        .background(Color.black.opacity(0.4)).clipShape(Circle())
+                        // The native route picker only hit-tests inside ITS OWN bounds —
+                        // a contentShape on a parent cannot extend a UIView's hit region
+                        // (the same trap that made s8kMinTouch a no-op outside a label).
+                        // So the representable is 44pt and the circle is drawn behind it
+                        // at 38pt, which keeps it visually identical to its neighbours.
+                        .frame(width: 44, height: 44)
+                        .background(
+                            Circle().fill(Color.black.opacity(0.4)).frame(width: 38, height: 38)
+                        )
                     // Native Picture-in-Picture (AVPlayer engine only)
                     if vm.pipSupported {
                         iconCircle("pip.enter") { vm.startPiP() }
@@ -1021,13 +1037,24 @@ struct PlayerEngineView: View {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
                 .frame(width: 38, height: 38).background(Color.black.opacity(0.4)).clipShape(Circle())
+                // 38 → 44pt of hit area, drawn identically. Inside the label, because
+                // outside it would only widen the layout cell and leave the gesture on
+                // the 38pt image. Neighbours are 12pt apart, so 3pt a side cannot overlap.
+                .s8kMinTouch(3)
         }
         .buttonStyle(S8KButtonStyle())
         .accessibilityLabel(a11y.isEmpty ? icon : a11y)
     }
     private func ctrlBtn(icon: String, size: CGFloat, a11y: String = "", action: @escaping () -> Void) -> some View {
-        Button(action: { action(); resetControlsTimer() }) {
+        // These are bare glyphs — ~22x20 and ~28x25 — so the hit area was roughly half
+        // the HIG minimum on the most-used controls in the app. `s8kMinTouch` gives the
+        // layout size back, which matters here: the row already measures ~310 of the
+        // 320pt minimum width, so real 44pt frames would overflow an iPad Slide Over
+        // pane. The +2 covers a glyph rendering shorter than its font size.
+        let pad = max(3, (44 - size) / 2 + 2)
+        return Button(action: { action(); resetControlsTimer() }) {
             Image(systemName: icon).font(.system(size: size, weight: .medium)).foregroundColor(.white)
+                .s8kMinTouch(pad)
         }
         .buttonStyle(S8KButtonStyle())
         .accessibilityLabel(a11y.isEmpty ? icon : a11y)

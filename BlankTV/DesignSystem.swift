@@ -587,6 +587,28 @@ extension View {
             .padding(-inset)
     }
 
+    /// Vertical-only variant. Use it for a short control in a TIGHT horizontal row:
+    /// growing sideways there makes each button eat into its neighbour's area and
+    /// steal its taps, which is worse than the small target.
+    ///
+    /// Same two rules as `s8kMinTouch`: it must go inside the Button's `label:`, and
+    /// AFTER any `.clipShape(...)` — clipShape clips hit testing too, so an expansion
+    /// placed before it is silently clipped back off.
+    func s8kMinTouchV(_ inset: CGFloat) -> some View {
+        padding(.vertical, inset)
+            .contentShape(Rectangle())
+            .padding(.vertical, -inset)
+    }
+
+    /// Independent horizontal / vertical insets, for the common case where one axis
+    /// has room to spare (a trailing control with a `Spacer` beside it) and the other
+    /// is hemmed in by whatever the view is stacked against. Same two rules.
+    func s8kMinTouch(h: CGFloat, v: CGFloat) -> some View {
+        padding(.horizontal, h).padding(.vertical, v)
+            .contentShape(Rectangle())
+            .padding(.horizontal, -h).padding(.vertical, -v)
+    }
+
     /// Attach to a scroll view's CONTENT (not the ScrollView itself) — the probe walks
     /// up from where it is planted to find the enclosing UIScrollView.
     func s8kInstantTaps() -> some View {
@@ -1282,6 +1304,18 @@ struct SectionHeader: View {
                             Image(systemName: "chevron.left").font(.system(size: 9, weight: .bold))
                         }
                         .foregroundColor(.s8kGoldHigh)
+                        // This is the ONLY way from Home into Movies/Series/Live, and it
+                        // was a ~46x13 target — a third of the HIG minimum.
+                        //
+                        // Horizontally there is a `Spacer` to eat into, so 14 is free.
+                        // Vertically 12 is the ceiling: the header's own underline and
+                        // bottom padding absorb the downward half, and more upward would
+                        // start covering the bottom edge of the rail ABOVE this one and
+                        // steal taps from its cards. ~74x37 instead of 46x13.
+                        //
+                        // Reaching a true 44 needs the header row itself to grow ~19pt on
+                        // every screen — a design change, so it waits for the owner.
+                        .s8kMinTouch(h: 14, v: 12)
                     }
                 }
             }
