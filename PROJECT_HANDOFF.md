@@ -309,4 +309,113 @@ also decide whether the tolerated result is allowed to become the cached truth.
   codec, resolution, audio channels, bitrate, tmdbID) — zero new network calls.
 - **P9:** `CatalogDB` migration `v3_epg` (rich columns, off-main reads/writes, prune).
 
-_End of handoff. Live TestFlight = build index 77 → version 79._
+## 11. App Store readiness pass (builds 78–91 → TestFlight 80–93)
+
+An App Review simulation, a differentiation audit, a touch audit and a technique
+adjudication were run against the app; all four reports live at the repo root and
+should be read before re-deriving any of this:
+
+| file | what it holds |
+|------|---------------|
+| `APP_REVIEW_AUDIT.md` | every guideline finding, with the review-notes draft |
+| `DIFFERENTIATION_REPORT.md` | measured similarity to the reference, by dimension |
+| `TOUCH_AUDIT.md` | 9 BROKEN controls, 62 sub-44pt targets, 26 missing a11y labels |
+| `TECH_ADJUDICATION.md` | reference techniques judged against 2026 practice |
+| `SHARED_STRINGS.md` | the string-by-string inventory the copy rewrite was driven from |
+| `TYPE_SCALE_PROPOSAL.md` | the proposed type/spacing scale, unimplemented |
+
+### The rejection that was sitting in the binary
+Six **commercial film posters** were bundled and rendered full-screen on the login
+screen — `gwposter1` was the Marvel Studios *Thor: Ragnarok* one-sheet, and one of the
+six carried the illustrator's own watermark. An IPTV player whose first screen is a
+wall of unlicensed studio art is the textbook 5.2.3 rejection. All six are now Blender
+open-movie posters (CC-BY), replaced in place under the same asset names so the project
+file was untouched. **Never put artwork in this app that the owner cannot license.**
+
+### Other guideline work closed
+- **2.1** — three surfaces offered a reseller code, and `ActivationService.resolveCode`
+  returns `false` unconditionally. A promised feature that cannot succeed. Removed.
+- **5.1.1(v)** — "delete my account" was a no-op in demo mode (`enterDemo` never sets
+  `mode`, so the `.xtream` default made it attempt a backend call that threw before the
+  network and took every cleanup line with it). It also left the SQLite catalogue, the
+  disk cache, the downloads and the Keychain device ID behind. All fixed. **`logout()`
+  must never reach those purges** — regenerating the device identity on every logout
+  breaks activation binding.
+- **5.2.3** — the player-only disclaimer moved to the gateway footer, the one screen a
+  reviewer is guaranteed to open.
+- `PrivacyInfo.xcprivacy` is present and correct. An audit claimed `3B52.1` should be
+  `C617.1`; it should not — `3B52.1` is for files in the app's own container, which is
+  what this app touches. Do not "fix" it.
+
+### Copy — measured, not estimated
+Shared Arabic values fell **84.4% → 55.8%**, shared English **82.1% → 56.9%**, measured
+against the reference's own table. 72 dead keys were deleted rather than rewritten.
+**~50 strings were deliberately left identical**: أفلام، مسلسلات، إلغاء، حفظ، الكل،
+دقيقة، ترجمة، Sign in, Cancel, Save. They are simply the words, and a thesaurus pass
+over them produces copy that reads generated. Distinctiveness comes from the sentences.
+
+### Live defects found and fixed (none were visible in review; all were real)
+1. A spinner over playing video — KVO without `.initial` never fires for an item that
+   is ALREADY `.readyToPlay`, which is exactly what `MediaPrefetcher` hands over.
+2. Lost resume points — `cleanup()` saved progress, `load()` did not, and `load()` is
+   the zap / next-episode path. Fixed in BOTH engines.
+3. A download library one bad byte from gone — the manifest decoded all-or-nothing.
+4. The series resume button always said episode 1 — "first episode under 90%" is
+   satisfied by episode 1 forever. Also: history was capped at 50 rows GLOBALLY, so a
+   minute of channel zapping evicted episode progress.
+5. A near miss on a playlist row's "…" menu switched the playlist.
+6. The tab bar was drawn over every confirmation dialog.
+7. Ending the hold-to-2× gesture toggled the player controls every time.
+
+### The rule that produced most of this
+Every change went through an adversarial review before its build. **The review caught a
+real defect in every single round, including three of my own**: a live-zap change that
+disabled AVPlayer's stall recovery (Apple documents that with waiting off the player
+does not resume by itself), a modal-blocking counter that could have hidden the tab bar
+permanently, and a compile error left by a deletion. Do not skip it.
+
+Corollary, learned the same way: **be as sceptical of the reviewers as of the code.**
+One claimed the app phoned home on first launch — `APIClient` throws before opening a
+connection. Another claimed every background task reads a nil Keychain — no background
+path reads the Keychain at all. Verify, then act.
+
+## 12. Server
+`strong8k.app/v2` is served by **`/opt/s8k-dev`** (PM2 `s8k-dev-panel2`, port 3200) —
+despite the name. `/var/www/strong8k` is the old `:3000` API and has no `/v2`.
+`/opt/s8k-staging` (3201) is stale and is not a valid test bed.
+
+A batched `GET /v2/epg/guide?ids=` was deployed there and verified live. It also fixed a
+**remote 500 that was live in `/nn`**: `ids=constructor` resolved to the inherited
+`Object`, which is truthy and not iterable. Every accumulator keyed by client input is
+now `Object.create(null)`.
+
+The server's copy of `routes/epg.js` was AHEAD of the local repo (it has a `/enrich`
+TMDB route) — the change was applied on top of the live file, not copied over it.
+**Always diff before deploying.** Rollback: `routes/epg.js.bak-20260728-001011`.
+Still open there: no rate limiter on `/v2/epg/*`, and `APP_KEY` ships in every client.
+
+## 13. What is next, in order
+1. **Type scale stage 2** — stage 1 (moving 19 hard-coded text sizes onto the tokens,
+   visually neutral) is shipped. Stage 2 re-cuts the scale: base 17 / ratio 1.25, a
+   floor of 11pt (`caption2`=10 and `caption3`=9 are under Apple's documented minimum),
+   Dynamic Type support (every token is a fixed `Font.system(size:)` today, so nothing
+   responds to the user's text-size setting), and a step between `title3`=18 and
+   `title2`=22 — the gap that forced 20 headlines to invent their own size.
+   Device-verify three things: the hero height floor (`DesignSystem.swift:179`), the
+   poster column count on 414pt phones (`ContentViews.swift:1894` — 3 columns need
+   376pt of 382pt available), and the player action row.
+2. The remaining touch-audit items: 62 sub-44pt targets, 26 missing a11y labels, and
+   B3/B6 leftovers. `HomeView`'s `navBar`/refresh confirm is **dead code** — wire it or
+   delete it.
+3. The brand kit — one file for palette, logo, app name and support links, with the
+   button ink computed from the accent's luminance (a dark accent currently makes
+   button text vanish), plus a lint that fails the build on a hard-coded colour or name.
+   The app name is still baked into 5-language sentences.
+4. Credentials: `Store.m3uURL` holds the user's IPTV username and password in a query
+   string in **UserDefaults**, unencrypted and in unencrypted backups. Moving it to the
+   Keychain needs `AfterFirstUnlockThisDeviceOnly` (the class currently pins
+   `WhenUnlockedThisDeviceOnly`) or the background download relaunch reads nil.
+5. Blocked on the owner: publish under a neutral identity vs. sell; a Blank domain to
+   replace `strong8k.app`; and whether to deploy the panel's 5 unpushed commits.
+
+_End of handoff. Live TestFlight = build index 91 → version 93._
