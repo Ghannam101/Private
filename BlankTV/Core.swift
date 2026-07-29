@@ -1903,6 +1903,7 @@ actor PlaylistService {
         guard !(parsed.channels.isEmpty && parsed.movies.isEmpty && parsed.series.isEmpty) else {
             throw AppError.server("قائمة التشغيل فارغة")
         }
+        S8KPerf.end("الكتالوج", "M3U · \(parsed.channels.count) قناة · \(parsed.movies.count) فلم · \(parsed.series.count) مسلسل")
         content = parsed
         // Detached for the same reason as the Xtream branch above: this encodes the
         // entire catalogue and writes it, and every tab view model was blocked behind

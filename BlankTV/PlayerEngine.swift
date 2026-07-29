@@ -104,6 +104,11 @@ class BasePlayerVM: NSObject, ObservableObject {
         self.item = item
         self.resumeTarget = BasePlayerVM.savedResume(for: item)
         super.init()
+        // HERE, not only in setItem. The VM for the tap that OPENS the player is built
+        // by the factory through this initialiser; setItem runs only for next-episode
+        // and channel zap. Marking only there measured everything except the thing the
+        // owner reports as slow.
+        S8KPerf.begin("التشغيل ← أول إطار")
     }
     func setItem(_ i: ContentItem) {
         item = i; hasFirstFrame = false

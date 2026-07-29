@@ -110,6 +110,9 @@ enum S8KPerf {
     /// screen. Newest first, same order as the list.
     static var report: String {
         let f = DateFormatter()
+        // POSIX locale on purpose: on an Arabic device the default renders
+        // Arabic-Indic digits, and this text exists to be pasted back and read.
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "HH:mm:ss"
         return recent.map { s in
             let note = s.note.isEmpty ? "" : "  ·  \(s.note)"

@@ -1548,6 +1548,10 @@ struct S8KImage: View {
         failed = false
         // Warm hit: swap straight to the right bitmap, no flash, no await.
         if let hit = S8KImageCache.shared.cached(u) {
+            // Closes the launch chain here too. Without it, a first poster served from
+            // memory left the mark open and some LATER poster closed it — reporting a
+            // launch that was fast as one that was slow.
+            S8KPerf.end("الفتح ← أول بوستر", "من الذاكرة")
             image = hit; placeholderImage = nil; shownURL = u; return
         }
         // Cache MISS on a RECYCLED cell: `image` still holds the PREVIOUS url's
