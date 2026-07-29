@@ -2081,22 +2081,32 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .settings: return L("tab.settings")
         }
     }
+    // The tab bar is in EVERY App Store screenshot and on every screen a reviewer
+    // opens, and `house / film / tv / gearshape` is the most-copied icon set on the
+    // store — it was identical to the reference's, glyph for glyph. These are the same
+    // meanings in less generic symbols, all iOS 13-16 SF Symbols so nothing needs an
+    // availability check.
+    //
+    // `home` deliberately keeps `house`: it is the raised centre button, and the one
+    // tab whose meaning must never be ambiguous.
     var icon: String {
         switch self {
         case .home:     return "house"
-        case .live:     return "dot.radiowaves.left.and.right"
-        case .movies:   return "film"
-        case .series:   return "tv"
-        case .settings: return "gearshape"
+        case .live:     return "waveform"                 // a signal, not an aerial
+        case .movies:   return "popcorn"                  // reads "cinema" instantly
+        case .series:   return "rectangle.stack"          // a stack = seasons/episodes
+        case .settings: return "slider.horizontal.3"      // controls, not a cog
         }
     }
+    /// `waveform` and `slider.horizontal.3` have no `.fill` counterpart; the active
+    /// state is carried by colour and weight, exactly as `live` already did.
     var activeIcon: String {
         switch self {
         case .home:     return "house.fill"
-        case .live:     return "dot.radiowaves.left.and.right"
-        case .movies:   return "film.fill"
-        case .series:   return "tv.fill"
-        case .settings: return "gearshape.fill"
+        case .live:     return "waveform"
+        case .movies:   return "popcorn.fill"
+        case .series:   return "rectangle.stack.fill"
+        case .settings: return "slider.horizontal.3"
         }
     }
 }
