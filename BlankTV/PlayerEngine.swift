@@ -118,10 +118,16 @@ class BasePlayerVM: NSObject, ObservableObject {
 
     /// The single place either engine declares "there is a picture". Centralised so
     /// the measurement cannot drift between them.
+    ///
+    /// This is now a MEASUREMENT latch only — no view reads `hasFirstFrame`. It briefly
+    /// also gated an artwork underlay over the video surface; the owner tested that on
+    /// device and had it removed. The latch stays because it is what closes the
+    /// tap-to-first-frame chain on the performance page, and that is the one number
+    /// that tells us whether playback actually got faster.
     func markFirstFrame(_ note: String = "") {
         guard !hasFirstFrame else { return }
         S8KPerf.end("التشغيل ← أول إطار", note)
-        withAnimation(.easeOut(duration: 0.28)) { hasFirstFrame = true }
+        hasFirstFrame = true   // no animation: nothing observes this any more
     }
 
     /// Start the mid-stream stall monitor (call from each engine's setup()).

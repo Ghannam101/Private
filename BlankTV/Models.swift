@@ -396,25 +396,6 @@ enum ContentItem: Identifiable {
         case .episode(let ep, _):   return "ep_\(ep.id)"
         }
     }
-
-    /// Artwork to hold over the video surface until the first frame arrives.
-    ///
-    /// LIVE RETURNS NIL ON PURPOSE. A channel logo is a small, usually transparent
-    /// mark — not artwork — and scaling one up to cover a screen looks broken, which
-    /// is worse than the black it would replace. Live also reaches its first frame in
-    /// well under a second, so there is barely a gap to cover.
-    ///
-    /// Note for whoever reads this next: `backdropURL` is nil for everything that
-    /// comes from an Xtream line (Core.swift builds it that way — the API does not
-    /// carry one), so in practice this is a PORTRAIT poster. The player must never
-    /// draw it with `.fill`.
-    var artURL: String? {
-        switch self {
-        case .live:                   return nil
-        case .movie(let m):           return m.backdropURL ?? m.posterURL
-        case .episode(let ep, let s): return ep.posterURL ?? s.backdropURL ?? s.coverURL
-        }
-    }
 }
 
 // MARK: - Stream Quality

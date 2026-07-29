@@ -337,47 +337,6 @@ struct PlayerEngineView: View {
             Color.black.ignoresSafeArea()
             PlayerSurfaceView(vm: vm).ignoresSafeArea()
 
-            // Hold the title's OWN artwork over the surface until there is a real frame.
-            //
-            // A remote MKV needs 1-2s to produce one — index at the file tail, two extra
-            // round trips — and until now that second was flat black with a spinner. The
-            // bytes cannot arrive faster, but black is what makes it FEEL slow: the user
-            // gets no confirmation that the thing they tapped is the thing that is
-            // opening. Showing the poster answers that instantly, at zero network cost,
-            // because it is already in the image cache from the screen they tapped from.
-            //
-            // Above the surface, not behind it: the video layer is opaque black before
-            // its first frame, so artwork underneath would simply never be seen.
-            if !vm.hasFirstFrame, let art = vm.item.artURL,
-               let warm = S8KImageCache.shared.cached(art) {
-                // `.fit`, NEVER `.fill`. This shipped as `.fill` and it was a real
-                // defect: an Xtream line carries no backdrop, so `artURL` is a PORTRAIT
-                // 2:3 poster, and filling a 9:19.5 phone screen — or worse, a 16:9
-                // landscape one — scaled it about threefold and cropped away most of
-                // it. The video then appeared at its true aspect, and the jump between
-                // the two read exactly as the player stretching and then settling.
-                //
-                // Fit keeps the poster at its own proportions, so nothing moves when
-                // the video takes over: the artwork simply fades out from under it.
-                //
-                // And it draws the ALREADY-DECODED bitmap straight from memory rather
-                // than going through S8KImage. That closes a second source of movement
-                // I had left in: on a cache miss S8KImage shows a full-screen grey
-                // shimmer first, which then collapses to the poster's shape when the
-                // image lands — another visible resize on the way to playback. There is
-                // nothing to wait for here anyway: the premise of the whole feature is
-                // that the artwork is already in memory from the screen the user just
-                // tapped. If it is not, black is the honest answer, and no worse than
-                // what shipped before this feature existed.
-                Image(uiImage: warm)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .ignoresSafeArea()
-                    .overlay(Color.black.opacity(0.22).ignoresSafeArea())
-                    .allowsHitTesting(false)          // never intercept the tap-to-toggle
-                    .transition(.opacity)
-            }
-
             // Loading / buffering — debounced (see updateBufferingUI) so a quick
             // re-buffer doesn't flash the spinner on and off.
             if showBufferingUI {
