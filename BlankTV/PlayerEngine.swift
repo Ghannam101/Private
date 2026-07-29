@@ -105,7 +105,19 @@ class BasePlayerVM: NSObject, ObservableObject {
         self.resumeTarget = BasePlayerVM.savedResume(for: item)
         super.init()
     }
-    func setItem(_ i: ContentItem) { item = i; hasFirstFrame = false }
+    func setItem(_ i: ContentItem) {
+        item = i; hasFirstFrame = false
+        // Chain two: tap -> first video frame. Closed by `markFirstFrame` below.
+        S8KPerf.begin("التشغيل ← أول إطار")
+    }
+
+    /// The single place either engine declares "there is a picture". Centralised so
+    /// the measurement cannot drift between them.
+    func markFirstFrame(_ note: String = "") {
+        guard !hasFirstFrame else { return }
+        S8KPerf.end("التشغيل ← أول إطار", note)
+        withAnimation(.easeOut(duration: 0.28)) { hasFirstFrame = true }
+    }
 
     /// Start the mid-stream stall monitor (call from each engine's setup()).
     func startStallMonitor() {
@@ -521,11 +533,10 @@ final class AVPlayerVM: BasePlayerVM {
                 self.lastRequestedTime = nil
             }
             let playing = self.avPlayer.timeControlStatus == .playing
+            // guard: no re-publish when unchanged
             if self.isPlaying != playing { self.isPlaying = playing }
             // Playing AND the clock has moved => a picture is on screen.
-            if !self.hasFirstFrame, playing, ct > 0 {
-                withAnimation(.easeOut(duration: 0.28)) { self.hasFirstFrame = true }
-            }   // guard: no re-publish when unchanged
+            if !self.hasFirstFrame, playing, ct > 0 { self.markFirstFrame("AVPlayer") }
             if playing {
                 KeepAwake.keep(self)   // re-assert every tick while playing
                 // Belt-and-suspenders: a genuinely-playing stream is not stuck, even

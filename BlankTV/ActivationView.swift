@@ -10,8 +10,9 @@ import SwiftUI
 enum S8KLegal {
     /// Guideline 4.3 / 5.x — make clear the app is a player only.
     static var disclaimer: String { L("legal.disclaimer") }
-    /// Guideline 4.7.1 — content report destination.
-    static let reportEmail = "report@strong8k.app"
+    /// Guideline 4.7.1 — content report destination. Lives in `S8KBrand` so a
+    /// rebrand is one literal in one place, not a hunt through the tree.
+    static var reportEmail: String { S8KBrand.reportEmail }
 }
 
 // MARK: - Gate container

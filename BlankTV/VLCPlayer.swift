@@ -701,9 +701,7 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
             // over the surface cannot end up sitting on top of playing video.
             if !hasFirstFrame {
                 advancedTicks += 1
-                if player.hasVideoOut || advancedTicks >= 2 {
-                    withAnimation(.easeOut(duration: 0.28)) { hasFirstFrame = true }
-                }
+                if player.hasVideoOut || advancedTicks >= 2 { markFirstFrame("VLC") }
             }
             if isLoading { isLoading = false }
             if buffering { buffering = false }

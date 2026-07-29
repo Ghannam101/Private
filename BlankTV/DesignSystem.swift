@@ -1592,6 +1592,9 @@ struct S8KImage: View {
         guard !Task.isCancelled else { phTask.cancel(); return }
         if let img {
             phTask.cancel()
+            // Closes the launch chain. `end` is a no-op once the mark is consumed, so
+            // this fires for the FIRST poster of the launch and never again.
+            S8KPerf.end("الفتح ← أول بوستر")
             withAnimation(.easeOut(duration: 0.25)) { image = img; placeholderImage = nil }
             shownURL = u
         } else { failed = true }
@@ -1788,6 +1791,11 @@ enum S8KBrand {
     static let shortName = "Blank"
     /// The bundled logo asset. Swapping identity = replacing the file under this name.
     static let logoAsset = "Logo"
+    /// Where content reports go (Guideline 4.7.1). A reviewer reads this, so it must
+    /// be a real, monitored address on OUR domain before submission — it is the last
+    /// identity string still pointing at the reference's domain, and it is pending the
+    /// owner's domain. Kept HERE so replacing it is one literal, like the rest.
+    static let reportEmail = "report@strong8k.app"
     // NOTE: there is deliberately no `palette` here. The palette's home is
     // `BrandTheme.active`, which the reseller path mutates at runtime; a second copy
     // pinned to `.blankGreen` would only invite ink to be computed against a colour

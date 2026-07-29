@@ -1803,6 +1803,7 @@ actor PlaylistService {
 
     private func _load(force: Bool) async throws -> M3UContent {
         if let content, !force { return content }
+        S8KPerf.begin("الكتالوج")
         guard let urlString = Store.shared.m3uURL,
               let url = URL(string: urlString) else {
             throw AppError.server("لا يوجد رابط قائمة تشغيل محفوظ")
@@ -1812,6 +1813,7 @@ actor PlaylistService {
         // (within TTL) instead of blocking on a full network parse. A refresh
         // (pull-to-refresh / playlist switch) passes force:true to bypass this.
         if !force, let cached = CatalogDiskCache.read(scope: urlString) {
+            S8KPerf.end("الكتالوج", "من القرص")
             content = cached.content
             // Re-parse credentials (pure string work, no network) so lazy
             // series episodes / movie detail still resolve in Xtream-direct mode.
@@ -1838,6 +1840,7 @@ actor PlaylistService {
         // (panels like this block M3U export but the API works fine)
         if let xd = XtreamDirect.parse(urlString) {
             let built = try await loadXtreamDirect(xd)
+            S8KPerf.end("الكتالوج", "من الشبكة · \(built.channels.count) قناة · \(built.movies.count) فلم · \(built.series.count) مسلسل")
             xtream  = xd
             content = built
             // NEVER persist a PARTIAL catalogue. Since one failed list no longer

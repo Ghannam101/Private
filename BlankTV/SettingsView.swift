@@ -358,6 +358,7 @@ struct SetConnectionPage: View {
     @StateObject private var activation = ActivationService.shared
     @State private var idCopied = false
     @State private var showPlaylists = false
+    @State private var showPerfStats   = false
     @State private var showEngineStats = false
 
     private var serverHost: String? {
@@ -389,10 +390,13 @@ struct SetConnectionPage: View {
                 }.buttonStyle(S8KButtonStyle())
                 SetUI.divider()
                 SetUI.navRow(icon: "chart.bar.xaxis", title: L("diag.engine.title"), chevron: true) { showEngineStats = true }
+                SetUI.divider()
+                SetUI.navRow(icon: "speedometer", title: "قياس السرعة", chevron: true) { showPerfStats = true }
             }
         }
         .sheet(isPresented: $showPlaylists) { PlaylistsView() }
         .sheet(isPresented: $showEngineStats) { NavigationStack { EngineStatsView() } }
+        .sheet(isPresented: $showPerfStats)   { NavigationStack { PerfStatsView() } }
     }
 
     private func copyDeviceID() {
@@ -1385,5 +1389,88 @@ struct LockedCategoriesView: View {
             .padding(.horizontal, S8KSpace.lg).padding(.vertical, 12)
             Divider().background(Color.s8kBorder).padding(.leading, 44)
         }
+    }
+}
+
+
+// MARK: - Performance readout
+//
+// Deliberately visible rather than behind a hidden gesture: Guideline 2.3.1(a) bans
+// hidden or undocumented features, so concealing a diagnostics screen is the riskier
+// choice, not the safer one. It sits beside the engine diagnostics that already ship.
+//
+// Two chains, because one total tells you it is slow and never tells you where:
+//   الفتح ← أول بوستر   process start to the first real artwork on screen
+//   التشغيل ← أول إطار   tap to the first video frame
+//   الكتالوج            how long the catalogue took, and whether it came off the disk
+struct PerfStatsView: View {
+    @State private var samples = S8KPerf.recent
+    @State private var copied  = false
+
+    var body: some View {
+        SetScaffold(title: "قياس السرعة") {
+            SetUI.group("آخر القياسات") {
+                if samples.isEmpty {
+                    Text("لا توجد قياسات بعد. أغلق التطبيق تماماً، افتحه، ثم شغّل شيئاً — وارجع إلى هنا.")
+                        .font(S8KFont.footnote).foregroundColor(.s8kTextTertiary)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .padding(.vertical, 10)
+                } else {
+                    ForEach(Array(samples.enumerated()), id: \.element.id) { i, s in
+                        if i > 0 { SetUI.divider() }
+                        row(s)
+                    }
+                }
+            }
+            HStack(spacing: 10) {
+                Button(action: copy) {
+                    Text(copied ? "نُسخ ✓" : "نسخ الكل")
+                        .font(S8KFont.callout.weight(.semibold)).foregroundColor(.s8kGoldMid)
+                        .frame(maxWidth: .infinity).padding(.vertical, 13)
+                        .background(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
+                            .fill(Color.s8kGoldMid.opacity(0.10)))
+                        .s8kMinTouch(2)
+                }
+                .buttonStyle(S8KButtonStyle())
+                Button(action: { S8KPerf.clear(); samples = [] }) {
+                    Text("تصفير")
+                        .font(S8KFont.callout.weight(.semibold)).foregroundColor(.s8kTextSecondary)
+                        .frame(maxWidth: .infinity).padding(.vertical, 13)
+                        .background(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
+                            .fill(Color.white.opacity(0.06)))
+                        .s8kMinTouch(2)
+                }
+                .buttonStyle(S8KButtonStyle())
+            }
+            .padding(.horizontal, S8KSpace.xl)
+            Text("كل شيء هنا محلي على جهازك. لا يُرسَل أي قياس إلى أي خادم.")
+                .font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.horizontal, S8KSpace.xl).padding(.top, 4)
+        }
+        .onAppear { samples = S8KPerf.recent }
+    }
+
+    private func row(_ s: S8KPerf.Sample) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text("\(s.ms) ms")
+                .font(.system(size: 14, weight: .bold, design: .monospaced))
+                .foregroundColor(s.ms > 2500 ? .s8kRed : (s.ms > 900 ? .s8kGoldMid : .s8kTextSecondary))
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(s.name).font(S8KFont.footnote.weight(.semibold)).foregroundColor(.s8kTextPrimary)
+                if !s.note.isEmpty {
+                    Text(s.note).font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
+                        .lineLimit(2).multilineTextAlignment(.trailing)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .padding(.vertical, 8)
+    }
+
+    private func copy() {
+        UIPasteboard.general.string = S8KPerf.report
+        withAnimation { copied = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { withAnimation { copied = false } }
     }
 }

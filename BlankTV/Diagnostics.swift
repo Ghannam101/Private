@@ -58,3 +58,62 @@ final class Diagnostics: NSObject, MXMetricManagerSubscriber {
         for f in sorted.prefix(files.count - keep) { try? FileManager.default.removeItem(at: f) }
     }
 }
+
+
+// MARK: - S8KPerf — local timing, readable on the device
+//
+// See the header of this section in PERF_MEASUREMENT.md for why this shape and not
+// OSSignposter or MetricKit. Short version: both are right for an engineer with a Mac
+// attached, and neither can hand a number back to the person holding the phone.
+//
+// `end` removes the open mark, so a second `end` for the same key is a no-op — that
+// is what makes "first poster of the launch" one-shot without any extra machinery.
+//
+// Everything stays local. Nothing here is transmitted anywhere.
+enum S8KPerf {
+    struct Sample: Identifiable {
+        let id = UUID()
+        let name: String
+        let ms:   Int
+        let note: String
+        let at:   Date
+    }
+
+    private static let lock = NSLock()
+    private static var open: [String: TimeInterval] = [:]
+    private static var samples: [Sample] = []
+    private static let cap = 40
+
+    static func begin(_ name: String) {
+        let t = Date().timeIntervalSinceReferenceDate
+        lock.lock(); open[name] = t; lock.unlock()
+    }
+
+    static func end(_ name: String, _ note: String = "") {
+        let now = Date().timeIntervalSinceReferenceDate
+        lock.lock(); defer { lock.unlock() }
+        guard let t0 = open.removeValue(forKey: name) else { return }
+        samples.insert(Sample(name: name, ms: Int((now - t0) * 1000), note: note, at: Date()), at: 0)
+        if samples.count > cap { samples.removeLast(samples.count - cap) }
+    }
+
+    static var recent: [Sample] {
+        lock.lock(); defer { lock.unlock() }
+        return samples
+    }
+
+    static func clear() {
+        lock.lock(); samples = []; open = [:]; lock.unlock()
+    }
+
+    /// One block of text to paste back into a conversation — the whole point of the
+    /// screen. Newest first, same order as the list.
+    static var report: String {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        return recent.map { s in
+            let note = s.note.isEmpty ? "" : "  ·  \(s.note)"
+            return "\(f.string(from: s.at))  \(s.name)  \(s.ms)ms\(note)"
+        }.joined(separator: "\n")
+    }
+}

@@ -157,6 +157,9 @@ struct BlankTVApp: App {
     @State private var splashDone = false
 
     init() {
+        // Chain one: process start -> first poster on screen. Closed in S8KImage,
+        // where the first real artwork is applied.
+        S8KPerf.begin("الفتح ← أول بوستر")
         configureAudio()
         configureAppearance()
         // One-time, crash-safe migration of legacy global favorites/watchlist
