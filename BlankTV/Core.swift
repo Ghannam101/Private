@@ -377,7 +377,7 @@ enum L10n {
         "refresh.confirm":  [.ar: "تحديث",              .en: "Refresh",         .fr: "Actualiser",      .tr: "Yenile",          .es: "Actualizar"],
 
         // Login / Auth
-        "login.welcome":    [.ar: "أهلاً بك في بلانك — بياناتك وندخل", .en: "Welcome to Blank — your details and you're in", .fr: "Bienvenue sur Blank — vos identifiants et c'est parti", .tr: "Blank'e hoş geldiniz — bilgilerinizi girin, hazırsınız", .es: "Bienvenido a Blank — tus datos y listo"],
+        "login.welcome":    [.ar: "أهلاً بك — بياناتك وندخل", .en: "Welcome — your details and you're in", .fr: "Bienvenue — vos identifiants et c'est parti", .tr: "Hoş geldiniz — bilgilerinizi girin, hazırsınız", .es: "Bienvenido — tus datos y listo"],
         "login.username":   [.ar: "اسم المستخدم",       .en: "Username",        .fr: "Nom d'utilisateur",.tr: "Kullanıcı adı",  .es: "Nombre de usuario"],
         "login.password":   [.ar: "كلمة المرور",        .en: "Password",        .fr: "Mot de passe",    .tr: "Şifre",           .es: "Contraseña"],
         "login.m3u_hint":   [.ar: "ألصق رابط M3U أو M3U8 — يُقرأ على جهازك ولا يغادره", .en: "Paste an M3U or M3U8 link — read on your device, never sent anywhere", .fr: "Collez un lien M3U ou M3U8 — lu sur votre appareil, jamais envoyé ailleurs", .tr: "Bir M3U ya da M3U8 bağlantısı yapıştırın — cihazınızda okunur, hiçbir yere gönderilmez", .es: "Pega un enlace M3U o M3U8 — se lee en tu dispositivo y no sale de ahí"],
@@ -2725,13 +2725,13 @@ enum DemoContent {
     // Each channel demonstrates a DIFFERENT thing the engine has to handle, and says
     // so — a demo lineup should show what the player does, not pad a list.
     static let channels: [Channel] = [
-        Channel(id: "d1", name: "بلانك ١ · تدفّق متعدّد الجودات", logoURL: pGlass,
+        Channel(id: "d1", name: "قناة تجريبية ١ · تدفّق متعدّد الجودات", logoURL: pGlass,
                 groupTitle: "بثّ العرض", epgChannelID: nil, directURL: hls),
-        Channel(id: "d2", name: "بلانك ٢ · تبديل تلقائي للجودة", logoURL: pCamin,
+        Channel(id: "d2", name: "قناة تجريبية ٢ · تبديل تلقائي للجودة", logoURL: pCamin,
                 groupTitle: "بثّ العرض", epgChannelID: nil, directURL: hls2),
-        Channel(id: "d3", name: "بلانك ٣ · إزاحة زمنية", logoURL: pSprite,
+        Channel(id: "d3", name: "قناة تجريبية ٣ · إزاحة زمنية", logoURL: pSprite,
                 groupTitle: "بثّ العرض", epgChannelID: nil, directURL: hls3),
-        Channel(id: "d4", name: "بلانك ٤ · ملفّ مباشر بلا تقطيع", logoURL: pCosmos,
+        Channel(id: "d4", name: "قناة تجريبية ٤ · ملفّ مباشر بلا تقطيع", logoURL: pCosmos,
                 groupTitle: "بثّ العرض", epgChannelID: nil, directURL: cosmos),
     ]
 

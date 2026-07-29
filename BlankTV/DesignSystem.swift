@@ -832,9 +832,35 @@ struct BrandTheme {
     var accentDeep: Color
 
     /// The active theme the whole app renders with. Change it → the app re-skins.
-    static var active: BrandTheme = .blankGreen
+    static var active: BrandTheme = .arenaOrange
 
     // ---- Ready-made palettes ----
+
+    /// Derived from the brand's own artwork, not guessed at: #FF6029 is the exact
+    /// value sampled from the supplied logo, where it accounts for ~90% of the mark
+    /// tile. The ramp below it is that hue taken down in brightness, so pressed and
+    /// low-emphasis states stay unmistakably the same colour.
+    ///
+    /// The base is a WARM near-black, deliberately, and it is the one judgement call
+    /// in this palette. On a pure neutral black a saturated orange reads harsh and
+    /// cheap; on a base carrying a trace of the same hue it reads as considered, and
+    /// poster artwork still sits bright against it. Not black, and nowhere near the
+    /// green it replaces.
+    ///
+    /// Ink on the accent is COMPUTED, never fixed — `S8KBrand.accentInk` measures
+    /// luminance. #FF6029 lands near 0.30, so it resolves to white, which is exactly
+    /// what the brand's own lockup does: a white wordmark on the orange field.
+    static let arenaOrange = BrandTheme(
+        base:     Color(red: 0.047, green: 0.031, blue: 0.024),   // #0C0806
+        surface:  Color(red: 0.082, green: 0.063, blue: 0.063),   // #151010
+        card:     Color(red: 0.118, green: 0.090, blue: 0.082),   // #1E1715
+        elevated: Color(red: 0.157, green: 0.125, blue: 0.114),   // #28201D
+        accentHigh: Color(red: 1.000, green: 0.376, blue: 0.161), // #FF6029 — sampled
+        accentMid:  Color(red: 0.910, green: 0.290, blue: 0.094), // #E84A18
+        accentLow:  Color(red: 0.702, green: 0.220, blue: 0.063), // #B33810
+        accentDeep: Color(red: 0.361, green: 0.110, blue: 0.031)  // #5C1C08
+    )
+
     static let blankGreen = BrandTheme(
         base:     Color(red: 0.000, green: 0.102, blue: 0.043),   // #001A0B
         surface:  Color(red: 0.016, green: 0.133, blue: 0.059),   // #04220F
@@ -1799,9 +1825,9 @@ struct S8KWatermark: View {
 /// languages at once — which is exactly what it was.
 enum S8KBrand {
     /// The product name as the user reads it.
-    static let name = "Blank Prime"
+    static let name = "Arena Live"
     /// The short form, for the wordmark and other tight places.
-    static let shortName = "Blank"
+    static let shortName = "Arena"
     /// The bundled logo asset. Swapping identity = replacing the file under this name.
     static let logoAsset = "Logo"
     /// Where content reports go (Guideline 4.7.1). A reviewer reads this, so it must
