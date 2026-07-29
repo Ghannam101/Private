@@ -140,7 +140,6 @@ struct SplashView: View {
     }
 }
 
-// MARK: - Logo Mark (real Logo asset, used everywhere)
 // MARK: - Login View
 struct LoginView: View {
     @Environment(\.s8kMetrics) private var metrics
