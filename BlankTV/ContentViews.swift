@@ -859,6 +859,17 @@ final class MoviesVM: ObservableObject {
     }
     fileprivate func searchMatches() -> [Movie] {
         let q = S8KSearch.fold(search)
+        // STALENESS IS CHECKED BEFORE THE MEMO, and the order is the whole point.
+        //
+        // The index is no longer built on the first-paint path, so it can be empty when
+        // the user types. Consulting the memo first meant a result computed against an
+        // EMPTY catalogue — during a reset, before load() lands — was returned again
+        // for the same query after the real catalogue arrived. `rebuildSearchIndex`
+        // runs off a plain `Task` and mutates nothing published, so no re-render ever
+        // came to correct it: the tab sat on "no results" for a query that matches,
+        // until the user typed another character. Rebuilding first also clears the
+        // memo, which is exactly what that case needs.
+        if foldedNames.count != movies.count { rebuildSearchIndex() }
         if lastQuery == q { return lastResults }
         let r: [Movie] = q.isEmpty ? [] : zip(foldedNames, movies).compactMap { $0.0.contains(q) ? $0.1 : nil }
         lastQuery = q; lastResults = r
@@ -901,7 +912,13 @@ final class MoviesVM: ObservableObject {
             async let movs = ContentService.movies()
             let (c, m) = try await (cats, movs)
             categories = [.all] + c; movies = m
-            rebuildGroups(); rebuildSearchIndex(); applyFilter(); rebuildEditorial(); loaded = true
+            rebuildGroups(); applyFilter(); rebuildEditorial(); loaded = true
+            // Off the first-paint path, in its own main-actor hop. Folding every title
+            // is the most expensive per-row work here and the grid never reads it —
+            // only the search box does, and `searchMatches` builds it on demand if the
+            // user beats us to it. Doing it in THIS hop would hold the very frame that
+            // `isLoading = false` below is meant to release.
+            Task { @MainActor [weak self] in self?.rebuildSearchIndex() }
         // A load cancelled by a tab remount (playlist switch / refresh) still resumes and
         // would write its URLError(.cancelled) into `error` — AFTER the fresh load had
         // already cleared it. The view checks `error` before content, so the tab would
@@ -2098,6 +2115,17 @@ final class SeriesVM: ObservableObject {
     }
     fileprivate func searchMatches() -> [Series] {
         let q = S8KSearch.fold(search)
+        // STALENESS IS CHECKED BEFORE THE MEMO, and the order is the whole point.
+        //
+        // The index is no longer built on the first-paint path, so it can be empty when
+        // the user types. Consulting the memo first meant a result computed against an
+        // EMPTY catalogue — during a reset, before load() lands — was returned again
+        // for the same query after the real catalogue arrived. `rebuildSearchIndex`
+        // runs off a plain `Task` and mutates nothing published, so no re-render ever
+        // came to correct it: the tab sat on "no results" for a query that matches,
+        // until the user typed another character. Rebuilding first also clears the
+        // memo, which is exactly what that case needs.
+        if foldedNames.count != series.count { rebuildSearchIndex() }
         if lastQuery == q { return lastResults }
         let r: [Series] = q.isEmpty ? [] : zip(foldedNames, series).compactMap { $0.0.contains(q) ? $0.1 : nil }
         lastQuery = q; lastResults = r
@@ -2127,7 +2155,9 @@ final class SeriesVM: ObservableObject {
             async let sers = ContentService.series()
             let (c, s) = try await (cats, sers)
             categories = [.all] + c; series = s
-            rebuildGroups(); rebuildSearchIndex(); applyFilter(); rebuildEditorial(); loaded = true
+            rebuildGroups(); applyFilter(); rebuildEditorial(); loaded = true
+            // See MoviesVM.load — the index is off the first-paint path.
+            Task { @MainActor [weak self] in self?.rebuildSearchIndex() }
         // A load cancelled by a tab remount (playlist switch / refresh) still resumes and
         // would write its URLError(.cancelled) into `error` — AFTER the fresh load had
         // already cleared it. The view checks `error` before content, so the tab would

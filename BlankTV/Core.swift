@@ -1735,6 +1735,14 @@ enum CatalogDiskCache {
     }
 
     /// Returns a fresh (within TTL) cached catalog, or nil if missing/stale/empty.
+    /// Is there a catalogue on disk for this scope? Deliberately a stat, not a read:
+    /// the fast paths use it to decide whether to issue a network request at all, and
+    /// decoding tens of megabytes to answer that would cost more than the request.
+    static func exists(scope: String) -> Bool {
+        guard let url = fileURL(scope) else { return false }
+        return FileManager.default.fileExists(atPath: url.path)
+    }
+
     static func load(scope: String) -> M3UContent? {
         read(scope: scope)?.content
     }
@@ -1915,8 +1923,17 @@ actor PlaylistService {
         // previous account's channels — whose directURL embeds the previous account's
         // username and password. A stale list is bad; streaming another account's
         // credentials is not something to leave to chance.
+        accountGen &+= 1
+        // `inFlight` is the one that mattered most and was still being missed. A full
+        // load started for the PREVIOUS account survived reset(), and the next
+        // `load()` joined it (`if let inFlight`) and wrote the previous account's
+        // catalogue straight into `content` — movies whose directURL carries the
+        // previous account's username and password. Cancel it with the rest.
+        inFlight?.cancel(); inFlight = nil
         liveFast?.cancel(); liveFast = nil
         fastChannels = nil; fastLiveCategories = []
+        for t in fastCatTasks.values { t.cancel() }
+        fastCatTasks = [:]; fastCats = [:]
         // Keyed by SERIES ID, and Xtream ids are small integers that collide across
         // panels — left populated, a fetch that returns early on the new account
         // would show the PREVIOUS account's metadata.
@@ -2261,6 +2278,11 @@ actor PlaylistService {
     // still runs and supersedes it. The price is ONE duplicate get_live_streams on a
     // cold start — the cheapest of the six — and once `content` exists, from the disk
     // cache or from the full load, this costs nothing at all.
+    /// Bumped by `reset()`. Every fast path captures it before its first await and
+    /// refuses to cache a result whose generation no longer matches, so a fetch that
+    /// was already in flight when the user switched account cannot land on the new one.
+    private var accountGen = 0
+
     private var liveFast: Task<[Channel], Error>?
     private var fastChannels: [Channel]?
     private var fastLiveCategories: [Category] = []
@@ -2288,10 +2310,21 @@ actor PlaylistService {
             fastChannels = full.channels
             return full.channels
         }
+        // If a catalogue is already on disk, the full load serves it with NO network
+        // at all. Firing our own request would turn a network-free warm launch into an
+        // extra round trip — and offline it would be the only thing that could fail,
+        // over a catalogue sitting right there and perfectly usable.
+        if CatalogDiskCache.exists(scope: urlString) { return try await load().channels }
+
+        let gen = accountGen
         let task = Task<[Channel], Error> { [xd] in try await self.fetchChannelsOnly(xd) }
         liveFast = task
-        defer { liveFast = nil }
+        defer { if gen == accountGen { liveFast = nil } }   // a reset already cleared it
         let result = try await task.value
+        // A reset while this was in flight means the result belongs to an account the
+        // user has left. Serve it to this caller — it is what they asked for — but do
+        // not cache it for the line that replaced it.
+        guard gen == accountGen else { return result }
         fastChannels = result
         return result
     }
@@ -2342,6 +2375,90 @@ actor PlaylistService {
         // anything that yields nothing here defers to it rather than guessing.
         guard !built.isEmpty else { return try await load().channels }
         return built
+    }
+
+    // MARK: - Categories fast path
+    //
+    // A category list is dozens of rows; the stream list beside it is thousands. The
+    // Movies and Series tabs awaited the pair with `try await (cats, movs)`, so a
+    // folder list that is ready in ~200ms was gated on an ~8MB payload it never reads.
+    //
+    // Unlike `channelsFast`, an EMPTY result here is NOT treated as a failure. A line
+    // legitimately can have no VOD categories, and the caller is awaiting the streams
+    // alongside this — that await goes through the full load, which runs validateAuth
+    // and raises the real error for an expired line. So there is nothing to rescue here
+    // and no reason to spend a second round trip guessing.
+    enum CatalogSection: String {
+        case vod    = "get_vod_categories"
+        case series = "get_series_categories"
+    }
+    private var fastCats: [String: [Category]] = [:]
+    private var fastCatTasks: [String: Task<[Category], Error>] = [:]
+
+    func categoriesFast(_ section: CatalogSection) async throws -> [Category] {
+        if let content {
+            return section == .vod ? content.movieCategories : content.seriesCategories
+        }
+        let key = section.rawValue
+        if let cached = fastCats[key] { return cached }
+        if let running = fastCatTasks[key] { return try await running.value }
+        guard let urlString = Store.shared.m3uURL,
+              let xd = XtreamDirect.parse(urlString) else {
+            // Raw M3U is one document — categories come out of the same parse.
+            let full = try await load()
+            return section == .vod ? full.movieCategories : full.seriesCategories
+        }
+        // Same rule as channelsFast: never race the network against a disk copy that
+        // the full load will serve for free, and never be the reason an offline launch
+        // fails.
+        if CatalogDiskCache.exists(scope: urlString) {
+            let full = try await load()
+            return section == .vod ? full.movieCategories : full.seriesCategories
+        }
+
+        let gen = accountGen
+        let task = Task<[Category], Error> { [xd] in
+            await self.fetchCategoriesOnly(xd, action: key)
+        }
+        fastCatTasks[key] = task
+        defer { if gen == accountGen { fastCatTasks[key] = nil } }   // a reset already cleared it
+        let result = try await task.value
+
+        // EMPTY IS NOT AN ANSWER TO CACHE. It means the request failed, or the panel
+        // returned a non-array body under load — and caching it latched the tab: the
+        // view model sets `loaded = true` and early-returns forever after, so the
+        // folder browser stayed empty for the whole session with no error to retry
+        // from, while the full load's own copy of these categories arrived correctly a
+        // second later. Defer to that copy instead. It costs nothing extra: the caller
+        // is already awaiting the streams from the same load.
+        guard !result.isEmpty else {
+            let full = try await load()
+            return section == .vod ? full.movieCategories : full.seriesCategories
+        }
+        guard gen == accountGen else { return result }
+        fastCats[key] = result
+        return result
+    }
+
+    private func fetchCategoriesOnly(_ xd: XtreamDirect, action: String) async -> [Category] {
+        // `try?`, matching the full load: categories are a NICETY that only supply
+        // folder names. The full load has always treated a timeout here as survivable
+        // (a busy panel drops one of these fairly often), and this request now fires
+        // alongside eight others to the same panel, so it is MORE likely to drop, not
+        // less. A bare `try` here turned that into a full-page error over a library
+        // that had loaded perfectly.
+        let raw = dictArray((try? await apiData(xd, action: action)) ?? Data())
+        // FIRST wins on a repeated category_id, matching the full load's
+        // `uniquingKeysWith: { first, _ in first }` — otherwise a folder could be named
+        // one thing now and another thing after the full load supersedes this.
+        var seen = Set<String>()
+        var out: [Category] = []
+        for d in raw {
+            guard let id = str(d["category_id"]), let name = str(d["category_name"]),
+                  seen.insert(id).inserted else { continue }
+            out.append(Category(id: id, name: name, parentID: nil))
+        }
+        return out
     }
 
     /// Episodes for one series (Xtream-direct mode) — get_series_info
@@ -2516,7 +2633,7 @@ enum ContentService {
     }
     static func vodCategories() async throws -> [Category] {
         if isDemo { return DemoContent.movieCategories }
-        return try await PlaylistService.shared.load().movieCategories
+        return try await PlaylistService.shared.categoriesFast(.vod)
     }
     static func movies() async throws -> [Movie] {
         if isDemo { return DemoContent.movies }
@@ -2524,7 +2641,7 @@ enum ContentService {
     }
     static func seriesCategories() async throws -> [Category] {
         if isDemo { return DemoContent.seriesCategories }
-        return try await PlaylistService.shared.load().seriesCategories
+        return try await PlaylistService.shared.categoriesFast(.series)
     }
     static func series() async throws -> [Series] {
         if isDemo { return DemoContent.series }
