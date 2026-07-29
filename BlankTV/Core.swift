@@ -54,23 +54,23 @@ enum L10n {
     // key : [lang : value]   (Arabic is the source of truth)
     static let table: [String: [AppLang: String]] = [
         "tab.home":    [.ar: "الرئيسية", .en: "Home",    .fr: "Accueil", .tr: "Ana Sayfa", .es: "Inicio"],
-        "tab.live":    [.ar: "مباشر",   .en: "Live",    .fr: "Direct",  .tr: "Canlı",    .es: "En vivo"],
-        "tab.movies":  [.ar: "أفلام",   .en: "Movies",  .fr: "Films",   .tr: "Filmler",  .es: "Películas"],
+        "tab.live":    [.ar: "مباشر",   .en: "Live",    .fr: "Direct",  .tr: "Canlı",    .es: "En directo"],
+        "tab.movies":  [.ar: "أفلام",   .en: "Movies",  .fr: "Films",   .tr: "Filmler",  .es: "Cine"],
         "tab.series":  [.ar: "مسلسلات", .en: "Series",  .fr: "Séries",  .tr: "Diziler",  .es: "Series"],
         "tab.settings":[.ar: "إعدادات", .en: "Settings",.fr: "Réglages",.tr: "Ayarlar",  .es: "Ajustes"],
         "ctab.all":      [.ar: "الكل",     .en: "All",       .fr: "Tout",     .tr: "Tümü",      .es: "Todo"],
         "ctab.favorites":[.ar: "المفضلة",  .en: "Favorites", .fr: "Favoris",  .tr: "Favoriler", .es: "Favoritos"],
-        "ctab.newest":   [.ar: "الأجدد",   .en: "Newest",    .fr: "Récents",  .tr: "En Yeni",   .es: "Nuevos"],
+        "ctab.newest":   [.ar: "الأجدد",   .en: "Newest",    .fr: "Nouveautés",  .tr: "Yeniler",   .es: "Novedades"],
         "ctab.history":  [.ar: "السجل",    .en: "History",   .fr: "Historique",.tr: "Geçmiş",   .es: "Historial"],
         "common.play":    [.ar: "تشغيل",   .en: "Play",     .fr: "Lire",     .tr: "Oynat",   .es: "Reproducir"],
         "common.details": [.ar: "التفاصيل",.en: "Details",  .fr: "Détails",  .tr: "Detaylar",.es: "Detalles"],
-        "common.all":     [.ar: "الكل",    .en: "See all",  .fr: "Tout voir",.tr: "Tümü",    .es: "Ver todo"],
+        "common.all":     [.ar: "الكل",    .en: "See all",  .fr: "Voir tout",.tr: "Hepsini gör",    .es: "Ver todo"],
         "common.retry":   [.ar: "حاول ثانيةً", .en: "Try again", .fr: "Réessayer", .tr: "Tekrar dene", .es: "Reintentar"],
         "common.close":   [.ar: "إغلاق",   .en: "Close",    .fr: "Fermer",   .tr: "Kapat",   .es: "Cerrar"],
         "common.cancel":  [.ar: "إلغاء",   .en: "Cancel",   .fr: "Annuler",  .tr: "İptal",   .es: "Cancelar"],
         "common.save":    [.ar: "حفظ",     .en: "Save",     .fr: "Enregistrer", .tr: "Kaydet", .es: "Guardar"],
         "reorder.button": [.ar: "ترتيب",   .en: "Sort",     .fr: "Trier",    .tr: "Sırala",  .es: "Ordenar"],
-        "reorder.title":  [.ar: "ترتيب الأقسام", .en: "Reorder Categories", .fr: "Réorganiser les catégories", .tr: "Kategorileri Sırala", .es: "Reordenar categorías"],
+        "reorder.title":  [.ar: "ترتيب الأقسام", .en: "Reorder Categories", .fr: "Ordre des catégories", .tr: "Kategori sırası", .es: "Orden de categorías"],
         "reorder.manage": [.ar: "ترتيب المحتوى", .en: "Organize Content", .fr: "Organiser le contenu", .tr: "İçeriği Düzenle", .es: "Organizar contenido"],
         "reorder.manage.desc":[.ar: "رتّب أقسام الأفلام والمسلسلات والبث في مكان واحد", .en: "Arrange Movies, Series & Live categories in one place", .fr: "Organisez les catégories en un seul endroit", .tr: "Tüm kategorileri tek yerde düzenleyin", .es: "Organiza todas las categorías en un lugar"],
         "reorder.quick":  [.ar: "ترتيب سريع", .en: "Quick sort", .fr: "Tri rapide", .tr: "Hızlı sıralama", .es: "Orden rápido"],
@@ -95,23 +95,23 @@ enum L10n {
         "accounts.current":[.ar: "الحساب الحالي", .en: "Current", .fr: "Actuel", .tr: "Mevcut", .es: "Actual"],
         "accounts.rename":[.ar: "تعديل الاسم", .en: "Rename", .fr: "Renommer", .tr: "Yeniden adlandır", .es: "Renombrar"],
         "accounts.name_ph":[.ar: "اسم الحساب", .en: "Account name", .fr: "Nom du compte", .tr: "Hesap adı", .es: "Nombre de la cuenta"],
-        "reorder.search": [.ar: "ابحث عن قسم…", .en: "Search a category…", .fr: "Rechercher une catégorie…", .tr: "Kategori ara…", .es: "Buscar categoría…"],
-        "error.invalid_credentials":[.ar: "اسم المستخدم أو كلمة المرور غير صحيحة", .en: "Incorrect username or password", .fr: "Nom d'utilisateur ou mot de passe incorrect", .tr: "Kullanıcı adı veya şifre yanlış", .es: "Usuario o contraseña incorrectos"],
-        "error.account_suspended":[.ar: "تم تعليق حسابك — تواصل مع الدعم الفني", .en: "Your account is suspended — contact support", .fr: "Votre compte est suspendu — contactez le support", .tr: "Hesabınız askıya alındı — desteğe başvurun", .es: "Tu cuenta está suspendida — contacta con soporte"],
-        "error.account_expired":[.ar: "انتهت صلاحية اشتراكك — يرجى التجديد", .en: "Your subscription has expired — please renew", .fr: "Votre abonnement a expiré — veuillez renouveler", .tr: "Aboneliğinizin süresi doldu — lütfen yenileyin", .es: "Tu suscripción ha caducado — renueva por favor"],
-        "error.max_connections":[.ar: "تم الوصول للحد الأقصى (%ld أجهزة)", .en: "Device limit reached (%ld devices)", .fr: "Limite d'appareils atteinte (%ld appareils)", .tr: "Cihaz sınırına ulaşıldı (%ld cihaz)", .es: "Límite de dispositivos alcanzado (%ld dispositivos)"],
-        "error.maintenance":[.ar: "التطبيق في وضع الصيانة", .en: "The app is under maintenance", .fr: "L'application est en maintenance", .tr: "Uygulama bakımda", .es: "La aplicación está en mantenimiento"],
-        "error.version_outdated":[.ar: "يرجى تحديث التطبيق إلى الإصدار %@ أو أحدث", .en: "Please update the app to version %@ or newer", .fr: "Veuillez mettre à jour l'application vers la version %@ ou plus récente", .tr: "Lütfen uygulamayı %@ veya daha yeni sürüme güncelleyin", .es: "Actualiza la aplicación a la versión %@ o posterior"],
-        "error.network":[.ar: "خطأ في الاتصال: %@", .en: "Connection error: %@", .fr: "Erreur de connexion : %@", .tr: "Bağlantı hatası: %@", .es: "Error de conexión: %@"],
-        "error.unknown":[.ar: "حدث خطأ غير متوقع", .en: "An unexpected error occurred", .fr: "Une erreur inattendue s'est produite", .tr: "Beklenmeyen bir hata oluştu", .es: "Se produjo un error inesperado"],
-        "error.invalid_server":[.ar: "تعذّر التحقق من السيرفر — تأكد من الرابط وبيانات الدخول", .en: "Couldn't verify the server — check the URL and login details", .fr: "Impossible de vérifier le serveur — vérifiez l'URL et les identifiants", .tr: "Sunucu doğrulanamadı — URL ve giriş bilgilerini kontrol edin", .es: "No se pudo verificar el servidor — comprueba la URL y los datos"],
-        "error.playlist_invalid":[.ar: "الرابط ليس قائمة تشغيل صالحة — تأكد من الرابط", .en: "The URL isn't a valid playlist — check the link", .fr: "L'URL n'est pas une playlist valide — vérifiez le lien", .tr: "URL geçerli bir oynatma listesi değil — bağlantıyı kontrol edin", .es: "La URL no es una lista válida — comprueba el enlace"],
-        "error.server_rejected":[.ar: "رفض السيرفر الطلب — تأكد من الاشتراك والرابط، أو جرّب شبكة أخرى", .en: "The server rejected the request — check your subscription and URL, or try another network", .fr: "Le serveur a rejeté la demande — vérifiez l'abonnement et l'URL, ou essayez un autre réseau", .tr: "Sunucu isteği reddetti — aboneliği ve URL'yi kontrol edin veya başka bir ağ deneyin", .es: "El servidor rechazó la solicitud — comprueba la suscripción y la URL, o prueba otra red"],
-        "error.subscription_invalid":[.ar: "بيانات الاشتراك غير صحيحة أو منتهية (%@)", .en: "Subscription invalid or expired (%@)", .fr: "Abonnement invalide ou expiré (%@)", .tr: "Abonelik geçersiz veya süresi dolmuş (%@)", .es: "Suscripción no válida o caducada (%@)"],
-        "player.err.no_url":[.ar: "تعذّر تحميل الرابط", .en: "Couldn't load the stream link", .fr: "Impossible de charger le lien", .tr: "Bağlantı yüklenemedi", .es: "No se pudo cargar el enlace"],
-        "player.err.start_failed":[.ar: "تعذّر بدء التشغيل — تحقق من الاتصال أو أعد المحاولة", .en: "Couldn't start playback — check your connection or retry", .fr: "Lecture impossible — vérifiez votre connexion ou réessayez", .tr: "Oynatma başlatılamadı — bağlantıyı kontrol edin veya tekrar deneyin", .es: "No se pudo iniciar — comprueba tu conexión o reintenta"],
-        "player.err.failed":[.ar: "فشل تشغيل المحتوى — تحقق من اتصالك أو الرابط", .en: "Playback failed — check your connection or the link", .fr: "Échec de la lecture — vérifiez la connexion ou le lien", .tr: "Oynatma başarısız — bağlantıyı veya linki kontrol edin", .es: "Fallo de reproducción — comprueba la conexión o el enlace"],
-        "player.err.interrupted":[.ar: "انقطع البث — تحقق من الاتصال أو أعد المحاولة", .en: "Stream interrupted — check your connection or retry", .fr: "Flux interrompu — vérifiez la connexion ou réessayez", .tr: "Yayın kesildi — bağlantıyı kontrol edin veya tekrar deneyin", .es: "Transmisión interrumpida — comprueba la conexión o reintenta"],
+        "reorder.search": [.ar: "ابحث عن قسم…", .en: "Search a category…", .fr: "Trouver une catégorie…", .tr: "Kategori bul…", .es: "Encontrar categoría…"],
+        "error.invalid_credentials":[.ar: "اسم المستخدم أو كلمة المرور غير صحيحة", .en: "Incorrect username or password", .fr: "Identifiant ou mot de passe incorrect", .tr: "Kullanıcı adı ya da şifre hatalı", .es: "Usuario o contraseña no válidos"],
+        "error.account_suspended":[.ar: "تم تعليق حسابك — تواصل مع الدعم الفني", .en: "Your account is suspended — contact support", .fr: "Compte suspendu — écrivez au support", .tr: "Hesabınız askıda — destek ekibine yazın", .es: "Cuenta suspendida — escribe a soporte"],
+        "error.account_expired":[.ar: "انتهت صلاحية اشتراكك — يرجى التجديد", .en: "Your subscription has expired — please renew", .fr: "Abonnement expiré — pensez à le renouveler", .tr: "Aboneliğiniz sona erdi — lütfen yenileyin", .es: "Suscripción vencida — renuévala para seguir"],
+        "error.max_connections":[.ar: "تم الوصول للحد الأقصى (%ld أجهزة)", .en: "Device limit reached (%ld devices)", .fr: "Vous avez atteint la limite (%ld appareils)", .tr: "Cihaz limiti doldu (%ld cihaz)", .es: "Has llegado al límite (%ld dispositivos)"],
+        "error.maintenance":[.ar: "التطبيق في وضع الصيانة", .en: "The app is under maintenance", .fr: "L'app est en maintenance", .tr: "Uygulama şu an bakımda", .es: "La app está en mantenimiento"],
+        "error.version_outdated":[.ar: "يرجى تحديث التطبيق إلى الإصدار %@ أو أحدث", .en: "Please update the app to version %@ or newer", .fr: "Passez à la version %@ ou plus récente", .tr: "Uygulamayı %@ ya da daha yeni sürüme geçirin", .es: "Pasa a la versión %@ o más reciente"],
+        "error.network":[.ar: "خطأ في الاتصال: %@", .en: "Connection error: %@", .fr: "Problème de connexion : %@", .tr: "Bağlantı sorunu: %@", .es: "Problema de conexión: %@"],
+        "error.unknown":[.ar: "حدث خطأ غير متوقع", .en: "An unexpected error occurred", .fr: "Une erreur imprévue est survenue", .tr: "Beklenmedik bir sorun oluştu", .es: "Ha ocurrido un error inesperado"],
+        "error.invalid_server":[.ar: "تعذّر التحقق من السيرفر — تأكد من الرابط وبيانات الدخول", .en: "Couldn't verify the server — check the URL and login details", .fr: "Serveur non vérifié — contrôlez l'adresse et vos identifiants", .tr: "Sunucu doğrulanmadı — adresi ve giriş bilgilerini kontrol edin", .es: "No hemos podido verificar el servidor — revisa la dirección y tus datos"],
+        "error.playlist_invalid":[.ar: "الرابط ليس قائمة تشغيل صالحة — تأكد من الرابط", .en: "The URL isn't a valid playlist — check the link", .fr: "Ce lien n'est pas une playlist valide — vérifiez-le", .tr: "Bu bağlantı geçerli bir liste değil — kontrol edin", .es: "Ese enlace no es una lista válida — revísalo"],
+        "error.server_rejected":[.ar: "رفض السيرفر الطلب — تأكد من الاشتراك والرابط، أو جرّب شبكة أخرى", .en: "The server rejected the request — check your subscription and URL, or try another network", .fr: "Le serveur a refusé la requête — contrôlez votre abonnement et l'adresse, ou changez de réseau", .tr: "Sunucu isteği geri çevirdi — aboneliğinizi ve adresi kontrol edin ya da ağı değiştirin", .es: "El servidor ha rechazado la petición — revisa tu suscripción y la dirección, o cambia de red"],
+        "error.subscription_invalid":[.ar: "بيانات الاشتراك غير صحيحة أو منتهية (%@)", .en: "Subscription invalid or expired (%@)", .fr: "Abonnement non valide ou expiré (%@)", .tr: "Abonelik geçersiz ya da sona ermiş (%@)", .es: "Suscripción no válida o vencida (%@)"],
+        "player.err.no_url":[.ar: "تعذّر تحميل الرابط", .en: "Couldn't load the stream link", .fr: "Impossible de charger le flux", .tr: "Yayın bağlantısı yüklenemedi", .es: "No se pudo cargar el flujo"],
+        "player.err.start_failed":[.ar: "تعذّر بدء التشغيل — تحقق من الاتصال أو أعد المحاولة", .en: "Couldn't start playback — check your connection or retry", .fr: "La lecture n'a pas démarré — contrôlez votre connexion ou réessayez", .tr: "Oynatma başlamadı — bağlantınızı kontrol edin ya da yeniden deneyin", .es: "La reproducción no arrancó — revisa tu conexión o reinténtalo"],
+        "player.err.failed":[.ar: "فشل تشغيل المحتوى — تحقق من اتصالك أو الرابط", .en: "Playback failed — check your connection or the link", .fr: "La lecture a échoué — contrôlez la connexion ou le lien", .tr: "Oynatma yapılamadı — bağlantıyı ya da adresi kontrol edin", .es: "La reproducción falló — revisa la conexión o el enlace"],
+        "player.err.interrupted":[.ar: "انقطع البث — تحقق من الاتصال أو أعد المحاولة", .en: "Stream interrupted — check your connection or retry", .fr: "Le flux s'est coupé — contrôlez la connexion ou réessayez", .tr: "Yayın koptu — bağlantınızı kontrol edin ya da yeniden deneyin", .es: "Se cortó la emisión — revisa la conexión o reinténtalo"],
         "play.subtitle.size":[.ar: "حجم الترجمة", .en: "Subtitle size", .fr: "Taille des sous-titres", .tr: "Altyazı boyutu", .es: "Tamaño de subtítulos"],
         "subsize.small":[.ar: "صغير", .en: "Small", .fr: "Petit", .tr: "Küçük", .es: "Pequeño"],
         "subsize.medium":[.ar: "متوسط", .en: "Medium", .fr: "Moyen", .tr: "Orta", .es: "Medio"],
@@ -119,26 +119,26 @@ enum L10n {
         "subsize.xl":[.ar: "ضخم", .en: "Extra large", .fr: "Très grand", .tr: "Çok büyük", .es: "Muy grande"],
         "reorder.your_order":[.ar: "ترتيبك", .en: "Your order", .fr: "Votre ordre", .tr: "Sıralamanız", .es: "Tu orden"],
         "reorder.available":[.ar: "القوائم المتاحة", .en: "Available lists", .fr: "Listes disponibles", .tr: "Mevcut listeler", .es: "Listas disponibles"],
-        "reorder.drag_hint":[.ar: "اسحب للترتيب · اضغط ⊖ للحذف", .en: "Drag to reorder · tap ⊖ to remove", .fr: "Glissez pour réorganiser · touchez ⊖ pour retirer", .tr: "Sıralamak için sürükleyin · kaldırmak için ⊖", .es: "Arrastra para reordenar · toca ⊖ para quitar"],
-        "reorder.empty_arranged":[.ar: "لم تُرتّب أي قائمة بعد — أضف من الأسفل ↓", .en: "Nothing arranged yet — add from below ↓", .fr: "Rien d'organisé — ajoutez ci-dessous ↓", .tr: "Henüz düzenlenmedi — aşağıdan ekleyin ↓", .es: "Nada organizado aún — añade abajo ↓"],
+        "reorder.drag_hint":[.ar: "اسحب للترتيب · اضغط ⊖ للحذف", .en: "Drag to reorder · tap ⊖ to remove", .fr: "Faites glisser pour classer · ⊖ pour retirer", .tr: "Sürükleyerek sıralayın · ⊖ ile çıkarın", .es: "Arrastra para ordenar · ⊖ para quitar"],
+        "reorder.empty_arranged":[.ar: "لم تُرتّب أي قائمة بعد — أضف من الأسفل ↓", .en: "Nothing arranged yet — add from below ↓", .fr: "Rien de classé — ajoutez depuis le bas ↓", .tr: "Henüz bir şey yok — aşağıdan ekleyin ↓", .es: "Aún no hay nada — añade desde abajo ↓"],
 
         // Screen titles
         "title.movies": [.ar: "الأفلام",     .en: "Movies",  .fr: "Films",  .tr: "Filmler", .es: "Películas"],
         "title.series": [.ar: "المسلسلات",   .en: "Series",  .fr: "Séries", .tr: "Diziler", .es: "Series"],
-        "title.live":   [.ar: "البث المباشر",.en: "Live TV", .fr: "TV en direct", .tr: "Canlı TV", .es: "TV en vivo"],
+        "title.live":   [.ar: "البث المباشر",.en: "Live TV", .fr: "TV en direct", .tr: "Canlı TV", .es: "TV en directo"],
 
         // Search placeholders
-        "search.movies": [.ar: "في كل الأفلام…",   .en: "Across all movies…",   .fr: "Rechercher des films…", .tr: "Tüm filmlerde ara…", .es: "Buscar películas…"],
-        "search.series": [.ar: "في كل المسلسلات…", .en: "Across all series…",   .fr: "Rechercher des séries…",.tr: "Tüm dizilerde ara…", .es: "Buscar series…"],
-        "search.live":   [.ar: "في كل القنوات…",   .en: "Across all channels…", .fr: "Rechercher des chaînes…",.tr: "Tüm kanallarda ara…", .es: "Buscar canales…"],
+        "search.movies": [.ar: "في كل الأفلام…",   .en: "Across all movies…",   .fr: "Dans tous les films…", .tr: "Bütün filmlerde…", .es: "En todas las películas…"],
+        "search.series": [.ar: "في كل المسلسلات…", .en: "Across all series…",   .fr: "Dans toutes les séries…",.tr: "Bütün dizilerde…", .es: "En todas las series…"],
+        "search.live":   [.ar: "في كل القنوات…",   .en: "Across all channels…", .fr: "Dans toutes les chaînes…",.tr: "Bütün kanallarda…", .es: "En todos los canales…"],
         "search.all":    [.ar: "ابحث في كل المحتوى…",   .en: "Search everything…",   .fr: "Tout rechercher…",     .tr: "Her şeyde ara…",     .es: "Buscar todo…"],
-        "search.cat":    [.ar: "اسم القسم…",          .en: "Category name…",   .fr: "Rechercher une catégorie…", .tr: "Kategori ara…", .es: "Buscar categoría…"],
+        "search.cat":    [.ar: "اسم القسم…",          .en: "Category name…",   .fr: "Nom de la catégorie…", .tr: "Kategori adı…", .es: "Nombre de la categoría…"],
 
         // Home sections
-        "home.live_now":   [.ar: "على الهواء",      .en: "On air",     .fr: "En direct",     .tr: "Şimdi Canlı",  .es: "En directo"],
-        "home.new_movies": [.ar: "وصل حديثاً · أفلام",    .en: "Just added · Movies",   .fr: "Nouveaux films",.tr: "Yeni Filmler", .es: "Nuevas películas"],
-        "home.new_series": [.ar: "وصل حديثاً · مسلسلات",  .en: "Just added · Series",   .fr: "Nouvelles séries",.tr: "Yeni Diziler",.es: "Nuevas series"],
-        "home.continue":   [.ar: "تابع من حيث توقّفت",  .en: "Pick up where you left off", .fr: "Reprendre", .tr: "İzlemeye Devam", .es: "Seguir viendo"],
+        "home.live_now":   [.ar: "على الهواء",      .en: "On air",     .fr: "À l'antenne",     .tr: "Yayında",  .es: "Al aire"],
+        "home.new_movies": [.ar: "وصل حديثاً · أفلام",    .en: "Just added · Movies",   .fr: "Nouveautés · Films",.tr: "Yeni eklendi · Filmler", .es: "Recién añadido · Películas"],
+        "home.new_series": [.ar: "وصل حديثاً · مسلسلات",  .en: "Just added · Series",   .fr: "Nouveautés · Séries",.tr: "Yeni eklendi · Diziler",.es: "Recién añadido · Series"],
+        "home.continue":   [.ar: "تابع من حيث توقّفت",  .en: "Pick up where you left off", .fr: "Reprenez où vous en étiez", .tr: "Kaldığınız yerden devam", .es: "Continúa donde lo dejaste"],
 
         // Settings groups
         "set.player":   [.ar: "المشغّل",          .en: "Player",    .fr: "Lecteur",  .tr: "Oynatıcı",.es: "Reproductor"],
@@ -149,7 +149,7 @@ enum L10n {
         "set.privacy":  [.ar: "سياسة الخصوصية",   .en: "Privacy Policy", .fr: "Confidentialité", .tr: "Gizlilik Politikası", .es: "Política de privacidad"],
         "set.terms":    [.ar: "شروط الاستخدام",   .en: "Terms of Use", .fr: "Conditions", .tr: "Kullanım Şartları", .es: "Términos"],
         "set.delete":   [.ar: "حذف الحساب",       .en: "Delete Account", .fr: "Supprimer le compte", .tr: "Hesabı Sil", .es: "Eliminar cuenta"],
-        "set.support":  [.ar: "تواصل مع الدعم", .en: "Contact Support", .fr: "Contacter le support", .tr: "Destek ile İletişim", .es: "Contactar soporte"],
+        "set.support":  [.ar: "تواصل مع الدعم", .en: "Contact Support", .fr: "Écrire au support", .tr: "Destek ekibine yaz", .es: "Escribir a soporte"],
         "set.connection":[.ar: "الاتصال والحساب", .en: "Connection & Account", .fr: "Connexion et compte", .tr: "Bağlantı ve Hesap", .es: "Conexión y cuenta"],
         "set.about_legal":[.ar: "حول والدعم والقانوني", .en: "About & Legal", .fr: "À propos et mentions", .tr: "Hakkında ve Yasal", .es: "Acerca de y legal"],
         "set.connection.sub":[.ar: "الخادم · معرّف الجهاز · القوائم", .en: "Server · Device ID · Playlists", .fr: "Serveur · Appareil · Listes", .tr: "Sunucu · Cihaz · Listeler", .es: "Servidor · Dispositivo · Listas"],
@@ -172,46 +172,46 @@ enum L10n {
         "set.device_copied":[.ar: "تم نسخ معرّف الجهاز", .en: "Device ID copied", .fr: "Identifiant copié", .tr: "Cihaz kimliği kopyalandı", .es: "ID de dispositivo copiado"],
 
         // Detail
-        "detail.story": [.ar: "القصة",     .en: "Story",   .fr: "Synopsis",.tr: "Konu",    .es: "Sinopsis"],
-        "detail.cast":  [.ar: "طاقم العمل",.en: "Cast",    .fr: "Casting", .tr: "Oyuncular",.es: "Reparto"],
-        "detail.play_movie":[.ar: "تشغيل الفيلم", .en: "Play Movie", .fr: "Lire le film", .tr: "Filmi Oynat", .es: "Reproducir"],
+        "detail.story": [.ar: "القصة",     .en: "Story",   .fr: "L'histoire",.tr: "Hikâye",    .es: "La historia"],
+        "detail.cast":  [.ar: "طاقم العمل",.en: "Cast",    .fr: "Distribution", .tr: "Oyuncu kadrosu",.es: "Reparto"],
+        "detail.play_movie":[.ar: "تشغيل الفيلم", .en: "Play Movie", .fr: "Lancer le film", .tr: "Filmi başlat", .es: "Ver la película"],
 
         // Empty
         "empty.no_results": [.ar: "لا نتائج", .en: "No results", .fr: "Aucun résultat", .tr: "Sonuç yok", .es: "Sin resultados"],
 
-        "home.see_all":  [.ar: "استعرض الكل", .en: "Browse all", .fr: "Tout voir", .tr: "Tümünü gör", .es: "Ver todo"],
+        "home.see_all":  [.ar: "استعرض الكل", .en: "Browse all", .fr: "Parcourir tout", .tr: "Hepsine göz at", .es: "Explorar todo"],
 
         // Reseller code
 
         // Parental control hub
         "pc.title":          [.ar: "الرقابة الأبوية", .en: "Parental Control", .fr: "Contrôle parental", .tr: "Ebeveyn Denetimi", .es: "Control parental"],
         "pc.enable":         [.ar: "تفعيل الرقابة الأبوية", .en: "Enable Parental Control", .fr: "Activer le contrôle parental", .tr: "Ebeveyn Denetimini Aç", .es: "Activar control parental"],
-        "pc.enable_hint":    [.ar: "أنشئ رمزاً سرياً لقفل أقسام محددة. ستحتاج الرمز لفتحها.", .en: "Create a PIN to lock specific categories. You'll need it to open them.", .fr: "Créez un code pour verrouiller des catégories. Il sera requis pour les ouvrir.", .tr: "Belirli kategorileri kilitlemek için bir PIN oluşturun.", .es: "Crea un PIN para bloquear categorías. Lo necesitarás para abrirlas."],
+        "pc.enable_hint":    [.ar: "أنشئ رمزاً سرياً لقفل أقسام محددة. ستحتاج الرمز لفتحها.", .en: "Create a PIN to lock specific categories. You'll need it to open them.", .fr: "Définissez un code pour verrouiller certaines catégories. Il vous sera demandé pour les ouvrir.", .tr: "Bazı kategorileri kilitlemek için bir PIN belirleyin. Açmak için bu PIN gerekir.", .es: "Define un PIN para bloquear ciertas categorías. Te lo pediremos para abrirlas."],
         "pc.change_pin":     [.ar: "تغيير الرمز", .en: "Change PIN", .fr: "Changer le code", .tr: "PIN'i Değiştir", .es: "Cambiar PIN"],
         "pc.disable":        [.ar: "إيقاف الرقابة الأبوية", .en: "Turn Off Parental Control", .fr: "Désactiver le contrôle parental", .tr: "Ebeveyn Denetimini Kapat", .es: "Desactivar control parental"],
         "pc.locked_cats.sub":[.ar: "اختر الأقسام التي تتطلّب الرمز", .en: "Choose which categories need the PIN", .fr: "Catégories nécessitant le code", .tr: "PIN gerektiren kategoriler", .es: "Categorías que requieren PIN"],
         "pc.change_pin.sub": [.ar: "عيّن رمزاً جديداً من أربعة أرقام", .en: "Set a new four-digit PIN", .fr: "Définir un nouveau code", .tr: "Yeni dört haneli PIN", .es: "Nuevo PIN de cuatro dígitos"],
         "pc.disable.sub":    [.ar: "إلغاء القفل وإظهار كل المحتوى", .en: "Unlock and reveal all content", .fr: "Déverrouiller tout le contenu", .tr: "Kilidi aç, tüm içeriği göster", .es: "Desbloquear todo el contenido"],
         "pc.recovery_title": [.ar: "رمز الاستعادة", .en: "Recovery Code", .fr: "Code de récupération", .tr: "Kurtarma Kodu", .es: "Código de recuperación"],
-        "pc.recovery_hint":  [.ar: "احتفظ بهذا الرمز في مكان آمن. ستحتاجه لاستعادة رمزك إن نسيته.", .en: "Keep this code safe. You'll need it to reset your PIN if you forget it.", .fr: "Conservez ce code. Il permettra de réinitialiser votre code oublié.", .tr: "Bu kodu saklayın. PIN'inizi unutursanız sıfırlamak için gerekir.", .es: "Guarda este código. Lo necesitarás para restablecer tu PIN si lo olvidas."],
-        "pc.recovery_saved": [.ar: "حفظته — متابعة", .en: "I've saved it", .fr: "Je l'ai enregistré", .tr: "Kaydettim", .es: "Lo he guardado"],
+        "pc.recovery_hint":  [.ar: "احتفظ بهذا الرمز في مكان آمن. ستحتاجه لاستعادة رمزك إن نسيته.", .en: "Keep this code safe. You'll need it to reset your PIN if you forget it.", .fr: "Gardez ce code en lieu sûr. Il servira à redéfinir votre code si vous l'oubliez.", .tr: "Bu kodu güvenli bir yerde tutun. PIN'inizi unutursanız onunla sıfırlarsınız.", .es: "Guarda este código en un sitio seguro. Con él podrás restablecer tu PIN si lo olvidas."],
+        "pc.recovery_saved": [.ar: "حفظته — متابعة", .en: "I've saved it", .fr: "Je l'ai noté", .tr: "Kaydettim", .es: "Ya lo guardé"],
         "pin.forgot":        [.ar: "نسيت الرمز؟", .en: "Forgot PIN?", .fr: "Code oublié ?", .tr: "PIN'i mi unuttunuz?", .es: "¿Olvidaste el PIN?"],
         "locked.lock_all":   [.ar: "قفل الكل", .en: "Lock all", .fr: "Tout verrouiller", .tr: "Tümünü kilitle", .es: "Bloquear todo"],
         "locked.unlock_all": [.ar: "فتح الكل", .en: "Unlock all", .fr: "Tout déverrouiller", .tr: "Tümünü aç", .es: "Desbloquear todo"],
-        "recovery.enter":    [.ar: "أدخل رمز الاستعادة المكوّن من 8 خانات", .en: "Enter your 8-character recovery code", .fr: "Saisissez votre code de récupération à 8 caractères", .tr: "8 karakterli kurtarma kodunuzu girin", .es: "Introduce tu código de recuperación de 8 caracteres"],
-        "recovery.wrong":    [.ar: "رمز استعادة غير صحيح", .en: "Incorrect recovery code", .fr: "Code de récupération incorrect", .tr: "Yanlış kurtarma kodu", .es: "Código de recuperación incorrecto"],
+        "recovery.enter":    [.ar: "أدخل رمز الاستعادة المكوّن من 8 خانات", .en: "Enter your 8-character recovery code", .fr: "Tapez votre code de récupération (8 caractères)", .tr: "Kurtarma kodunuzu girin (8 karakter)", .es: "Escribe tu código de recuperación (8 caracteres)"],
+        "recovery.wrong":    [.ar: "رمز استعادة غير صحيح", .en: "Incorrect recovery code", .fr: "Code de récupération erroné", .tr: "Kurtarma kodu hatalı", .es: "Código de recuperación no válido"],
         "history.remove":[.ar: "حذف من السجل", .en: "Remove from history", .fr: "Retirer de l'historique", .tr: "Geçmişten kaldır", .es: "Quitar del historial"],
 
         // iPad live pane
-        "live.pick_channel": [.ar: "اختر قناة لتبدأ", .en: "Pick a channel to start", .fr: "Sélectionnez une chaîne", .tr: "İzlemek için bir kanal seçin", .es: "Selecciona un canal"],
+        "live.pick_channel": [.ar: "اختر قناة لتبدأ", .en: "Pick a channel to start", .fr: "Choisissez une chaîne pour commencer", .tr: "Başlamak için bir kanal seçin", .es: "Elige un canal para empezar"],
         "live.fullscreen":   [.ar: "ملء الشاشة", .en: "Fullscreen", .fr: "Plein écran", .tr: "Tam ekran", .es: "Pantalla completa"],
 
         // Common (extra)
         "common.delete":   [.ar: "حذف",      .en: "Delete",     .fr: "Supprimer", .tr: "Sil",       .es: "Eliminar"],
         "common.activate": [.ar: "تفعيل",    .en: "Activate",   .fr: "Activer",   .tr: "Etkinleştir",.es: "Activar"],
-        "common.done":     [.ar: "تم",       .en: "Done",       .fr: "Terminé",   .tr: "Bitti",     .es: "Hecho"],
+        "common.done":     [.ar: "تم",       .en: "Done",       .fr: "Terminé",   .tr: "Tamam",     .es: "Listo"],
         "common.connected":[.ar: "متصل",     .en: "Connected",  .fr: "Connecté",  .tr: "Bağlı",     .es: "Conectado"],
-        "common.search_in":[.ar: "ابحث داخل",  .en: "Search inside",  .fr: "Rechercher dans", .tr: "Şurada ara", .es: "Buscar en"],
+        "common.search_in":[.ar: "ابحث داخل",  .en: "Search inside",  .fr: "Chercher dans", .tr: "İçinde ara", .es: "Buscar dentro de"],
 
         // Units / time
         "unit.day":        [.ar: "يوم",      .en: "day",        .fr: "jour",      .tr: "gün",       .es: "día"],
@@ -224,7 +224,7 @@ enum L10n {
         "episode.number":  [.ar: "الحلقة",   .en: "Episode",    .fr: "Épisode",   .tr: "Bölüm",     .es: "Episodio"],
 
         // Loading / status messages
-        "loading.generic":  [.ar: "لحظة…", .en: "One moment…",  .fr: "Chargement…", .tr: "Yükleniyor…", .es: "Cargando…"],
+        "loading.generic":  [.ar: "لحظة…", .en: "One moment…",  .fr: "Un instant…", .tr: "Bir saniye…", .es: "Un momento…"],
         "loading.error":    [.ar: "خطأ",     .en: "Error",      .fr: "Erreur",    .tr: "Hata",      .es: "Error"],
 
         // Settings — server / activation
@@ -234,15 +234,15 @@ enum L10n {
         "settings.device_id":       [.ar: "معرّف الجهاز",   .en: "Device ID",       .fr: "ID de l'appareil",.tr: "Cihaz Kimliği",   .es: "ID del dispositivo"],
 
         // Subscription card
-        "sub.renew":        [.ar: "جدّد الاشتراك",        .en: "Renew now", .fr: "Renouveler l'abonnement", .tr: "Aboneliği Yenile", .es: "Renovar suscripción"],
+        "sub.renew":        [.ar: "جدّد الاشتراك",        .en: "Renew now", .fr: "Renouveler maintenant", .tr: "Şimdi yenile", .es: "Renovar ahora"],
 
         // Activation status
 
         // Player group toggles
-        "player.autonext.title": [.ar: "تشغيل تلقائي للحلقة التالية", .en: "Auto-play next episode", .fr: "Lecture auto. de l'épisode suivant", .tr: "Sonraki bölümü otomatik oynat", .es: "Reproducir siguiente episodio"],
-        "player.skipintro.title":[.ar: "إظهار «تخطّي المقدمة»", .en: "Show \"Skip Intro\"", .fr: "Afficher « Passer l'intro »", .tr: "\"Tanıtımı Atla\" göster", .es: "Mostrar \"Saltar intro\""],
-        "player.quality":        [.ar: "جودة البث",      .en: "Streaming quality", .fr: "Qualité de diffusion", .tr: "Yayın kalitesi", .es: "Calidad de transmisión"],
-        "player.sleep.default":  [.ar: "مؤقت النوم الافتراضي", .en: "Default sleep timer", .fr: "Minuteur de veille par défaut", .tr: "Varsayılan uyku zamanlayıcısı", .es: "Temporizador de apagado predeterminado"],
+        "player.autonext.title": [.ar: "تشغيل تلقائي للحلقة التالية", .en: "Auto-play next episode", .fr: "Enchaîner l'épisode suivant", .tr: "Sonraki bölüme otomatik geç", .es: "Pasar al siguiente episodio"],
+        "player.skipintro.title":[.ar: "إظهار «تخطّي المقدمة»", .en: "Show \"Skip Intro\"", .fr: "Afficher « Sauter l'intro »", .tr: "\"Jeneriği Geç\" göster", .es: "Mostrar \"Omitir intro\""],
+        "player.quality":        [.ar: "جودة البث",      .en: "Streaming quality", .fr: "Qualité du flux", .tr: "Akış kalitesi", .es: "Calidad de emisión"],
+        "player.sleep.default":  [.ar: "مؤقت النوم الافتراضي", .en: "Default sleep timer", .fr: "Minuteur par défaut", .tr: "Varsayılan uyku süresi", .es: "Temporizador predeterminado"],
         "player.engine":         [.ar: "محرّك التشغيل", .en: "Playback engine", .fr: "Moteur de lecture", .tr: "Oynatma motoru", .es: "Motor de reproducción"],
         "player.engine.auto":    [.ar: "تلقائي", .en: "Automatic", .fr: "Automatique", .tr: "Otomatik", .es: "Automático"],
         "player.pip":            [.ar: "صورة داخل صورة", .en: "Picture in Picture", .fr: "Image dans l'image", .tr: "Resim İçinde Resim", .es: "Imagen en imagen"],
@@ -250,25 +250,25 @@ enum L10n {
         "quality.high":          [.ar: "عالي HD", .en: "High HD", .fr: "Haute HD", .tr: "Yüksek HD", .es: "Alta HD"],
         "quality.medium":        [.ar: "متوسط", .en: "Medium", .fr: "Moyenne", .tr: "Orta", .es: "Media"],
         "quality.low":           [.ar: "منخفض", .en: "Low", .fr: "Basse", .tr: "Düşük", .es: "Baja"],
-        "player.engine.av":      [.ar: "عتادي (الأسرع)", .en: "Hardware (fastest)", .fr: "Matériel (rapide)", .tr: "Donanım (en hızlı)", .es: "Hardware (rápido)"],
+        "player.engine.av":      [.ar: "عتادي (الأسرع)", .en: "Hardware (fastest)", .fr: "Matériel (le plus rapide)", .tr: "Donanım (en hızlı)", .es: "Hardware (el más rápido)"],
         "player.engine.vlc":     [.ar: "شامل (VLC)", .en: "Universal (VLC)", .fr: "Universel (VLC)", .tr: "Evrensel (VLC)", .es: "Universal (VLC)"],
 
         // Offline downloads
         "set.downloads":         [.ar: "التنزيلات", .en: "Downloads", .fr: "Téléchargements", .tr: "İndirilenler", .es: "Descargas"],
         "downloads.title":       [.ar: "التنزيلات", .en: "Downloads", .fr: "Téléchargements", .tr: "İndirilenler", .es: "Descargas"],
         "downloads.empty.title": [.ar: "لا توجد تنزيلات", .en: "No downloads", .fr: "Aucun téléchargement", .tr: "İndirme yok", .es: "Sin descargas"],
-        "downloads.empty.sub":   [.ar: "نزّل الأفلام والحلقات لمشاهدتها دون إنترنت", .en: "Download movies and episodes to watch offline", .fr: "Téléchargez films et épisodes pour les regarder hors ligne", .tr: "Çevrimdışı izlemek için film ve bölüm indirin", .es: "Descarga películas y episodios para verlos sin conexión"],
-        "download.failed":       [.ar: "فشل التحميل — اضغط لإعادة المحاولة", .en: "Download failed — tap to retry", .fr: "Échec — appuyez pour réessayer", .tr: "İndirme başarısız — dokunup yeniden dene", .es: "Error — toca para reintentar"],
+        "downloads.empty.sub":   [.ar: "نزّل الأفلام والحلقات لمشاهدتها دون إنترنت", .en: "Download movies and episodes to watch offline", .fr: "Enregistrez films et épisodes pour les voir sans connexion", .tr: "İnternetsiz izlemek için film ve bölüm indirin", .es: "Guarda películas y episodios y míralos sin internet"],
+        "download.failed":       [.ar: "فشل التحميل — اضغط لإعادة المحاولة", .en: "Download failed — tap to retry", .fr: "Téléchargement échoué — touchez pour reprendre", .tr: "İndirme başarısız — yeniden denemek için dokunun", .es: "Descarga fallida — toca para reintentar"],
         "downloads.paused":      [.ar: "متوقّف مؤقتاً", .en: "Paused", .fr: "En pause", .tr: "Duraklatıldı", .es: "En pausa"],
-        "downloads.queued":      [.ar: "في الانتظار…", .en: "Queued…", .fr: "En file d'attente…", .tr: "Sırada…", .es: "En cola…"],
-        "downloads.wifi_only":   [.ar: "التحميل على Wi-Fi فقط", .en: "Download on Wi-Fi only", .fr: "Télécharger en Wi-Fi uniquement", .tr: "Yalnızca Wi-Fi'de indir", .es: "Descargar solo con Wi-Fi"],
+        "downloads.queued":      [.ar: "في الانتظار…", .en: "Queued…", .fr: "En attente…", .tr: "Sırada…", .es: "En cola…"],
+        "downloads.wifi_only":   [.ar: "التحميل على Wi-Fi فقط", .en: "Download on Wi-Fi only", .fr: "Télécharger uniquement en Wi-Fi", .tr: "Sadece Wi-Fi ile indir", .es: "Descargar solo por Wi-Fi"],
         "downloads.notif.title": [.ar: "اكتمل التنزيل", .en: "Download complete", .fr: "Téléchargement terminé", .tr: "İndirme tamamlandı", .es: "Descarga completada"],
-        "downloads.notif.denied":[.ar: "الإشعارات معطّلة — فعّلها لتصلك عند اكتمال التحميل", .en: "Notifications are off — enable them to be alerted when downloads finish", .fr: "Notifications désactivées — activez-les pour être averti à la fin", .tr: "Bildirimler kapalı — indirme bitince haber almak için açın", .es: "Notificaciones desactivadas — actívalas para avisarte al terminar"],
+        "downloads.notif.denied":[.ar: "الإشعارات معطّلة — فعّلها لتصلك عند اكتمال التحميل", .en: "Notifications are off — enable them to be alerted when downloads finish", .fr: "Notifications coupées — activez-les pour savoir quand un téléchargement finit", .tr: "Bildirimler kapalı — indirme bittiğinde haberdar olmak için açın", .es: "Notificaciones apagadas — actívalas y te avisamos al terminar"],
         "downloads.storage_used":[.ar: "المساحة المستخدمة", .en: "Storage used", .fr: "Espace utilisé", .tr: "Kullanılan alan", .es: "Almacenamiento usado"],
-        "downloads.free":        [.ar: "المساحة المتاحة", .en: "Available", .fr: "Disponible", .tr: "Kullanılabilir", .es: "Disponible"],
-        "downloads.low_warning": [.ar: "مساحة الجهاز منخفضة — احذف بعض التنزيلات", .en: "Low device storage — delete some downloads", .fr: "Stockage faible — supprimez des téléchargements", .tr: "Cihaz alanı az — bazı indirmeleri silin", .es: "Almacenamiento bajo — elimina descargas"],
-        "downloads.space_low.title":    [.ar: "مساحة منخفضة", .en: "Low storage", .fr: "Stockage faible", .tr: "Az alan", .es: "Almacenamiento bajo"],
-        "downloads.space_low.msg":      [.ar: "مساحة جهازك منخفضة. هل تريد متابعة التحميل؟", .en: "Your device storage is low. Continue the download?", .fr: "Le stockage est faible. Continuer le téléchargement ?", .tr: "Cihaz alanınız az. İndirmeye devam edilsin mi?", .es: "Tu almacenamiento es bajo. ¿Continuar la descarga?"],
+        "downloads.free":        [.ar: "المساحة المتاحة", .en: "Available", .fr: "Espace libre", .tr: "Boş alan", .es: "Espacio libre"],
+        "downloads.low_warning": [.ar: "مساحة الجهاز منخفضة — احذف بعض التنزيلات", .en: "Low device storage — delete some downloads", .fr: "Espace insuffisant — supprimez quelques téléchargements", .tr: "Depolama alanı azaldı — birkaç indirmeyi silin", .es: "Queda poco espacio — borra algunas descargas"],
+        "downloads.space_low.title":    [.ar: "مساحة منخفضة", .en: "Low storage", .fr: "Espace insuffisant", .tr: "Alan azaldı", .es: "Poco espacio"],
+        "downloads.space_low.msg":      [.ar: "مساحة جهازك منخفضة. هل تريد متابعة التحميل؟", .en: "Your device storage is low. Continue the download?", .fr: "Il reste peu d'espace sur l'appareil. Poursuivre le téléchargement ?", .tr: "Cihazınızda az yer kaldı. İndirme sürsün mü?", .es: "Queda poco espacio en el dispositivo. ¿Seguimos con la descarga?"],
         "downloads.space_low.continue": [.ar: "متابعة", .en: "Continue", .fr: "Continuer", .tr: "Devam", .es: "Continuar"],
 
         // App group
@@ -280,20 +280,20 @@ enum L10n {
         // Legal group
 
         // Logout / delete alerts
-        "alert.logout.msg":     [.ar: "هل تريد تسجيل الخروج من حسابك؟", .en: "Do you want to sign out of your account?", .fr: "Voulez-vous vous déconnecter de votre compte ?", .tr: "Hesabınızdan çıkmak istiyor musunuz?", .es: "¿Quieres cerrar sesión en tu cuenta?"],
-        "alert.delete.msg":     [.ar: "سيُحذف حسابك وجميع بياناتك نهائياً. هذا الإجراء لا يمكن التراجع عنه.", .en: "Your account and all your data will be permanently deleted. This action cannot be undone.", .fr: "Votre compte et toutes vos données seront supprimés définitivement. Cette action est irréversible.", .tr: "Hesabınız ve tüm verileriniz kalıcı olarak silinecek. Bu işlem geri alınamaz.", .es: "Tu cuenta y todos tus datos se eliminarán permanentemente. Esta acción no se puede deshacer."],
-        "alert.delete.confirm": [.ar: "حذف نهائياً", .en: "Delete Permanently", .fr: "Supprimer définitivement", .tr: "Kalıcı Olarak Sil", .es: "Eliminar permanentemente"],
+        "alert.logout.msg":     [.ar: "هل تريد تسجيل الخروج من حسابك؟", .en: "Do you want to sign out of your account?", .fr: "Souhaitez-vous quitter votre compte ?", .tr: "Hesabınızdan çıkış yapılsın mı?", .es: "¿Seguro que quieres salir de tu cuenta?"],
+        "alert.delete.msg":     [.ar: "سيُحذف حسابك وجميع بياناتك نهائياً. هذا الإجراء لا يمكن التراجع عنه.", .en: "Your account and all your data will be permanently deleted. This action cannot be undone.", .fr: "Votre compte et l'ensemble de vos données seront effacés pour toujours. Rien ne pourra être récupéré.", .tr: "Hesabınız ve bütün verileriniz kalıcı olarak silinir. Bu işlemin geri dönüşü yoktur.", .es: "Se borrarán para siempre tu cuenta y todos tus datos. No habrá vuelta atrás."],
+        "alert.delete.confirm": [.ar: "حذف نهائياً", .en: "Delete Permanently", .fr: "Effacer définitivement", .tr: "Tamamen sil", .es: "Borrar para siempre"],
 
         // Playlists
         "playlists.title":      [.ar: "قوائمي",          .en: "My Playlists",    .fr: "Mes listes",      .tr: "Listelerim",      .es: "Mis listas"],
         "playlists.empty.title":[.ar: "لا قوائم محفوظة", .en: "No saved playlists", .fr: "Aucune liste enregistrée", .tr: "Kayıtlı liste yok", .es: "Sin listas guardadas"],
-        "playlists.empty.sub":  [.ar: "أضف قائمة M3U أو get.php جديدة", .en: "Add a new M3U or get.php playlist", .fr: "Ajoutez une nouvelle liste M3U ou get.php", .tr: "Yeni bir M3U veya get.php listesi ekleyin", .es: "Añade una nueva lista M3U o get.php"],
+        "playlists.empty.sub":  [.ar: "أضف قائمة M3U أو get.php جديدة", .en: "Add a new M3U or get.php playlist", .fr: "Ajoutez une liste M3U ou get.php", .tr: "Bir M3U ya da get.php listesi ekleyin", .es: "Añade una lista M3U o get.php"],
         "playlists.active":     [.ar: "نشطة",            .en: "Active",          .fr: "Active",          .tr: "Aktif",           .es: "Activa"],
         "playlists.add":        [.ar: "إضافة قائمة",     .en: "Add Playlist",    .fr: "Ajouter une liste",.tr: "Liste Ekle",      .es: "Añadir lista"],
-        "playlists.name_ph":    [.ar: "اسم القائمة (اختياري)", .en: "Playlist name (optional)", .fr: "Nom de la liste (facultatif)", .tr: "Liste adı (isteğe bağlı)", .es: "Nombre de la lista (opcional)"],
+        "playlists.name_ph":    [.ar: "اسم القائمة (اختياري)", .en: "Playlist name (optional)", .fr: "Nom de la liste (optionnel)", .tr: "Liste adı (opsiyonel)", .es: "Nombre (opcional)"],
         "playlists.url_ph":     [.ar: "رابط M3U / get.php", .en: "M3U / get.php URL", .fr: "URL M3U / get.php", .tr: "M3U / get.php bağlantısı", .es: "URL M3U / get.php"],
         "playlists.add_activate":[.ar: "إضافة وتفعيل",  .en: "Add & Activate",  .fr: "Ajouter et activer", .tr: "Ekle ve Etkinleştir", .es: "Añadir y activar"],
-        "playlists.add_failed": [.ar: "تعذّر إضافة القائمة", .en: "Couldn't add the playlist", .fr: "Impossible d'ajouter la liste", .tr: "Liste eklenemedi", .es: "No se pudo añadir la lista"],
+        "playlists.add_failed": [.ar: "تعذّر إضافة القائمة", .en: "Couldn't add the playlist", .fr: "La liste n'a pas pu être ajoutée", .tr: "Liste eklenemedi", .es: "No se pudo añadir la lista"],
         "subs.title":       [.ar: "اشتراكاتي",           .en: "My Subscriptions", .fr: "Mes abonnements",  .tr: "Aboneliklerim",   .es: "Mis suscripciones"],
         "subs.choose":      [.ar: "اختر اشتراكاً للمتابعة", .en: "Choose a subscription to continue", .fr: "Choisissez un abonnement", .tr: "Devam etmek için bir abonelik seçin", .es: "Elige una suscripción para continuar"],
         "subs.add":         [.ar: "إضافة اشتراك",        .en: "Add subscription", .fr: "Ajouter un abonnement", .tr: "Abonelik ekle", .es: "Añadir suscripción"],
@@ -305,16 +305,16 @@ enum L10n {
         "about.version":    [.ar: "الإصدار",            .en: "Version",         .fr: "Version",         .tr: "Sürüm",           .es: "Versión"],
 
         // Parental PIN
-        "pin.verify":       [.ar: "أدخل رمز الرقابة الأبوية", .en: "Enter parental PIN", .fr: "Saisissez le code parental", .tr: "Ebeveyn kodunu girin", .es: "Introduce el PIN parental"],
-        "pin.confirm":      [.ar: "أعد إدخال الرمز للتأكيد", .en: "Re-enter PIN to confirm", .fr: "Ressaisissez le code pour confirmer", .tr: "Onaylamak için kodu tekrar girin", .es: "Vuelve a introducir el PIN para confirmar"],
-        "pin.create":       [.ar: "أنشئ رمز رقابة (4 أرقام)", .en: "Create a PIN (4 digits)", .fr: "Créez un code (4 chiffres)", .tr: "Bir kod oluşturun (4 hane)", .es: "Crea un PIN (4 dígitos)"],
-        "pin.wrong":        [.ar: "رمز غير صحيح",       .en: "Incorrect PIN",   .fr: "Code incorrect",  .tr: "Yanlış kod",      .es: "PIN incorrecto"],
-        "pin.mismatch":     [.ar: "الرمز غير متطابق، حاول مجدداً", .en: "PINs don't match, try again", .fr: "Les codes ne correspondent pas, réessayez", .tr: "Kodlar eşleşmiyor, tekrar deneyin", .es: "Los PIN no coinciden, inténtalo de nuevo"],
+        "pin.verify":       [.ar: "أدخل رمز الرقابة الأبوية", .en: "Enter parental PIN", .fr: "Entrez le code parental", .tr: "Ebeveyn kodunu girin", .es: "Escribe el PIN parental"],
+        "pin.confirm":      [.ar: "أعد إدخال الرمز للتأكيد", .en: "Re-enter PIN to confirm", .fr: "Entrez le code une seconde fois", .tr: "Kodu bir kez daha girin", .es: "Escribe el PIN otra vez para confirmar"],
+        "pin.create":       [.ar: "أنشئ رمز رقابة (4 أرقام)", .en: "Create a PIN (4 digits)", .fr: "Choisissez un code à 4 chiffres", .tr: "4 haneli bir kod belirleyin", .es: "Elige un PIN de 4 dígitos"],
+        "pin.wrong":        [.ar: "رمز غير صحيح",       .en: "Incorrect PIN",   .fr: "Code erroné",  .tr: "Kod hatalı",      .es: "PIN no válido"],
+        "pin.mismatch":     [.ar: "الرمز غير متطابق، حاول مجدداً", .en: "PINs don't match, try again", .fr: "Les deux codes diffèrent, recommencez", .tr: "Kodlar aynı değil, yeniden deneyin", .es: "Los dos PIN no son iguales, prueba otra vez"],
 
         // Parental gate
         "gate.locked":      [.ar: "قسم مقفل",           .en: "Locked Category", .fr: "Catégorie verrouillée", .tr: "Kilitli Kategori", .es: "Categoría bloqueada"],
         "gate.protected":   [.ar: "محمي بالرقابة الأبوية", .en: "Protected by parental controls", .fr: "Protégé par le contrôle parental", .tr: "Ebeveyn denetimiyle korunuyor", .es: "Protegido por control parental"],
-        "gate.enter_pin":   [.ar: "إدخال الرمز",        .en: "Enter PIN",       .fr: "Saisir le code",  .tr: "Kodu Gir",        .es: "Introducir PIN"],
+        "gate.enter_pin":   [.ar: "إدخال الرمز",        .en: "Enter PIN",       .fr: "Entrer le code",  .tr: "PIN'i gir",        .es: "Escribir el PIN"],
 
         // Locked categories manager
         "locked.movies":    [.ar: "الأفلام",            .en: "Movies",          .fr: "Films",           .tr: "Filmler",         .es: "Películas"],
@@ -322,41 +322,41 @@ enum L10n {
         "locked.channels":  [.ar: "القنوات",            .en: "Channels",        .fr: "Chaînes",         .tr: "Kanallar",        .es: "Canales"],
 
         // Player view
-        "play.reconnecting":[.ar: "نستعيد الاتصال…", .en: "Getting the stream back…",   .fr: "Reconnexion…",    .tr: "Yeniden bağlanılıyor…", .es: "Reconectando…"],
-        "play.skip_intro":  [.ar: "تجاوز المقدّمة",      .en: "Skip the intro",      .fr: "Passer l'intro",  .tr: "Tanıtımı Atla",   .es: "Saltar intro"],
+        "play.reconnecting":[.ar: "نستعيد الاتصال…", .en: "Getting the stream back…",   .fr: "On rétablit le flux…",    .tr: "Yayın geri getiriliyor…", .es: "Recuperando la señal…"],
+        "play.skip_intro":  [.ar: "تجاوز المقدّمة",      .en: "Skip the intro",      .fr: "Sauter l'intro",  .tr: "Jeneriği geç",   .es: "Omitir intro"],
         "play.next_episode":[.ar: "الحلقة التالية",     .en: "Next Episode",    .fr: "Épisode suivant", .tr: "Sonraki Bölüm",   .es: "Siguiente episodio"],
-        "play.live_now":    [.ar: "بث مباشر",           .en: "Live",            .fr: "En direct",       .tr: "Canlı",           .es: "En vivo"],
+        "play.live_now":    [.ar: "بث مباشر",           .en: "Live",            .fr: "En direct",       .tr: "Canlı",           .es: "En directo"],
         "play.audio":       [.ar: "صوت",                .en: "Audio",           .fr: "Audio",           .tr: "Ses",             .es: "Audio"],
         "play.subtitle":    [.ar: "ترجمة",              .en: "Subtitles",       .fr: "Sous-titres",     .tr: "Altyazı",         .es: "Subtítulos"],
-        "play.sleep":       [.ar: "مؤقّت",                .en: "Timer",           .fr: "Veille",          .tr: "Uyku",            .es: "Apagado"],
-        "play.sleep.title": [.ar: "مؤقت النوم",         .en: "Sleep Timer",     .fr: "Minuteur de veille", .tr: "Uyku Zamanlayıcısı", .es: "Temporizador de apagado"],
-        "play.sleep.will_stop":[.ar: "يتوقّف بعد", .en: "Stops in", .fr: "La lecture s'arrêtera dans", .tr: "Oynatma şu sürede duracak", .es: "La reproducción se detendrá en"],
-        "play.sleep.cancel":[.ar: "أوقف المؤقت",       .en: "Stop the timer",    .fr: "Annuler le minuteur", .tr: "Zamanlayıcıyı İptal Et", .es: "Cancelar temporizador"],
-        "play.sleep.choose":[.ar: "بعد كم يتوقّف؟",    .en: "Stop after how long?", .fr: "Choisir la durée", .tr: "Süre seçin", .es: "Elige la duración"],
+        "play.sleep":       [.ar: "مؤقّت",                .en: "Timer",           .fr: "Minuteur",          .tr: "Uyku",            .es: "Apagado"],
+        "play.sleep.title": [.ar: "مؤقت النوم",         .en: "Sleep Timer",     .fr: "Arrêt programmé", .tr: "Uyku sayacı", .es: "Apagado automático"],
+        "play.sleep.will_stop":[.ar: "يتوقّف بعد", .en: "Stops in", .fr: "Arrêt dans", .tr: "Şu kadar sonra durur", .es: "Se detiene en"],
+        "play.sleep.cancel":[.ar: "أوقف المؤقت",       .en: "Stop the timer",    .fr: "Arrêter le minuteur", .tr: "Sayacı durdur", .es: "Detener el temporizador"],
+        "play.sleep.choose":[.ar: "بعد كم يتوقّف؟",    .en: "Stop after how long?", .fr: "Arrêter dans combien de temps ?", .tr: "Ne kadar sonra dursun?", .es: "¿Dentro de cuánto se detiene?"],
         "play.subtitle.title":[.ar: "الترجمة",          .en: "Subtitles",       .fr: "Sous-titres",     .tr: "Altyazı",         .es: "Subtítulos"],
-        "play.subtitle.none":[.ar: "بلا ترجمة",        .en: "Subtitles off",    .fr: "Aucun sous-titre", .tr: "Altyazı yok",     .es: "Sin subtítulos"],
+        "play.subtitle.none":[.ar: "بلا ترجمة",        .en: "Subtitles off",    .fr: "Sous-titres désactivés", .tr: "Altyazı kapalı",     .es: "Subtítulos desactivados"],
         "play.subtitle.empty.title":[.ar: "لا توجد ترجمات", .en: "No subtitles", .fr: "Aucun sous-titre", .tr: "Altyazı yok", .es: "Sin subtítulos"],
-        "play.subtitle.empty.sub":[.ar: "هذا المحتوى لا يتضمن مسارات ترجمة", .en: "This content has no subtitle tracks", .fr: "Ce contenu ne contient pas de sous-titres", .tr: "Bu içerikte altyazı parçası yok", .es: "Este contenido no tiene pistas de subtítulos"],
+        "play.subtitle.empty.sub":[.ar: "هذا المحتوى لا يتضمن مسارات ترجمة", .en: "This content has no subtitle tracks", .fr: "Aucune piste de sous-titres dans ce contenu", .tr: "Bu içeriğe altyazı eklenmemiş", .es: "Este contenido no incluye pistas de subtítulos"],
         "play.audio_track": [.ar: "المسار الصوتي",      .en: "Audio Track",     .fr: "Piste audio",     .tr: "Ses Parçası",     .es: "Pista de audio"],
         "play.audio_track.title":[.ar: "المسار الصوتي", .en: "Audio Track",     .fr: "Piste audio",     .tr: "Ses Parçası",     .es: "Pista de audio"],
         "play.audio_track.empty.title":[.ar: "لا توجد مسارات صوتية", .en: "No audio tracks", .fr: "Aucune piste audio", .tr: "Ses parçası yok", .es: "Sin pistas de audio"],
-        "play.audio_track.empty.sub":[.ar: "هذا المحتوى يحتوي على مسار صوتي واحد فقط", .en: "This content has only one audio track", .fr: "Ce contenu n'a qu'une seule piste audio", .tr: "Bu içerikte yalnızca bir ses parçası var", .es: "Este contenido solo tiene una pista de audio"],
+        "play.audio_track.empty.sub":[.ar: "هذا المحتوى يحتوي على مسار صوتي واحد فقط", .en: "This content has only one audio track", .fr: "Ce contenu ne propose qu'une piste audio", .tr: "Bu içerikte tek bir ses parçası bulunuyor", .es: "Este contenido incluye una sola pista de audio"],
         "play.speed":       [.ar: "السرعة",             .en: "Speed",           .fr: "Vitesse",         .tr: "Hız",             .es: "Velocidad"],
         "play.speed.title": [.ar: "سرعة التشغيل",       .en: "Playback Speed",  .fr: "Vitesse de lecture", .tr: "Oynatma Hızı",  .es: "Velocidad de reproducción"],
-        "play.speed.normal":[.ar: "عادي ×١",          .en: "Normal ×1",     .fr: "Normal (1x)",     .tr: "Normal (1x)",     .es: "Normal (1x)"],
+        "play.speed.normal":[.ar: "عادي ×١",          .en: "Normal ×1",     .fr: "Normale ×1",     .tr: "Normal ×1",     .es: "Normal ×1"],
         "play.unlock":      [.ar: "افتح القفل",        .en: "Unlock",          .fr: "Déverrouiller",   .tr: "Kilidi Aç",       .es: "Desbloquear"],
 
         // Home
-        "home.featured":    [.ar: "مختارات",              .en: "Handpicked",        .fr: "À la une",        .tr: "Öne çıkan",       .es: "Destacado"],
+        "home.featured":    [.ar: "مختارات",              .en: "Handpicked",        .fr: "Notre sélection",        .tr: "Seçtiklerimiz",       .es: "Nuestra selección"],
         "home.new_tag":     [.ar: "جديد",               .en: "New",             .fr: "Nouveau",         .tr: "Yeni",            .es: "Nuevo"],
         "home.top_movies":  [.ar: "الأفلام الأعلى تقييماً", .en: "Top Rated Movies", .fr: "Films les mieux notés", .tr: "En Çok Beğenilen Filmler", .es: "Películas mejor valoradas"],
         "home.top_series":  [.ar: "المسلسلات الأعلى تقييماً", .en: "Top Rated Series", .fr: "Séries les mieux notées", .tr: "En Çok Beğenilen Diziler", .es: "Series mejor valoradas"],
         "home.edit":        [.ar: "تحرير السجل",           .en: "Edit history",            .fr: "Modifier l'historique", .tr: "Geçmişi düzenle", .es: "Editar historial"],
-        "home.clear_all":   [.ar: "امسح السجل",           .en: "Clear the history",       .fr: "Tout effacer",    .tr: "Tümünü Temizle",  .es: "Borrar todo"],
-        "home.remove_history":[.ar: "أزِل من السجل",     .en: "Drop from history", .fr: "Retirer de l'historique", .tr: "Geçmişten kaldır", .es: "Quitar del historial"],
-        "home.content_error.title":[.ar: "تعذّر تحميل المحتوى", .en: "Couldn't load content", .fr: "Impossible de charger le contenu", .tr: "İçerik yüklenemedi", .es: "No se pudo cargar el contenido"],
-        "home.content_error.sub":[.ar: "تحقّق من اتصالك أو من صلاحية اشتراكك لدى المزوّد، ثم أعد المحاولة", .en: "Check your connection or that your provider subscription is active, then try again", .fr: "Vérifiez votre connexion ou la validité de votre abonnement, puis réessayez", .tr: "Bağlantınızı veya sağlayıcı aboneliğinizin aktif olduğunu kontrol edip tekrar deneyin", .es: "Comprueba tu conexión o que tu suscripción esté activa e inténtalo de nuevo"],
-        "home.percent_done":[.ar: "شوهد",             .en: "watched",        .fr: "terminé",         .tr: "tamamlandı",      .es: "completado"],
+        "home.clear_all":   [.ar: "امسح السجل",           .en: "Clear the history",       .fr: "Effacer l'historique",    .tr: "Geçmişi temizle",  .es: "Borrar el historial"],
+        "home.remove_history":[.ar: "أزِل من السجل",     .en: "Drop from history", .fr: "Effacer de l'historique", .tr: "Geçmişten sil", .es: "Borrar del historial"],
+        "home.content_error.title":[.ar: "تعذّر تحميل المحتوى", .en: "Couldn't load content", .fr: "Le contenu n'a pas pu être chargé", .tr: "İçerik getirilemedi", .es: "No hemos podido cargar el contenido"],
+        "home.content_error.sub":[.ar: "تحقّق من اتصالك أو من صلاحية اشتراكك لدى المزوّد، ثم أعد المحاولة", .en: "Check your connection or that your provider subscription is active, then try again", .fr: "Contrôlez votre connexion ou la validité de votre abonnement chez le fournisseur, puis réessayez", .tr: "Bağlantınızı ya da sağlayıcınızdaki aboneliğinizin geçerliliğini kontrol edip yeniden deneyin", .es: "Revisa tu conexión o si tu suscripción con el proveedor sigue activa, y vuelve a intentarlo"],
+        "home.percent_done":[.ar: "شوهد",             .en: "watched",        .fr: "vu",         .tr: "izlendi",      .es: "visto"],
         "home.whatsapp":    [.ar: "واتساب",             .en: "WhatsApp",        .fr: "WhatsApp",        .tr: "WhatsApp",        .es: "WhatsApp"],
         "home.telegram":    [.ar: "تيليغرام",           .en: "Telegram",        .fr: "Telegram",        .tr: "Telegram",        .es: "Telegram"],
 
@@ -366,96 +366,96 @@ enum L10n {
         "alerts.sub_warning": [.ar: "تنبيه الاشتراك",   .en: "Subscription Alert", .fr: "Alerte d'abonnement", .tr: "Abonelik Uyarısı", .es: "Alerta de suscripción"],
         "alerts.sub_active":  [.ar: "اشتراكك نشط",      .en: "Your subscription is active", .fr: "Votre abonnement est actif", .tr: "Aboneliğiniz aktif", .es: "Tu suscripción está activa"],
         "alerts.empty.title": [.ar: "لا توجد إشعارات",  .en: "No notifications", .fr: "Aucune notification", .tr: "Bildirim yok", .es: "Sin notificaciones"],
-        "alerts.empty.sub":   [.ar: "ستظهر هنا تنبيهات الإدارة وحالة اشتراكك", .en: "Admin alerts and your subscription status will appear here", .fr: "Les alertes de l'administration et l'état de votre abonnement apparaîtront ici", .tr: "Yönetici uyarıları ve abonelik durumunuz burada görünecek", .es: "Aquí aparecerán las alertas y el estado de tu suscripción"],
+        "alerts.empty.sub":   [.ar: "ستظهر هنا تنبيهات الإدارة وحالة اشتراكك", .en: "Admin alerts and your subscription status will appear here", .fr: "Les avis de l'équipe et l'état de votre abonnement s'afficheront ici", .tr: "Yönetim duyuruları ve abonelik durumunuz burada listelenir", .es: "Aquí verás los avisos del equipo y el estado de tu suscripción"],
 
         // Channel info sheet
-        "channel.live_now": [.ar: "على الهواء الآن",      .en: "On air now",        .fr: "En direct maintenant", .tr: "Şimdi canlı",  .es: "En directo ahora"],
-        "channel.play":     [.ar: "شغّل القناة",       .en: "Play this channel",    .fr: "Lire la chaîne",  .tr: "Kanalı Oynat",    .es: "Reproducir canal"],
-        "epg.next":         [.ar: "التالي",             .en: "Next",            .fr: "Suivant",         .tr: "Sıradaki",        .es: "Siguiente"],
+        "channel.live_now": [.ar: "على الهواء الآن",      .en: "On air now",        .fr: "À l'antenne en ce moment", .tr: "Şu an yayında",  .es: "Al aire ahora mismo"],
+        "channel.play":     [.ar: "شغّل القناة",       .en: "Play this channel",    .fr: "Lancer cette chaîne",  .tr: "Bu kanalı aç",    .es: "Ver este canal"],
+        "epg.next":         [.ar: "التالي",             .en: "Next",            .fr: "À suivre",         .tr: "Sırada",        .es: "A continuación"],
         "refresh.title":    [.ar: "تحديث المحتوى؟",     .en: "Refresh content?", .fr: "Actualiser le contenu ?", .tr: "İçerik yenilensin mi?", .es: "¿Actualizar contenido?"],
-        "refresh.msg":      [.ar: "سيُجلب أحدث القنوات والأفلام والمسلسلات من مزوّدك. قد يستغرق بضع ثوانٍ.", .en: "Fetches the latest channels, movies and series from your provider. May take a few seconds.", .fr: "Récupère les dernières chaînes, films et séries de votre fournisseur. Peut prendre quelques secondes.", .tr: "Sağlayıcınızdan en yeni kanalları, filmleri ve dizileri getirir. Birkaç saniye sürebilir.", .es: "Obtiene los últimos canales, películas y series de tu proveedor. Puede tardar unos segundos."],
+        "refresh.msg":      [.ar: "سيُجلب أحدث القنوات والأفلام والمسلسلات من مزوّدك. قد يستغرق بضع ثوانٍ.", .en: "Fetches the latest channels, movies and series from your provider. May take a few seconds.", .fr: "Les dernières chaînes, films et séries seront récupérés chez votre fournisseur. Comptez quelques secondes.", .tr: "En yeni kanallar, filmler ve diziler sağlayıcınızdan alınır. Birkaç saniye sürebilir.", .es: "Traeremos los últimos canales, películas y series de tu proveedor. Tardará unos segundos."],
         "refresh.confirm":  [.ar: "تحديث",              .en: "Refresh",         .fr: "Actualiser",      .tr: "Yenile",          .es: "Actualizar"],
 
         // Login / Auth
-        "login.welcome":    [.ar: "أهلاً بك في بلانك — بياناتك وندخل", .en: "Welcome to Blank — your details and you're in", .fr: "Bienvenue — connectez-vous pour continuer", .tr: "Hoş geldiniz — devam etmek için giriş yapın", .es: "Bienvenido — inicia sesión para continuar"],
+        "login.welcome":    [.ar: "أهلاً بك في بلانك — بياناتك وندخل", .en: "Welcome to Blank — your details and you're in", .fr: "Bienvenue sur Blank — vos identifiants et c'est parti", .tr: "Blank'e hoş geldiniz — bilgilerinizi girin, hazırsınız", .es: "Bienvenido a Blank — tus datos y listo"],
         "login.username":   [.ar: "اسم المستخدم",       .en: "Username",        .fr: "Nom d'utilisateur",.tr: "Kullanıcı adı",  .es: "Nombre de usuario"],
         "login.password":   [.ar: "كلمة المرور",        .en: "Password",        .fr: "Mot de passe",    .tr: "Şifre",           .es: "Contraseña"],
-        "login.m3u_hint":   [.ar: "ألصق رابط M3U أو M3U8 — يُقرأ على جهازك ولا يغادره", .en: "Paste an M3U or M3U8 link — read on your device, never sent anywhere", .fr: "Collez une URL de liste M3U / M3U8 — analysée localement sur votre appareil", .tr: "Bir M3U / M3U8 liste bağlantısı yapıştırın — cihazınızda yerel olarak işlenir", .es: "Pega una URL de lista M3U / M3U8 — se analiza localmente en tu dispositivo"],
-        "login.signin":     [.ar: "دخول",       .en: "Sign In",         .fr: "Se connecter",    .tr: "Giriş Yap",       .es: "Iniciar sesión"],
-        "login.load_playlist":[.ar: "افتح القائمة", .en: "Open the playlist", .fr: "Charger la liste", .tr: "Listeyi Yükle",  .es: "Cargar lista"],
+        "login.m3u_hint":   [.ar: "ألصق رابط M3U أو M3U8 — يُقرأ على جهازك ولا يغادره", .en: "Paste an M3U or M3U8 link — read on your device, never sent anywhere", .fr: "Collez un lien M3U ou M3U8 — lu sur votre appareil, jamais envoyé ailleurs", .tr: "Bir M3U ya da M3U8 bağlantısı yapıştırın — cihazınızda okunur, hiçbir yere gönderilmez", .es: "Pega un enlace M3U o M3U8 — se lee en tu dispositivo y no sale de ahí"],
+        "login.signin":     [.ar: "دخول",       .en: "Sign In",         .fr: "Connexion",    .tr: "Giriş Yap",       .es: "Iniciar sesión"],
+        "login.load_playlist":[.ar: "افتح القائمة", .en: "Open the playlist", .fr: "Ouvrir la liste", .tr: "Listeyi aç",  .es: "Abrir la lista"],
         "login.need_url":      [.ar: "أدخل رابط السيرفر كاملاً — مثل http://host:8080", .en: "Enter the full server URL — e.g. http://host:8080", .fr: "Saisissez l'URL complète du serveur — ex. http://host:8080", .tr: "Tam sunucu adresini girin — örn. http://host:8080", .es: "Introduce la URL completa del servidor — p. ej. http://host:8080"],
         "login.server_or_code":[.ar: "رابط السيرفر", .en: "Server URL", .fr: "URL du serveur", .tr: "Sunucu adresi", .es: "URL del servidor"],
-        "login.server_hint":[.ar: "يعطيك إيّاه مزوّدك · مثل http://host:8080", .en: "Your provider gives you this · e.g. http://host:8080", .fr: "De votre fournisseur · ex. http://host:8080", .tr: "Sağlayıcınızdan · örn. http://host:8080", .es: "De tu proveedor · ej. http://host:8080"],
-        "login.demo":       [.ar: "ادخل للتجربة أولاً", .en: "Try it first", .fr: "Parcourir en mode démo", .tr: "Demo olarak gözat", .es: "Explorar en modo demo"],
-        "login.need_help":  [.ar: "تعثّر التفعيل؟ الدعم جاهز", .en: "Activation stuck? Support is here", .fr: "Besoin d'aide pour l'activation ? Contactez le support", .tr: "Etkinleştirmede yardım mı lazım? Destekle iletişime geçin", .es: "¿Necesitas ayuda para activar? Contacta con soporte"],
-        "login.agree":      [.ar: "بدخولك أنت توافق على", .en: "By signing in you agree to", .fr: "En utilisant l'app, vous acceptez", .tr: "Uygulamayı kullanarak şunları kabul edersiniz", .es: "Al usar la app aceptas"],
+        "login.server_hint":[.ar: "يعطيك إيّاه مزوّدك · مثل http://host:8080", .en: "Your provider gives you this · e.g. http://host:8080", .fr: "Fourni par votre opérateur · ex. http://host:8080", .tr: "Sağlayıcınız verir · örn. http://host:8080", .es: "Te lo da tu proveedor · ej. http://host:8080"],
+        "login.demo":       [.ar: "ادخل للتجربة أولاً", .en: "Try it first", .fr: "Essayer d'abord", .tr: "Önce dene", .es: "Probar primero"],
+        "login.need_help":  [.ar: "تعثّر التفعيل؟ الدعم جاهز", .en: "Activation stuck? Support is here", .fr: "L'activation bloque ? Le support est là", .tr: "Etkinleştirme takıldı mı? Destek burada", .es: "¿Se atasca la activación? Soporte está aquí"],
+        "login.agree":      [.ar: "بدخولك أنت توافق على", .en: "By signing in you agree to", .fr: "En vous connectant, vous acceptez", .tr: "Giriş yaparak şunları kabul edersiniz", .es: "Al iniciar sesión aceptas"],
         "login.and":        [.ar: "و",                  .en: "and",             .fr: "et",              .tr: "ve",              .es: "y"],
-        "login.mode_m3u":   [.ar: "رابط قائمة",           .en: "Playlist link",         .fr: "URL M3U",         .tr: "M3U Bağlantısı",  .es: "URL M3U"],
+        "login.mode_m3u":   [.ar: "رابط قائمة",           .en: "Playlist link",         .fr: "Lien de liste",         .tr: "Liste bağlantısı",  .es: "Enlace de lista"],
         "common.error":     [.ar: "خطأ",                .en: "Error",           .fr: "Erreur",          .tr: "Hata",            .es: "Error"],
 
         // Splash
         "splash.device_id": [.ar: "معرّف الجهاز",       .en: "Device ID",       .fr: "ID de l'appareil",.tr: "Cihaz Kimliği",   .es: "ID del dispositivo"],
 
         // Privacy policy
-        "privacy.collect.t": [.ar: "ما نجمعه", .en: "What we collect", .fr: "Informations que nous collectons", .tr: "Topladığımız Bilgiler", .es: "Información que recopilamos"],
-        "privacy.collect.b": [.ar: "بيانات دخولك، ومعرّف جهازك، وإحصاءات استخدام أساسية بموافقتك. لا شيء غير ذلك.", .en: "Your sign-in details, your device ID, and basic usage statistics with your consent. Nothing else.", .fr: "Nous ne collectons que vos données de connexion, l'ID de l'appareil et des statistiques d'usage de base avec votre consentement.", .tr: "Yalnızca giriş verilerinizi, cihaz kimliğinizi ve onayınızla temel kullanım istatistiklerini topluyoruz.", .es: "Solo recopilamos datos de inicio de sesión, el ID del dispositivo y analítica de uso básica con tu consentimiento."],
-        "privacy.use.t":     [.ar: "فيمَ نستخدمها", .en: "What we use it for", .fr: "Comment nous utilisons les données", .tr: "Verileri Nasıl Kullanırız", .es: "Cómo usamos los datos"],
-        "privacy.use.b":     [.ar: "لتشغيل الخدمة، ولتحسين التطبيق، ولإشعارات تخصّ حسابك وحده.", .en: "To run the service, to improve the app, and for notifications about your account alone.", .fr: "Nous utilisons les données pour fournir le service, améliorer l'app et envoyer des notifications liées à votre compte uniquement.", .tr: "Verileri yalnızca hizmeti sunmak, uygulamayı geliştirmek ve hesabınızla ilgili bildirimler göndermek için kullanırız.", .es: "Usamos los datos solo para prestar el servicio, mejorar la app y enviar notificaciones relacionadas con tu cuenta."],
-        "privacy.share.t":   [.ar: "من يطّلع عليها",   .en: "Who sees it",    .fr: "Partage des données", .tr: "Veri Paylaşımı", .es: "Compartir datos"],
-        "privacy.share.b":   [.ar: "لا أحد. لا نبيع بياناتك الشخصية ولا نشاركها مع أي طرف ثالث، تحت أي ظرف.", .en: "Nobody. We do not sell your personal data and we do not share it with any third party, under any circumstances.", .fr: "Nous ne vendons ni ne partageons jamais vos données personnelles avec un tiers, en aucune circonstance.", .tr: "Kişisel verilerinizi hiçbir koşulda üçüncü taraflarla satmaz veya paylaşmayız.", .es: "Nunca vendemos ni compartimos tus datos personales con terceros bajo ninguna circunstancia."],
-        "privacy.security.t":[.ar: "كيف نحميها",     .en: "How we protect it",   .fr: "Sécurité des données", .tr: "Veri Güvenliği", .es: "Seguridad de los datos"],
-        "privacy.security.b":[.ar: "نشفّر كلمات المرور ونؤمّن الاتصال بخوادمنا. أمّا روابط البثّ فيتحكّم بها مزوّدك، وقد تصلك دون تشفير.", .en: "We encrypt passwords and secure the connection to our servers. Stream links, however, are controlled by your provider and may reach you unencrypted.", .fr: "Nous protégeons vos données de compte par le chiffrement des mots de passe et des connexions sécurisées à nos serveurs. Les liens de diffusion que vous ajoutez sont contrôlés par votre fournisseur et peuvent être non chiffrés.", .tr: "Hesap verilerinizi şifre şifrelemesi ve sunucularımıza güvenli bağlantılarla koruruz. Eklediğiniz yayın bağlantıları sağlayıcınız tarafından kontrol edilir ve şifresiz olabilir.", .es: "Protegemos los datos de tu cuenta con cifrado de contraseñas y conexiones seguras a nuestros servidores. Los enlaces de transmisión que añades los controla tu proveedor y pueden no estar cifrados."],
-        "privacy.rights.t":  [.ar: "ما تملكه أنت",             .en: "What is yours",     .fr: "Vos droits",      .tr: "Haklarınız",      .es: "Tus derechos"],
-        "privacy.rights.b":  [.ar: "تستطيع حذف حسابك وكل بياناتك متى شئت، من داخل الإعدادات.", .en: "You can delete your account and all of your data whenever you like, from inside Settings.", .fr: "Vous pouvez supprimer votre compte et toutes vos données à tout moment depuis les réglages de l'app.", .tr: "Hesabınızı ve tüm verilerinizi istediğiniz zaman uygulama ayarlarından silebilirsiniz.", .es: "Puedes eliminar tu cuenta y todos tus datos en cualquier momento desde los ajustes de la app."],
-        "privacy.content.t": [.ar: "عن المحتوى",           .en: "About the content",         .fr: "Contenu",         .tr: "İçerik",          .es: "Contenido"],
-        "privacy.content.b": [.ar: "التطبيق أداة تشغيل لا أكثر. مشروعية ما تصل إليه مسؤوليتك وحدك.", .en: "The app is a player, nothing more. Whether what you reach is lawful is your responsibility alone.", .fr: "L'app n'est qu'un outil de lecture. L'utilisateur est entièrement responsable de la légalité du contenu auquel il accède.", .tr: "Uygulama yalnızca bir oynatıcı aracıdır. Eriştiği içeriğin yasallığından tamamen kullanıcı sorumludur.", .es: "La app es solo una herramienta de reproducción. El usuario es totalmente responsable de la legalidad del contenido al que accede."],
-        "privacy.updated":   [.ar: "آخر تحديث: يوليو ٢٠٢٦", .en: "Last updated: July 2026", .fr: "Dernière mise à jour : juin 2026", .tr: "Son güncelleme: Haziran 2026", .es: "Última actualización: junio de 2026"],
+        "privacy.collect.t": [.ar: "ما نجمعه", .en: "What we collect", .fr: "Ce que nous collectons", .tr: "Neleri topluyoruz", .es: "Qué recopilamos"],
+        "privacy.collect.b": [.ar: "بيانات دخولك، ومعرّف جهازك، وإحصاءات استخدام أساسية بموافقتك. لا شيء غير ذلك.", .en: "Your sign-in details, your device ID, and basic usage statistics with your consent. Nothing else.", .fr: "Vos identifiants de connexion, l'ID de l'appareil et des statistiques d'usage de base, avec votre accord. Rien d'autre.", .tr: "Giriş bilgileriniz, cihaz kimliğiniz ve onayınızla temel kullanım istatistikleri. Başka hiçbir şey.", .es: "Tus datos de acceso, el ID del dispositivo y estadísticas de uso básicas, con tu permiso. Nada más."],
+        "privacy.use.t":     [.ar: "فيمَ نستخدمها", .en: "What we use it for", .fr: "À quoi elles servent", .tr: "Ne için kullanıyoruz", .es: "Para qué los usamos"],
+        "privacy.use.b":     [.ar: "لتشغيل الخدمة، ولتحسين التطبيق، ولإشعارات تخصّ حسابك وحده.", .en: "To run the service, to improve the app, and for notifications about your account alone.", .fr: "À faire fonctionner le service, à améliorer l'app et à vous notifier au sujet de votre compte, rien de plus.", .tr: "Hizmeti çalıştırmak, uygulamayı iyileştirmek ve yalnızca hesabınızla ilgili bildirimler göndermek için.", .es: "Para que el servicio funcione, para mejorar la app y para avisarte solo sobre tu cuenta."],
+        "privacy.share.t":   [.ar: "من يطّلع عليها",   .en: "Who sees it",    .fr: "Qui y a accès", .tr: "Kim görebilir", .es: "Quién los ve"],
+        "privacy.share.b":   [.ar: "لا أحد. لا نبيع بياناتك الشخصية ولا نشاركها مع أي طرف ثالث، تحت أي ظرف.", .en: "Nobody. We do not sell your personal data and we do not share it with any third party, under any circumstances.", .fr: "Personne. Nous ne vendons pas vos données personnelles et ne les partageons avec aucun tiers, en aucun cas.", .tr: "Hiç kimse. Kişisel verilerinizi satmayız ve hiçbir koşulda üçüncü kişilerle paylaşmayız.", .es: "Nadie. No vendemos tus datos personales ni los compartimos con terceros, bajo ninguna circunstancia."],
+        "privacy.security.t":[.ar: "كيف نحميها",     .en: "How we protect it",   .fr: "Comment nous les protégeons", .tr: "Nasıl koruyoruz", .es: "Cómo los protegemos"],
+        "privacy.security.b":[.ar: "نشفّر كلمات المرور ونؤمّن الاتصال بخوادمنا. أمّا روابط البثّ فيتحكّم بها مزوّدك، وقد تصلك دون تشفير.", .en: "We encrypt passwords and secure the connection to our servers. Stream links, however, are controlled by your provider and may reach you unencrypted.", .fr: "Nous chiffrons les mots de passe et sécurisons la liaison avec nos serveurs. Les liens de diffusion, eux, dépendent de votre fournisseur et peuvent vous parvenir sans chiffrement.", .tr: "Şifreleri şifreler, sunucularımıza olan bağlantıyı güvene alırız. Yayın bağlantıları ise sağlayıcınızın denetimindedir ve size şifresiz ulaşabilir.", .es: "Ciframos las contraseñas y aseguramos la conexión con nuestros servidores. Los enlaces de emisión, en cambio, los controla tu proveedor y pueden llegarte sin cifrar."],
+        "privacy.rights.t":  [.ar: "ما تملكه أنت",             .en: "What is yours",     .fr: "Ce qui vous appartient",      .tr: "Size ait olan",      .es: "Lo que es tuyo"],
+        "privacy.rights.b":  [.ar: "تستطيع حذف حسابك وكل بياناتك متى شئت، من داخل الإعدادات.", .en: "You can delete your account and all of your data whenever you like, from inside Settings.", .fr: "Vous pouvez supprimer votre compte et toutes vos données quand vous le souhaitez, depuis les réglages.", .tr: "Hesabınızı ve tüm verilerinizi dilediğiniz an Ayarlar'dan silebilirsiniz.", .es: "Puedes eliminar tu cuenta y todos tus datos cuando quieras, desde Ajustes."],
+        "privacy.content.t": [.ar: "عن المحتوى",           .en: "About the content",         .fr: "À propos du contenu",         .tr: "İçerik hakkında",          .es: "Sobre el contenido"],
+        "privacy.content.b": [.ar: "التطبيق أداة تشغيل لا أكثر. مشروعية ما تصل إليه مسؤوليتك وحدك.", .en: "The app is a player, nothing more. Whether what you reach is lawful is your responsibility alone.", .fr: "L'app est un lecteur, rien de plus. La légalité de ce que vous atteignez ne relève que de vous.", .tr: "Uygulama bir oynatıcıdır, fazlası değil. Eriştiğiniz içeriğin yasallığı yalnızca sizin sorumluluğunuzdadır.", .es: "La app es un reproductor, nada más. La legalidad de lo que abras es solo responsabilidad tuya."],
+        "privacy.updated":   [.ar: "آخر تحديث: يوليو ٢٠٢٦", .en: "Last updated: July 2026", .fr: "Dernière mise à jour : juillet 2026", .tr: "Son güncelleme: Temmuz 2026", .es: "Última actualización: julio de 2026"],
 
         // Terms
-        "terms.accept.t":    [.ar: "موافقتك",       .en: "Your agreement", .fr: "Acceptation des conditions", .tr: "Şartların Kabulü", .es: "Aceptación de los términos"],
+        "terms.accept.t":    [.ar: "موافقتك",       .en: "Your agreement", .fr: "Votre accord", .tr: "Onayınız", .es: "Tu acuerdo"],
         "terms.accept.b":    [.ar: "باستخدام تطبيق %@، فإنك تقبل هذه الشروط والأحكام بالكامل.", .en: "By using the %@ app, you fully accept these terms and conditions.", .fr: "En utilisant l'application %@, vous acceptez pleinement ces conditions générales.", .tr: "%@ uygulamasını kullanarak bu şartları ve koşulları tamamen kabul edersiniz.", .es: "Al usar la aplicación %@, aceptas plenamente estos términos y condiciones."],
-        "terms.use.t":       [.ar: "حدود الاستخدام", .en: "Limits of use",   .fr: "Utilisation autorisée", .tr: "İzin Verilen Kullanım", .es: "Uso permitido"],
-        "terms.use.b":       [.ar: "التطبيق للاستخدام الشخصي وحده. إعادة التوزيع أو الاستخدام التجاري ممنوعان.", .en: "The app is for personal use alone. Redistribution and commercial use are not permitted.", .fr: "L'app est réservée à un usage personnel. La redistribution ou l'usage commercial est interdit.", .tr: "Uygulama yalnızca kişisel kullanım içindir. Yeniden dağıtım veya ticari kullanım yasaktır.", .es: "La app es solo para uso personal. Se prohíbe la redistribución o el uso comercial."],
-        "terms.content.t":   [.ar: "من يتحمّل مسؤولية المحتوى",   .en: "Who is responsible for the content", .fr: "Responsabilité du contenu", .tr: "İçerik Sorumluluğu", .es: "Responsabilidad del contenido"],
-        "terms.content.b":   [.ar: "أنت وحدك. طبيعة ما تصل إليه ومشروعيته مسؤوليتك التامة.", .en: "You alone. The nature and the lawfulness of what you reach are entirely your responsibility.", .fr: "L'utilisateur est entièrement responsable de la nature et de la légalité du contenu auquel il accède.", .tr: "Kullanıcı, eriştiği içeriğin niteliği ve yasallığından tamamen sorumludur.", .es: "El usuario es totalmente responsable de la naturaleza y legalidad del contenido al que accede."],
-        "terms.terminate.t": [.ar: "متى نوقف حسابك",      .en: "When we close an account",     .fr: "Résiliation",     .tr: "Fesih",           .es: "Terminación"],
-        "terms.terminate.b": [.ar: "عند مخالفة هذه الشروط أو أي استخدام غير قانوني، نحتفظ بحقّ إنهاء حسابك.", .en: "If these terms are broken or the app is used unlawfully, we reserve the right to end your account.", .fr: "Nous nous réservons le droit de résilier votre compte en cas de violation de ces conditions ou d'usage illégal.", .tr: "Bu şartların ihlali veya yasa dışı kullanım durumunda hesabınızı feshetme hakkımız saklıdır.", .es: "Nos reservamos el derecho de cancelar tu cuenta por incumplir estos términos o por uso ilegal."],
-        "terms.changes.t":   [.ar: "إن تغيّرت الشروط",         .en: "If the terms change",         .fr: "Modifications",   .tr: "Değişiklikler",   .es: "Cambios"],
-        "terms.changes.b":   [.ar: "قد نعدّل هذه الشروط. استمرارك في الاستخدام بعد التعديل يعني قبولك بها.", .en: "We may amend these terms. Carrying on using the app after an amendment means you accept it.", .fr: "Nous nous réservons le droit de modifier ces conditions. La poursuite de l'utilisation vaut acceptation des conditions mises à jour.", .tr: "Bu şartları değiştirme hakkımız saklıdır. Kullanmaya devam etmek, güncellenen şartların kabulü anlamına gelir.", .es: "Nos reservamos el derecho de modificar estos términos. El uso continuado implica la aceptación de los términos actualizados."],
+        "terms.use.t":       [.ar: "حدود الاستخدام", .en: "Limits of use",   .fr: "Limites d'utilisation", .tr: "Kullanım sınırları", .es: "Límites de uso"],
+        "terms.use.b":       [.ar: "التطبيق للاستخدام الشخصي وحده. إعادة التوزيع أو الاستخدام التجاري ممنوعان.", .en: "The app is for personal use alone. Redistribution and commercial use are not permitted.", .fr: "L'app est réservée à votre usage personnel. La redistribution et l'exploitation commerciale sont exclues.", .tr: "Uygulama yalnızca kişisel kullanımınız içindir. Yeniden dağıtım ve ticari kullanım kabul edilmez.", .es: "La app es solo para tu uso personal. No se admite la redistribución ni el uso comercial."],
+        "terms.content.t":   [.ar: "من يتحمّل مسؤولية المحتوى",   .en: "Who is responsible for the content", .fr: "Qui répond du contenu", .tr: "İçerikten kim sorumlu", .es: "Quién responde del contenido"],
+        "terms.content.b":   [.ar: "أنت وحدك. طبيعة ما تصل إليه ومشروعيته مسؤوليتك التامة.", .en: "You alone. The nature and the lawfulness of what you reach are entirely your responsibility.", .fr: "Vous seul. La nature et la légalité de ce que vous atteignez relèvent entièrement de vous.", .tr: "Yalnızca siz. Eriştiğiniz içeriğin niteliği ve yasallığı tümüyle size aittir.", .es: "Solo tú. La naturaleza y la legalidad de lo que abras dependen enteramente de ti."],
+        "terms.terminate.t": [.ar: "متى نوقف حسابك",      .en: "When we close an account",     .fr: "Quand un compte est fermé",     .tr: "Hesabı ne zaman kapatırız",           .es: "Cuándo cerramos una cuenta"],
+        "terms.terminate.b": [.ar: "عند مخالفة هذه الشروط أو أي استخدام غير قانوني، نحتفظ بحقّ إنهاء حسابك.", .en: "If these terms are broken or the app is used unlawfully, we reserve the right to end your account.", .fr: "En cas de manquement à ces conditions ou d'usage illicite, nous pouvons mettre fin à votre compte.", .tr: "Bu şartlara uyulmaması ya da yasa dışı kullanım hâlinde hesabınızı kapatma hakkımız saklıdır.", .es: "Si se incumplen estos términos o se usa la app de forma ilegal, podemos cerrar tu cuenta."],
+        "terms.changes.t":   [.ar: "إن تغيّرت الشروط",         .en: "If the terms change",         .fr: "Si les conditions changent",   .tr: "Şartlar değişirse",   .es: "Si los términos cambian"],
+        "terms.changes.b":   [.ar: "قد نعدّل هذه الشروط. استمرارك في الاستخدام بعد التعديل يعني قبولك بها.", .en: "We may amend these terms. Carrying on using the app after an amendment means you accept it.", .fr: "Ces conditions peuvent évoluer. Continuer à utiliser l'app après une modification vaut acceptation.", .tr: "Bu şartlar değişebilir. Değişiklikten sonra uygulamayı kullanmayı sürdürmeniz kabul anlamına gelir.", .es: "Estos términos pueden cambiar. Seguir usando la app tras un cambio significa que lo aceptas."],
 
         // Activation gate
-        "actgate.checking": [.ar: "نتأكّد من تفعيلك…", .en: "Checking your activation…", .fr: "Vérification de l'activation…", .tr: "Etkinleştirme kontrol ediliyor…", .es: "Comprobando activación…"],
-        "maintenance.title":[.ar: "صيانة قصيرة", .en: "Brief maintenance", .fr: "En maintenance", .tr: "Bakımda", .es: "En mantenimiento"],
-        "maintenance.message":[.ar: "نُحسّن الخدمة الآن. عُد بعد قليل.", .en: "We're improving the service. Come back shortly.", .fr: "Nous effectuons des améliorations. Veuillez réessayer sous peu.", .tr: "İyileştirmeler yapıyoruz. Lütfen birazdan tekrar deneyin.", .es: "Estamos mejorando el servicio. Inténtalo de nuevo en breve."],
-        "update.title":     [.ar: "يلزم تحديث", .en: "Update needed", .fr: "Mise à jour requise", .tr: "Güncelleme gerekli", .es: "Actualización requerida"],
-        "update.message":   [.ar: "هذه النسخة قديمة. حدّثها للمتابعة.", .en: "This version is out of date. Update it to carry on.", .fr: "Veuillez mettre à jour vers la dernière version pour continuer.", .tr: "Devam etmek için lütfen en son sürüme güncelleyin.", .es: "Actualiza a la última versión para continuar."],
+        "actgate.checking": [.ar: "نتأكّد من تفعيلك…", .en: "Checking your activation…", .fr: "On vérifie votre activation…", .tr: "Etkinleştirmeniz denetleniyor…", .es: "Comprobando tu activación…"],
+        "maintenance.title":[.ar: "صيانة قصيرة", .en: "Brief maintenance", .fr: "Courte maintenance", .tr: "Kısa bir bakım", .es: "Mantenimiento breve"],
+        "maintenance.message":[.ar: "نُحسّن الخدمة الآن. عُد بعد قليل.", .en: "We're improving the service. Come back shortly.", .fr: "Nous améliorons le service. Revenez dans un instant.", .tr: "Hizmeti iyileştiriyoruz. Birazdan tekrar uğrayın.", .es: "Estamos mejorando el servicio. Vuelve en un momento."],
+        "update.title":     [.ar: "يلزم تحديث", .en: "Update needed", .fr: "Mise à jour nécessaire", .tr: "Güncelleme gerekiyor", .es: "Hace falta actualizar"],
+        "update.message":   [.ar: "هذه النسخة قديمة. حدّثها للمتابعة.", .en: "This version is out of date. Update it to carry on.", .fr: "Cette version est dépassée. Mettez-la à jour pour continuer.", .tr: "Bu sürüm eskidi. Devam etmek için güncelleyin.", .es: "Esta versión está anticuada. Actualízala para seguir."],
         "update.latest":    [.ar: "الإصدار الأحدث:", .en: "Newest version:", .fr: "Dernière version :", .tr: "En son sürüm:", .es: "Última versión:"],
-        "update.button":    [.ar: "حدّث الآن", .en: "Update now", .fr: "Mettre à jour", .tr: "Şimdi güncelle", .es: "Actualizar ahora"],
+        "update.button":    [.ar: "حدّث الآن", .en: "Update now", .fr: "Mettre à jour maintenant", .tr: "Şimdi güncelle", .es: "Actualizar ahora"],
         "actgate.device_id":[.ar: "معرّف جهازك",        .en: "Your device ID",  .fr: "ID de votre appareil", .tr: "Cihaz Kimliğiniz", .es: "ID de tu dispositivo"],
         "actgate.copied":   [.ar: "نُسخ ✓",         .en: "Copied ✓",        .fr: "Copié ✓",         .tr: "Kopyalandı ✓",    .es: "Copiado ✓"],
         "actgate.copy_id":  [.ar: "انسخ المعرّف",        .en: "Copy the ID",         .fr: "Copier l'ID",     .tr: "Kimliği Kopyala", .es: "Copiar ID"],
-        "actgate.recheck":  [.ar: "أعد الفحص",     .en: "Check again",     .fr: "Vérifier à nouveau", .tr: "Tekrar Kontrol Et", .es: "Comprobar de nuevo"],
-        "actgate.contact":  [.ar: "الدعم يفعّل لك الجهاز", .en: "Support can activate your device", .fr: "Contactez le support pour activer", .tr: "Etkinleştirmek için destekle iletişime geçin", .es: "Contacta con soporte para activar"],
-        "actgate.demo":     [.ar: "ادخل للتجربة أولاً", .en: "Try it first", .fr: "Parcourir en mode démo", .tr: "Demo olarak gözat", .es: "Explorar en modo demo"],
-        "actgate.blocked.title":  [.ar: "الجهاز موقوف", .en: "Device suspended", .fr: "Cet appareil est bloqué", .tr: "Bu cihaz engellendi", .es: "Este dispositivo está bloqueado"],
-        "actgate.offline.title":  [.ar: "لا اتصال", .en: "No connection", .fr: "Échec de la connexion", .tr: "Bağlantı başarısız", .es: "Error de conexión"],
-        "actgate.notactive.title":[.ar: "لم يُفعَّل بعد", .en: "Not activated yet", .fr: "Appareil non activé", .tr: "Cihaz etkin değil", .es: "Dispositivo no activado"],
-        "actgate.offline.msg":    [.ar: "لا نصل إلى الشبكة. تحقّق من اتصالك ثم حاول ثانيةً.", .en: "We can't reach the network. Check your connection and try again.", .fr: "Vérifiez votre connexion Internet et réessayez.", .tr: "İnternet bağlantınızı kontrol edip tekrar deneyin.", .es: "Comprueba tu conexión a Internet e inténtalo de nuevo."],
-        "actgate.blocked.msg":    [.ar: "أُوقف هذا الجهاز عن الخدمة. موزّعك وحده يستطيع إعادة تفعيله.", .en: "This device has been suspended. Only your reseller can activate it again.", .fr: "Cet appareil a été bloqué. Contactez votre revendeur pour plus d'informations.", .tr: "Bu cihaz engellendi. Daha fazla bilgi için bayinizle iletişime geçin.", .es: "Este dispositivo ha sido bloqueado. Contacta con tu distribuidor para más información."],
-        "actgate.notactive.msg":  [.ar: "أرسل معرّف جهازك أعلاه إلى موزّعك، وحين يفعّله اضغط «أعد الفحص».", .en: "Send the device ID above to your reseller, then tap “Check again” once they activate it.", .fr: "Envoyez l'ID de l'appareil ci-dessus à votre revendeur pour activer l'app, puis appuyez sur « Vérifier à nouveau ».", .tr: "Uygulamayı etkinleştirmek için yukarıdaki cihaz kimliğini bayinize gönderin, ardından \"Tekrar Kontrol Et\"e dokunun.", .es: "Envía el ID del dispositivo de arriba a tu distribuidor para activar la app y luego pulsa \"Comprobar de nuevo\"."],
-        "trial.banner":     [.ar: "وضع التجربة",       .en: "Trial mode",      .fr: "Version d'essai", .tr: "Deneme Sürümü",   .es: "Versión de prueba"],
+        "actgate.recheck":  [.ar: "أعد الفحص",     .en: "Check again",     .fr: "Revérifier", .tr: "Yeniden denetle", .es: "Volver a comprobar"],
+        "actgate.contact":  [.ar: "الدعم يفعّل لك الجهاز", .en: "Support can activate your device", .fr: "Le support peut activer votre appareil", .tr: "Destek ekibi cihazınızı etkinleştirebilir", .es: "Soporte puede activar tu dispositivo"],
+        "actgate.demo":     [.ar: "ادخل للتجربة أولاً", .en: "Try it first", .fr: "Essayer d'abord", .tr: "Önce dene", .es: "Probar primero"],
+        "actgate.blocked.title":  [.ar: "الجهاز موقوف", .en: "Device suspended", .fr: "Appareil suspendu", .tr: "Cihaz askıya alındı", .es: "Dispositivo suspendido"],
+        "actgate.offline.title":  [.ar: "لا اتصال", .en: "No connection", .fr: "Pas de connexion", .tr: "Bağlantı yok", .es: "Sin conexión"],
+        "actgate.notactive.title":[.ar: "لم يُفعَّل بعد", .en: "Not activated yet", .fr: "Pas encore activé", .tr: "Henüz etkinleştirilmedi", .es: "Aún sin activar"],
+        "actgate.offline.msg":    [.ar: "لا نصل إلى الشبكة. تحقّق من اتصالك ثم حاول ثانيةً.", .en: "We can't reach the network. Check your connection and try again.", .fr: "Le réseau est injoignable. Contrôlez votre connexion et réessayez.", .tr: "Ağa ulaşamıyoruz. Bağlantınızı kontrol edip yeniden deneyin.", .es: "No llegamos a la red. Revisa tu conexión e inténtalo otra vez."],
+        "actgate.blocked.msg":    [.ar: "أُوقف هذا الجهاز عن الخدمة. موزّعك وحده يستطيع إعادة تفعيله.", .en: "This device has been suspended. Only your reseller can activate it again.", .fr: "Cet appareil a été suspendu. Seul votre revendeur peut le réactiver.", .tr: "Bu cihaz askıya alındı. Yalnızca bayiniz yeniden etkinleştirebilir.", .es: "Este dispositivo ha sido suspendido. Solo tu distribuidor puede reactivarlo."],
+        "actgate.notactive.msg":  [.ar: "أرسل معرّف جهازك أعلاه إلى موزّعك، وحين يفعّله اضغط «أعد الفحص».", .en: "Send the device ID above to your reseller, then tap “Check again” once they activate it.", .fr: "Envoyez l'ID ci-dessus à votre revendeur, puis touchez « Revérifier » dès qu'il l'active.", .tr: "Yukarıdaki cihaz kimliğini bayinize gönderin, etkinleştirdiğinde \"Yeniden denetle\"ye dokunun.", .es: "Envía el ID de arriba a tu distribuidor y, cuando lo active, pulsa \"Volver a comprobar\"."],
+        "trial.banner":     [.ar: "وضع التجربة",       .en: "Trial mode",      .fr: "Mode essai", .tr: "Deneme modu",   .es: "Modo de prueba"],
 
         // Content lists / empties
         "live.empty.title": [.ar: "لا توجد قنوات",      .en: "No channels",     .fr: "Aucune chaîne",   .tr: "Kanal yok",       .es: "Sin canales"],
-        "live.empty.sub":   [.ar: "جرّب كلمات بحث مختلفة", .en: "Try different search terms", .fr: "Essayez d'autres termes", .tr: "Farklı arama terimleri deneyin", .es: "Prueba otros términos de búsqueda"],
+        "live.empty.sub":   [.ar: "جرّب كلمات بحث مختلفة", .en: "Try different search terms", .fr: "Essayez d'autres mots", .tr: "Başka kelimeler deneyin", .es: "Prueba con otras palabras"],
         "cats.channels":    [.ar: "تصنيفات القنوات",      .en: "Channel categories", .fr: "Catégories de chaînes", .tr: "Kanal Kategorileri", .es: "Categorías de canales"],
         "cats.movies":      [.ar: "تصنيفات الأفلام",      .en: "Movie categories", .fr: "Catégories de films", .tr: "Film Kategorileri", .es: "Categorías de películas"],
         "cats.series":      [.ar: "تصنيفات المسلسلات",    .en: "Series categories", .fr: "Catégories de séries", .tr: "Dizi Kategorileri", .es: "Categorías de series"],
         "cats.empty.title": [.ar: "لا أقسام",           .en: "No categories",   .fr: "Aucune catégorie",.tr: "Kategori yok",    .es: "Sin categorías"],
         "cats.empty.sub":   [.ar: "جرّب بحثاً مختلفاً", .en: "Try a different search", .fr: "Essayez une autre recherche", .tr: "Farklı bir arama deneyin", .es: "Prueba otra búsqueda"],
-        "history.empty":    [.ar: "لا سجل مشاهدة",      .en: "No watch history", .fr: "Aucun historique", .tr: "İzleme geçmişi yok", .es: "Sin historial"],
+        "history.empty":    [.ar: "لا سجل مشاهدة",      .en: "No watch history", .fr: "Aucun historique de visionnage", .tr: "İzleme geçmişi yok", .es: "Sin historial de visionado"],
         "history.empty.generic":[.ar: "لا سجل",         .en: "No history",      .fr: "Aucun historique",.tr: "Geçmiş yok",      .es: "Sin historial"],
-        "history.empty.sub":[.ar: "سيظهر هنا ما تشاهده", .en: "What you watch will appear here", .fr: "Ce que vous regardez apparaîtra ici", .tr: "İzledikleriniz burada görünecek", .es: "Lo que veas aparecerá aquí"],
+        "history.empty.sub":[.ar: "سيظهر هنا ما تشاهده", .en: "What you watch will appear here", .fr: "Vos visionnages s'afficheront ici", .tr: "İzledikleriniz burada listelenir", .es: "Lo que veas se mostrará aquí"],
         "movies.empty":     [.ar: "لا توجد أفلام",      .en: "No movies",       .fr: "Aucun film",      .tr: "Film yok",        .es: "Sin películas"],
         "movies.empty.fav": [.ar: "لا أفلام في المفضّلة", .en: "No favorite movies", .fr: "Aucun film favori", .tr: "Favori film yok", .es: "Sin películas favoritas"],
         "series.empty":     [.ar: "لا توجد مسلسلات",    .en: "No series",       .fr: "Aucune série",    .tr: "Dizi yok",        .es: "Sin series"],
@@ -490,27 +490,27 @@ enum L10n {
         "search.empty.sub": [.ar: "جرب كلمات مختلفة",   .en: "Try different keywords", .fr: "Essayez d'autres mots-clés", .tr: "Farklı kelimeler deneyin", .es: "Prueba otras palabras"],
         "search.recent":    [.ar: "بحثت مؤخّراً", .en: "Searched recently", .fr: "Recherches récentes", .tr: "Son aramalar", .es: "Búsquedas recientes"],
         "search.clear_all": [.ar: "مسح الكل",           .en: "Clear All",       .fr: "Tout effacer",    .tr: "Tümünü Temizle",  .es: "Borrar todo"],
-        "search.type.live": [.ar: "بث مباشر",           .en: "Live",            .fr: "En direct",       .tr: "Canlı",           .es: "En vivo"],
+        "search.type.live": [.ar: "بث مباشر",           .en: "Live",            .fr: "En direct",       .tr: "Canlı",           .es: "En directo"],
         "search.type.movie":[.ar: "فيلم",               .en: "Movie",           .fr: "Film",            .tr: "Film",            .es: "Película"],
         "search.type.series":[.ar: "مسلسل",             .en: "Series",          .fr: "Série",           .tr: "Dizi",            .es: "Serie"],
         "search.type.all":  [.ar: "الكل",               .en: "All",             .fr: "Tout",            .tr: "Tümü",            .es: "Todo"],
         "search.failed.title":[.ar: "تعذّر البحث",       .en: "Search failed",   .fr: "Échec de la recherche", .tr: "Arama başarısız", .es: "Error en la búsqueda"],
         "search.failed.sub": [.ar: "تحقّق من اتصالك وحاول مرة أخرى", .en: "Check your connection and try again", .fr: "Vérifiez votre connexion et réessayez", .tr: "Bağlantınızı kontrol edip tekrar deneyin", .es: "Revisa tu conexión e inténtalo de nuevo"],
-        "search.start.title":[.ar: "ما الذي تبحث عنه؟",         .en: "What are you after?", .fr: "Commencer la recherche", .tr: "Aramaya başla", .es: "Empieza a buscar"],
-        "search.start.sub":  [.ar: "اختر النوع، ثم اكتب", .en: "Pick a type, then start typing", .fr: "Choisissez une section et saisissez votre recherche", .tr: "Bir bölüm seçin ve aradığınızı yazın", .es: "Elige una sección y escribe lo que buscas"],
+        "search.start.title":[.ar: "ما الذي تبحث عنه؟",         .en: "What are you after?", .fr: "Que cherchez-vous ?", .tr: "Ne arıyorsunuz?", .es: "¿Qué estás buscando?"],
+        "search.start.sub":  [.ar: "اختر النوع، ثم اكتب", .en: "Pick a type, then start typing", .fr: "Choisissez un type, puis tapez", .tr: "Bir tür seçin, sonra yazmaya başlayın", .es: "Elige un tipo y empieza a escribir"],
 
         // Subscription day-count sentences (composed: prefix + N day + suffix)
         "sub.days_left_prefix": [.ar: "بقي",          .en: "",                .fr: "Il reste",        .tr: "",                .es: "Quedan"],
-        "sub.expire_suffix":    [.ar: "على انتهاء اشتراكك — جدّده قبل أن تنقطع الخدمة", .en: "left on your subscription — renew before the service cuts out", .fr: "avant l'expiration de votre abonnement — renouvelez maintenant pour éviter toute interruption", .tr: "abonelik bitişine kaldı — kesintiyi önlemek için şimdi yenileyin", .es: "para que venza tu suscripción — renueva ahora para evitar la interrupción"],
-        "sub.active_suffix":    [.ar: "على اشتراكك",    .en: "left on your subscription", .fr: "restant sur votre abonnement", .tr: "aboneliğinizde kaldı", .es: "en tu suscripción"],
+        "sub.expire_suffix":    [.ar: "على انتهاء اشتراكك — جدّده قبل أن تنقطع الخدمة", .en: "left on your subscription — renew before the service cuts out", .fr: "avant la fin de votre abonnement — renouvelez avant la coupure", .tr: "aboneliğinizin bitmesine kaldı — hizmet kesilmeden yenileyin", .es: "para que acabe tu suscripción — renueva antes de quedarte sin servicio"],
+        "sub.active_suffix":    [.ar: "على اشتراكك",    .en: "left on your subscription", .fr: "sur votre abonnement", .tr: "abonelik süreniz kaldı", .es: "de tu suscripción"],
 
         // App Store legal disclaimer (Guideline 4.3 / 5.x)
         "legal.disclaimer": [
             .ar: "مشغّل فقط: لا نوفّر قنوات ولا نستضيف محتوى. اشتراكك من مزوّد مرخّص، ومشروعية ما تشاهده مسؤوليتك وحدك.",
             .en: "A player, nothing more: we supply no channels and host no content. Your subscription comes from a licensed provider, and what you watch is your responsibility alone.",
-            .fr: "Un lecteur uniquement — il ne fournit ni n'héberge aucune chaîne ou contenu. L'utilisateur est seul responsable de son abonnement auprès d'un fournisseur agréé et de la légalité du contenu auquel il accède.",
-            .tr: "Yalnızca bir oynatıcı — herhangi bir kanal veya içerik sağlamaz ya da barındırmaz. Lisanslı bir sağlayıcıdan alınan abonelikten ve erişilen içeriğin yasallığından yalnızca kullanıcı sorumludur.",
-            .es: "Solo un reproductor — no proporciona ni aloja ningún canal o contenido. El usuario es el único responsable de su suscripción con un proveedor autorizado y de la legalidad del contenido al que accede."
+            .fr: "Un lecteur, rien de plus : nous ne fournissons aucune chaîne et n'hébergeons aucun contenu. Votre abonnement vient d'un fournisseur agréé, et ce que vous regardez ne relève que de vous.",
+            .tr: "Yalnızca bir oynatıcı: hiçbir kanal sunmaz, hiçbir içerik barındırmayız. Aboneliğiniz lisanslı bir sağlayıcıdan gelir ve izlediğiniz şey yalnızca sizin sorumluluğunuzdadır.",
+            .es: "Un reproductor, nada más: no ofrecemos canales ni alojamos contenido. Tu suscripción viene de un proveedor autorizado y lo que ves es responsabilidad solo tuya."
         ],
     ]
 }
@@ -1910,6 +1910,13 @@ actor PlaylistService {
 
     func reset() {
         content = nil; xtream = nil; epgCache = [:]; Self.panelTimeZone = .current
+        // The live fast path holds a task and two stashes built from the OLD account.
+        // Left alone, the next line's first channelsFast() joined that task and got the
+        // previous account's channels — whose directURL embeds the previous account's
+        // username and password. A stale list is bad; streaming another account's
+        // credentials is not something to leave to chance.
+        liveFast?.cancel(); liveFast = nil
+        fastChannels = nil; fastLiveCategories = []
         // Keyed by SERIES ID, and Xtream ids are small integers that collide across
         // panels — left populated, a fetch that returns early on the new account
         // would show the PREVIOUS account's metadata.
@@ -2232,6 +2239,111 @@ actor PlaylistService {
         return c
     }
 
+    // MARK: - Live-first fast path
+    //
+    // WHY THIS EXISTS, and why it is shaped like this.
+    //
+    // The Xtream API offers NO pagination of any kind. I verified that against a panel
+    // implementation of player_api.php and against an independent client library, not
+    // against documentation: get_live_streams / get_vod_streams / get_series accept
+    // only `category_id`, and nothing anywhere accepts limit, offset, page, or a
+    // modified-since filter. So a client cannot ask for "the first hundred movies" —
+    // the only lever the protocol gives is ASK FOR LESS.
+    //
+    // And the sizes are not comparable. An Xtream row is ~320 bytes, dominated by the
+    // title and the poster URL, so a 25k-title account is ~8 MB of VOD against a few
+    // hundred KB of channels. `load()` awaits all six requests before it returns
+    // anything, so the Live tab was sitting empty behind a movies payload it never
+    // reads. That wait is the "three minutes" the owner reported, and none of it is
+    // work the live path needs.
+    //
+    // This path asks for the two smallest lists and nothing else. The full `load()`
+    // still runs and supersedes it. The price is ONE duplicate get_live_streams on a
+    // cold start — the cheapest of the six — and once `content` exists, from the disk
+    // cache or from the full load, this costs nothing at all.
+    private var liveFast: Task<[Channel], Error>?
+    private var fastChannels: [Channel]?
+    private var fastLiveCategories: [Category] = []
+
+    func channelsFast() async throws -> [Channel] {
+        if let content { return content.channels }
+        // The RESULT is cached, and that is not an optimisation — it is a safety
+        // interlock. Search falls back to an in-memory scan until the FTS store is
+        // populated, which only happens at the END of a successful full load, and it
+        // asks for channels on every 350ms debounce tick. Without this, typing ten
+        // characters during the slow cold load this path exists to fix would issue
+        // ~20 extra player_api.php requests in a few seconds — straight into a cheap
+        // panel's rate limiter, and an IP ban reads to the user as a dead subscription.
+        if let fastChannels { return fastChannels }
+        if let liveFast { return try await liveFast.value }   // join, never a second fetch
+        guard let urlString = Store.shared.m3uURL,
+              let xd = XtreamDirect.parse(urlString) else {
+            // Raw M3U is one document — there is no cheaper subset to ask for. Fill
+            // BOTH stashes from the real load: without the categories line here,
+            // liveCategoriesFast returned [] for every raw-M3U user, on every first
+            // load, and LiveTVVM latches `loaded = true` — so the category browser was
+            // gone for the whole session. Deterministic, not a race.
+            let full = try await load()
+            fastLiveCategories = full.liveCategories
+            fastChannels = full.channels
+            return full.channels
+        }
+        let task = Task<[Channel], Error> { [xd] in try await self.fetchChannelsOnly(xd) }
+        liveFast = task
+        defer { liveFast = nil }
+        let result = try await task.value
+        fastChannels = result
+        return result
+    }
+
+    /// Live categories without paying for the VOD payload. Piggybacks on the fetch
+    /// above so calling either one first is fine.
+    func liveCategoriesFast() async throws -> [Category] {
+        if let content { return content.liveCategories }
+        _ = try await channelsFast()
+        // `content` first: the call above may have gone through the full load.
+        return content?.liveCategories ?? fastLiveCategories
+    }
+
+    private func fetchChannelsOnly(_ xd: XtreamDirect) async throws -> [Channel] {
+        async let catsData = apiData(xd, action: "get_live_categories")
+        async let listData = apiData(xd, action: "get_live_streams")
+        // Categories are a nicety here exactly as they are in the full load: they only
+        // supply group titles, so one that times out must not cost the channel list.
+        let cats = dictArray((try? await catsData) ?? Data())
+        let list = dictArray(try await listData)
+
+        var catName: [String: String] = [:]
+        var cs: [Category] = []
+        for d in cats {
+            guard let id = str(d["category_id"]), let n = str(d["category_name"]) else { continue }
+            // FIRST wins, matching the full load's `uniquingKeysWith: { first, _ in first }`.
+            // Messy panels repeat a category_id, and last-wins here would give a channel a
+            // different folder than the full load gives it — so channels would visibly jump
+            // folders when the full load superseded this one.
+            guard catName[id] == nil else { continue }
+            catName[id] = n
+            cs.append(Category(id: id, name: n, parentID: nil))
+        }
+        fastLiveCategories = cs
+
+        let built: [Channel] = list.compactMap { d in
+            guard let id = str(d["stream_id"]), let name = str(d["name"]) else { return nil }
+            return Channel(id: id, name: name,
+                           logoURL: str(d["stream_icon"]),
+                           groupTitle: catName[str(d["category_id"]) ?? ""] ?? "عام",
+                           epgChannelID: str(d["epg_channel_id"]),
+                           directURL: xd.liveURL(id: id))
+        }
+        // An expired or banned line answers get_live_streams with a user_info OBJECT,
+        // not an array, so this would otherwise hand back an empty list and NO error —
+        // the user sees "no channels" instead of "subscription expired", with nothing
+        // to retry. The full load runs validateAuth and raises the real message, so
+        // anything that yields nothing here defers to it rather than guessing.
+        guard !built.isEmpty else { return try await load().channels }
+        return built
+    }
+
     /// Episodes for one series (Xtream-direct mode) — get_series_info
     func seasons(seriesID: String) async throws -> [Season] {
         if xtream == nil { _ = try await load() } // ensure credentials are parsed
@@ -2391,13 +2503,16 @@ enum ContentService {
     // DemoContent. The old `XtreamService` proxy fallback (→ strong8k.app) has been
     // removed structurally, so no content request can ever reach the backend —
     // regardless of `mode`. Blank Prime is a pure, independent player.
+    // The two live accessors take the fast path: channels do not wait on the movies
+    // and series payloads, which are many times their size. See PlaylistService
+    // .channelsFast for why the protocol leaves no other lever.
     static func liveCategories() async throws -> [Category] {
         if isDemo { return DemoContent.liveCategories }
-        return try await PlaylistService.shared.load().liveCategories
+        return try await PlaylistService.shared.liveCategoriesFast()
     }
     static func liveStreams() async throws -> [Channel] {
         if isDemo { return DemoContent.channels }
-        return try await PlaylistService.shared.load().channels
+        return try await PlaylistService.shared.channelsFast()
     }
     static func vodCategories() async throws -> [Category] {
         if isDemo { return DemoContent.movieCategories }
