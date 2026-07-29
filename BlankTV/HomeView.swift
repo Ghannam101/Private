@@ -562,7 +562,12 @@ struct RankRail: View {
                     if let r = rating, let rv = Double(r), rv > 0, rv <= 10 {
                         HStack(spacing: 2) {
                             Image(systemName: "star.fill").font(.system(size: 8)).foregroundColor(.s8kGoldHigh)
-                            Text(String(format: "%.1f", rv)).font(.system(size: 10, weight: .black)).foregroundColor(.white)
+                            // `String(format:)` with a nil locale is already Western and
+                            // dot-separated; tabular keeps 8.3 and 10.0 the same width so
+                            // the badge does not resize down the rail.
+                            Text(String(format: "%.1f", rv))
+                                .font(.system(size: 10, weight: .black).monospacedDigit())
+                                .foregroundColor(.white)
                         }
                         .padding(.horizontal, 5).padding(.vertical, 2)
                         .background(Color.black.opacity(0.78)).clipShape(Capsule())
@@ -575,7 +580,12 @@ struct RankRail: View {
     // Outlined/hollow number: fill = deep-green (invisible on the dark bg) + a lime
     // outline built from offset copies (SwiftUI has no native text stroke).
     private func outlinedNumber(_ n: Int) -> some View {
-        let base = Text("\(n)").font(.system(size: 94, weight: .black, design: .rounded))
+        // Tabular: every digit gets the same advance, so rank 1 and rank 8 occupy an
+        // identical gutter and the rail keeps one rhythm all the way across. Without it
+        // each cell is a different width and the overlap with the poster changes per
+        // rank — which is exactly the drift the owner asked to be engineered out.
+        let base = Text("\(n)")
+            .font(.system(size: 94, weight: .black, design: .rounded).monospacedDigit())
         let offs: [(CGFloat, CGFloat)] = [(-2, 0), (2, 0), (0, -2), (0, 2),
                                           (-1.4, -1.4), (1.4, 1.4), (-1.4, 1.4), (1.4, -1.4)]
         return ZStack {

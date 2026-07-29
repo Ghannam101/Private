@@ -181,7 +181,17 @@ struct BlankTVApp: App {
                 // order); only the text changes. Arabic text stays right-aligned
                 // via the existing per-view modifiers.
                 .environment(\.layoutDirection, .leftToRight)
-                .environment(\.locale, Locale(identifier: loc.lang.rawValue))
+                // `-u-nu-latn` is the whole numerals policy, in one place.
+                //
+                // Owner directive: digits read as 0-9 in EVERY language. Without the
+                // extension, an `ar` locale renders ١٢٣ through every formatter, every
+                // `Text(someNumber)` and every `.formatted()` in the tree — and each of
+                // those would otherwise need its own patch, and a new one would be added
+                // next month by someone who never heard the rule. This is a BCP-47
+                // Unicode extension that pins the numbering SYSTEM while leaving the
+                // language, calendar, sorting and plural rules exactly as they were. It
+                // is a no-op for the Latin-script languages.
+                .environment(\.locale, Locale(identifier: loc.lang.rawValue + "-u-nu-latn"))
                 // Re-check entitlement + remote app-control on foreground so
                 // maintenance / forced-update take effect without a cold launch.
                 .onChange(of: scenePhase) { _, phase in

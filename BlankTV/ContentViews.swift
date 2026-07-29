@@ -805,7 +805,10 @@ struct EPGNowNext: View {
         return min(1, max(0, now.timeIntervalSince(p.startTime) / total))
     }
     private static let hhmm: DateFormatter = {
-        let f = DateFormatter(); f.dateFormat = "HH:mm"; return f
+        // POSIX: a fixed dateFormat still renders its DIGITS through the locale, so
+        // without this an Arabic device shows ١٤:٣٠ in the EPG.
+        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "HH:mm"; return f
     }()
     private func timeRange(_ p: EPGProgram) -> String {
         "\(Self.hhmm.string(from: p.startTime)) – \(Self.hhmm.string(from: p.endTime))"
@@ -3126,8 +3129,8 @@ struct SeriesDetailView: View {
     /// bottom edge. This is the deliberate inversion of the universal anatomy
     /// (120x68 thumbnail leading + circular play badge + trailing chevron), which the
     /// reference app and every mainstream service ship identically.
-    /// The numeral also renders as ١٢٣ in Arabic locales via NumberFormatter — an
-    /// identity marker a Latin-only app cannot reproduce.
+    /// The numeral is deliberately oversized and set in TABULAR figures, so the
+    /// gutter holds its width from episode 1 to episode 199 and the rows never shuffle.
     private var episodeList: some View {
         LazyVStack(spacing: 10) {
             if let season = vm.selected {

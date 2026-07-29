@@ -335,16 +335,25 @@ extension View {
 /// aligned by the LANGUAGE instead.
 @MainActor var s8kIsRTL: Bool { LocalizationManager.current.isRTL }
 
-/// Episode numerals, formatted by LOCALE. In Arabic locales this renders ١ ٢ ٣ —
-/// which is both correct and an identity marker a Latin-only app cannot reproduce.
-/// Never hand-format a number: digit ORDER never reverses in RTL, only the glyphs
-/// change, and `NumberFormatter` is the only thing that gets that right.
+/// Episode numerals — WESTERN DIGITS in every language, by owner directive.
+///
+/// This previously formatted by language, so Arabic rendered ١ ٢ ٣, and the comment
+/// here argued that was an identity marker a Latin-only app could not reproduce. The
+/// owner has overruled it: digits read 0-9 everywhere. The comment moves with the
+/// behaviour rather than being left to contradict the code.
+///
+/// Still a `NumberFormatter` and not `String(n)`: the formatter is what gets grouping
+/// right if a count ever grows past a thousand, and digit ORDER never reverses in RTL —
+/// only the glyphs change — which hand-formatting gets wrong the moment someone adds a
+/// separator. The locale is pinned to a Latin numbering system rather than removed.
 private let s8kNumberFormatter: NumberFormatter = {
-    let f = NumberFormatter(); f.numberStyle = .none; return f
+    let f = NumberFormatter()
+    f.numberStyle = .none
+    f.locale = Locale(identifier: "en_US_POSIX")
+    return f
 }()
 @MainActor func s8kEpisodeNumeral(_ n: Int) -> String {
-    s8kNumberFormatter.locale = Locale(identifier: LocalizationManager.current.rawValue)
-    return s8kNumberFormatter.string(from: NSNumber(value: n)) ?? "\(n)"
+    s8kNumberFormatter.string(from: NSNumber(value: n)) ?? "\(n)"
 }
 @MainActor var s8kTextAlign: HorizontalAlignment { s8kIsRTL ? .trailing : .leading }
 @MainActor var s8kFrameAlign: Alignment { s8kIsRTL ? .trailing : .leading }

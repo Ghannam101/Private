@@ -1030,9 +1030,13 @@ struct PlayerEngineView: View {
                             }
                         }
                         HStack {
+                            // Tabular. This label changes every second over moving video;
+                            // with proportional digits the whole row nudges sideways on
+                            // each tick, and the scrubber appears to wobble with it.
                             Text(scrubbing ? fmtTime(scrubValue * vm.duration, forceHours: vm.duration >= 3600) : vm.currentFmt)
+                                .monospacedDigit()
                             Spacer()
-                            Text(vm.durationFmt)
+                            Text(vm.durationFmt).monospacedDigit()
                         }
                         .font(S8KFont.caption1).monospacedDigit()
                         .foregroundColor(.s8kTextTertiary)

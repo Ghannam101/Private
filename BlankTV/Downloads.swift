@@ -851,10 +851,36 @@ struct DownloadsView: View {
         .accessibilityLabel(a11y.isEmpty ? icon : a11y)
     }
 
+    /// Sizes, in Western digits on every device.
+    ///
+    /// NOT `ByteCountFormatter`, and that is the point: it has no `locale` property at
+    /// all, so it always follows the DEVICE and renders ١٢٣ MB on an Arabic phone. The
+    /// app pins its numbering system once in BlankTVApp, but a formatter built in code
+    /// never sees that environment — and this one cannot be told. So the number is
+    /// formatted through a pinned NumberFormatter and the unit is appended.
+    ///
+    /// Binary units (1024) with the SI-style labels, which is what a download UI wants:
+    /// the figure should match what the file occupies, not what the marketing says.
+    private static let sizeFormatter: NumberFormatter = {
+        let f = NumberFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.numberStyle = .decimal
+        f.maximumFractionDigits = 1
+        f.minimumFractionDigits = 0
+        return f
+    }()
+
     private func byteText(_ b: Int64) -> String {
         guard b > 0 else { return "" }
-        let f = ByteCountFormatter(); f.countStyle = .file
-        return f.string(fromByteCount: b)
+        let units = ["B", "KB", "MB", "GB", "TB"]
+        var value = Double(b)
+        var unit = 0
+        while value >= 1024, unit < units.count - 1 {
+            value /= 1024; unit += 1
+        }
+        // Whole numbers below MB: "512 KB" reads better than "512.0 KB".
+        let text = Self.sizeFormatter.string(from: NSNumber(value: value)) ?? "\(Int(value))"
+        return text + " " + units[unit]
     }
 
     private var storageHeader: some View {

@@ -1,17 +1,19 @@
-# صيد تقني — الجولة الثانية
-**بحث هندسي مستقل · 2026-07-28 · Blank Prime (SwiftUI · iOS 17.0 كحدّ أدنى · Xcode 26.3 · CocoaPods)**
+# صيد تقني — الجولة الثالثة (أداء الكتالوج · المشغّل · الصور · التنزيلات)
+**بحث هندسي مستقل · 2026-07-29 · Blank Prime (SwiftUI · iOS 17.0 كحدّ أدنى · CocoaPods)**
 
-> **القاعدة الحاكمة (بكلمات المالك):** لا تتبنَّ تقنية من المرجع على الثقة. ابحث عن أحدث ما وصلت إليه
-> الصناعة، ودَع **الأحدث والأفضل** يفوز — ولو كان ذلك يعني تجاهل المرجع كلّياً.
+> **القاعدة الحاكمة (بكلمات المالك):** لا تتبنَّ تقنية من المرجع على الثقة. ابحث عن أحدث ما وصلت
+> إليه الصناعة **بالتوازي**، ودَع **الأحدث والأفضل** يفوز — ولو كان ذلك يعني تجاهل المرجع كلّياً.
 
-> **القيود التي التزمتُ بها حرفياً:** `C:\Users\user\Strong8K-App\Strong8K\iOS\` **للقراءة فقط** — لم
-> يُنشأ فيه ولم يُعدَّل ولم يُحذف شيء، ولم يُنفَّذ فيه أي أمر git مُغيِّر. ولم يُعدَّل أي ملف مصدري في
-> `blankstor`. الملف الوحيد المكتوب هو هذا الملف.
+> **القيود التي التزمتُ بها حرفياً:** `C:\Users\user\Strong8K-App\Strong8K\iOS\` **للقراءة فقط** —
+> لم يُنشأ فيه ولم يُعدَّل ولم يُحذف شيء. ولم يُعدَّل أي ملف مصدري في `blankstor`. الملف الوحيد
+> المكتوب هو هذا الملف.
 
-> **علاقته بـ `TECH_ADJUDICATION.md`:** تلك الجولة حكمت على ثمانية بنود (FTS من الكاش، جاهزية المشغّل،
-> `saveProgress` عند `load`، تحصين سجلّ التنزيلات، رايات AirPlay، `DatabasePool`، الـ Keychain، طبقة
-> QoE) وثلاث إضافات. **لا يُعاد أيٌّ منها هنا.** هذه الجولة تفتّش في أماكن أخرى: الذاكرة، والقراءة من
-> المخزن، ونموذج المراقبة (Observation)، وقوائم العرض الضخمة، وسلوك الخلفية.
+> **علاقته بالتقريرين السابقين:** `TECH_ADJUDICATION.md` حكم على ثمانية بنود (FTS من الكاش، جاهزية
+> المشغّل، `saveProgress` عند `load`، تحصين سجلّ التنزيلات، رايات AirPlay، `DatabasePool`،
+> الـ Keychain، طبقة QoE) وثلاث إضافات. والجولة الثانية من هذا الملف حكمت على خمسة (التصفيح،
+> `@Observable`، ميزانية الصور، `PosterCollectionView`، تسليم Turbo). **لا يُعاد أيٌّ من الثلاثة
+> عشر بنداً هنا.** هذه الجولة تفتّش في مساحة لم تُفتَّش بعد: **مسار وصول المحتوى الأول**، و**زمن بدء
+> المشغّل على المحرّك الذي يشغّل 100% من الأفلام عندنا**، و**نسخة محرّك VLC نفسه**.
 
 ---
 
@@ -19,779 +21,934 @@
 
 | # | البند | الحكم | الفائدة ÷ الخطر | جهد |
 |---|-------|-------|------------------|-----|
-| **1** | تفعيل القراءة المُصفَّحة من `CatalogDB` (`loadPaged`/`loadMore`) — وطيّ نسخ `filtered` الميتة معها | **ADOPT MODIFIED** | **الأعلى** — أكبر مكسب ذاكرة في التطبيق، والنصف الصعب مدفوع سلفاً | 6–10 س |
-| **2** | الهجرة من `ObservableObject` إلى `@Observable` | **REPLACE WITH SOMETHING NEWER** 🔴 | عالية — يُغلق صنفاً كاملاً من العيوب كنّا نسدّده حالةً حالة | 4–6 س (على مراحل) |
-| **3** | ميزانية ذاكرة الصور تُشتقّ من الجهاز + مسار واحد للاستجابة لضغط الذاكرة | **REPLACE WITH SOMETHING NEWER** 🔴 | عالية · خطر منخفض جداً | 2–3 س |
-| **4** | `PosterCollectionView` (UICollectionView + `UIHostingConfiguration` + prefetch) | **REJECT (الآن)** | منخفضة عندنا — والمرجع نفسه لم يُشغّله | — |
-| **5** | تسليم تنزيل Turbo إلى جلسة الخلفية عند `scenePhase == .background` | **REJECT (الآن) — مع قرار مطلوب** | صفر اليوم: `runTurbo` عندنا **شيفرة ميتة لا يمكن الوصول إليها** | — |
-| **ج-أ** | *لا يملكه أيٌّ من التطبيقين* — التكيّف مع الحالة الحرارية ووضع الطاقة المنخفضة | **ابنِه — لكن بعد البنود 1 و3** | متوسطة | 2 س |
+| **1** | تسليم الكتالوج **تدريجياً لكل نوع** بدل انتظار الحمولة كاملة | **ADOPT THE IDEA, NOT THE IMPLEMENTATION** 🔴 | **الأعلى في التقرير** — تبويب المباشر محجوز اليوم خلف حمولة VOD | 6–8 س |
+| **2** | Stale-While-Revalidate حقيقي بدل جُرف الـ TTL عند 12 ساعة | **ADOPT NEWER** 🔴 | عالية جداً · خطر منخفض. والتعليق عندنا **يدّعي** SWR ولا ينفّذها | 3–4 س |
+| **3** | ترقية `MobileVLCKit` من 3.6.0 إلى **3.7.3** | **ADOPT NEWER — لا يملكه أيّ من التطبيقين** 🔴 | عالية · **خطر متوسط** (تبديل مُفكِّك شفرة) | 30 د + تحقّق جهاز |
+| **4** | `MediaPrefetcher` يُسخّن **المحرّك الخطأ** — مسار ميت يستهلك شبكةً وذاكرة | **خلل حيّ — أصلحه** 🔴 | متوسطة–عالية · **خطر شبه صفر** (سطر واحد) | 15 د |
+| **5** | `:clock-jitter=0` لـ VOD فقط · و**رفض** `:clock-synchro=0` | **ADOPT REFERENCE — مجزوءاً** | متوسطة · منخفض | 20 د |
+| **6** | مهلة `get_vod_streams` من 22 ث إلى 45 ث | **ADOPT REFERENCE** | متوسطة · صفر | 5 د |
+| **7** | قراءة كاش الكتالوج بـ `.mappedIfSafe` | **ADOPT NEWER (صغير)** | منخفضة–متوسطة · صفر | 5 د |
+| **8** | كاش الصور على القرص يعتمد كلّياً على `URLCache` | **قِس أولاً — لا تبنِ بعد** | غير معروفة حتى تُقاس | — |
+| **9** | `waitsForConnectivity` على جلسة الخلفية **لا أثر له** (موثَّق) | **KEEP OURS + وثّق** | صفر عملياً | 2 د |
+| **10** | حفظ EPG في SQLite (`saveEPG`/`epgGuide` عند المرجع) | **مؤجَّل — خارج أولويات المالك** | منخفضة | 3 س |
 
-**السطر الواحد:** **ثلاثة بنود تستحقّ التبنّي** (1، 2، 3) — واحد منها فقط تقنيةٌ يملكها المرجع فعلاً،
-واثنان **يتفوّقان على المرجع** بواجهات أحدث. وبندان يُرفضان بعد الفحص، أحدهما لأن المرجع نفسه لم
-يُشغّله قط، والآخر لأن الشيفرة المقابلة عندنا **ميتة أصلاً**. ولا شيء في المرجع في مجالات التشغيل أو
-الشبكة أو الصور بقي غير مأخوذ — تلك المساحات استُنزفت في الجولة الأولى.
+**السطر الواحد:** أخطر ما وجدتُه ليس في الشيفرة التي تعمل، بل في **الترتيب**: التطبيق يجعل المستخدم
+ينتظر أضخم حمولة في النظام (`get_vod_streams`) قبل أن يرى **أي** شيء — حتى قناة مباشرة. البند 1
+والبند 2 معاً يعالجان هذا. والبند 3 هو أعلى فائدة لكل دقيقة عمل في التقرير كلّه: **سطر واحد في
+`Podfile`** يرفعنا من مُفكِّك شفرة عمره سنتان إلى آخر إصدار مستقرّ.
 
 ---
 
 ## 0.1 تحذير عن المصادر — اقرأه قبل أن تثق بأي سطر
 
-- كل ادّعاء عن شيفرتنا أو عن المرجع **مُتحقَّق منه بالقراءة المباشرة**، ومعه `file:line`. هذه أقوى
-  أجزاء التقرير، ولا تعتمد على أي مصدر خارجي.
-- كل ادّعاء عن «ما هو الأحدث في 2026» مشفوع برابط. حيث لم أجد **توثيق Apple رسمياً** أقول ذلك
-  صراحةً بعبارة **«غير متحقَّق منه لدى Apple»** بدل ملء الفراغ بادّعاء مدوّنة.
-- `RESEARCH.md §6` كان قد أوصى سلفاً بـ `@Observable` وبمَخرج `UICollectionView`. **كلاهما لم يُنفَّذ
-  حتى اليوم.** إسهام هذا التقرير ليس اكتشافهما، بل **تحكيمهما**: أحدهما يُتبنّى الآن، والآخر يُرفض
-  لسبب قِيسَ لا خُمِّن.
-- هدف النشر `iOS 17.0` (`Podfile:2` + `project.pbxproj:254`). كل ما هو iOS 18+ فما فوق يجب أن يُسيَّج
-  بـ `if #available` مع مسار عامل لـ iOS 17.
+- **ميزانية البحث النصّي على الويب (`WebSearch`) نفدت في هذه الجلسة** (200/200). كل ادّعاء خارجي
+  أدناه مأخوذ **من مصدر أوّليّ مباشرةً** عبر جلب الصفحة أو الملف: شيفرة VLC الأصلية من مستودع
+  `videolan/vlc` على GitHub، وملف `NEWS` الرسمي، وواجهة CocoaPods trunk البرمجية، وواجهة GitHub
+  البرمجية، وواجهة توثيق Apple بصيغة JSON. **لا مدوّنات، ولا مصادر ثانوية، ولا شيء قبل 2024 إلا
+  موسوماً.**
+- **كل ادّعاء عن شيفرتنا أو عن المرجع متحقَّق منه بالقراءة المباشرة، ومعه `file:line`.** هذا أقوى
+  جزء في التقرير ولا يعتمد على أي مصدر خارجي.
+- حيث لم أجد مصدراً أوّلياً أقول ذلك صراحةً بعبارة **«غير متحقَّق منه»** بدل ملء الفراغ.
+- الفريق **لا يستطيع الترجمة محلّياً**. كل مقترح أدناه مكتوب بشيفرة كاملة وآمنة، ولا يستعمل أي API
+  فوق `iOS 17.0` (`Podfile:2`).
 
 ---
 
-# البند 1 — تفعيل القراءة المُصفَّحة من `CatalogDB`
+# البند 1 — تسليم الكتالوج تدريجياً لكل نوع
 
-## الحكم: **ADOPT MODIFIED** — أسلوب المرجع صحيح، والنصف الصعب مدفوع عندنا سلفاً وغير مستعمل
+## الحكم: **ADOPT THE IDEA, NOT THE IMPLEMENTATION** 🔴 — الفكرة عند المرجع صحيحة، وتنفيذه غير قابل للنقل
+
+## المشكلة المتحقَّق منها في شيفرتنا — وهي جذر شكوى «ثلاث دقائق»
+
+كل مستهلكي المحتوى في التطبيق يمرّون عبر **دالّة واحدة تعيد كائناً واحداً**:
+
+```swift
+// BlankTV/Core.swift:2345–2365
+static func liveCategories()  async throws -> [Category] { try await PlaylistService.shared.load().liveCategories }
+static func liveStreams()     async throws -> [Channel]  { try await PlaylistService.shared.load().channels }
+static func movies()          async throws -> [Movie]    { try await PlaylistService.shared.load().movies }
+static func series()          async throws -> [Series]   { try await PlaylistService.shared.load().series }
+```
+
+و`PlaylistService.load` (`Core.swift:1751–1758`) مهمّة **واحدة مشتركة** (single-flight)، و`_load`
+تنتهي إلى `loadXtreamDirect` (`Core.swift:2072–2182`) التي **تنتظر الستّة كلّها قبل أن تعود بأي
+شيء**:
+
+```swift
+// BlankTV/Core.swift:2109–2129
+async let liveStreamsData = apiData(xd, action: "get_live_streams")
+async let vodStreamsData  = apiData(xd, action: "get_vod_streams")     // ← أضخم حمولة في النظام
+async let seriesData      = apiData(xd, action: "get_series")
+let liveRaw = try? await liveStreamsData
+let vodRaw  = try? await vodStreamsData      // ← الحاجز الحقيقي
+let serRaw  = try? await seriesData
+…
+return c                                      // ← لا شيء يخرج قبل هذا السطر
+```
+
+### 🔴 والنتيجة: شاشة الإقلاع عندنا تعرض تقدّماً وهمياً
+
+`HomeVM.bootLoad` (`HomeView.swift:169–204`) يقول في تعليقه حرفياً:
+
+> *«Parallel boot load … each flipping its own progress flag as it finishes — so total time ≈ the
+> slowest request, not the sum of all three.»*
+
+**والتعليق صحيح على مستواه، وبلا معنى في الواقع.** الثلاثة (`loadChannels`, `loadMovies`,
+`loadSeries`) تنتظر كلها **نفس** `PlaylistService.shared.load()`، وتلك تنتظر الستّة. أي أن
+`doneChannels` و`doneMovies` و`doneSeries` **تنقلب كلها في اللحظة نفسها تقريباً**. المستخدم يرى ثلاثة
+مؤشّرات تتحرّك معاً في النهاية، بعد أن انتظر أبطأ شيء في النظام.
+
+**الحساب:** `get_live_streams` على خطّ نموذجي يعود في ~1–2 ثانية (بضعة آلاف قناة). و
+`get_vod_streams` بحمولة 100 ألف عنوان يعود في 20–45 ثانية على 4G، وقد يبلغ المهلة (البند 6).
+**نحن ندفع الثاني لنعرض الأول.**
 
 ## ما يفعله المرجع
-`MoviesVM.load` (`Strong8K/iOS/Strong8K/ContentViews.swift:1004–1022`) يسأل المخزن أولاً، ثم يتفرّع:
+
+`CatalogCentral` (`Strong8K/iOS/Strong8K/Core.swift:3265–3269`) يعرّف ثلاثة مسارات سريعة لكل نوع،
+وتعليقه يصف بالضبط ما نفتقده:
 
 ```swift
-paged = s0.isEmpty ? false
-      : await Task.detached(priority: .userInitiated) { CatalogDB.isPopulated(scope: s0) }.value
-if paged { await loadPaged() } else { await loadFallback() }
+/// Per-kind fast paths (live-first / progressive): each fetches ONLY its kind's light snapshot,
+/// so the tabs render independently (live in ~1s) instead of waiting for the full 16MB catalog.
+static func liveChannels(_ xd: XtreamDirect) async -> [Channel]? { await build(xd: xd, kinds: ["live", "cat_live"], suffix: ":live")?.channels }
+static func vodMovies(_ xd: XtreamDirect)  async -> [Movie]?   { await build(xd: xd, kinds: ["vod", "cat_vod"], suffix: ":vod")?.movies }
+static func seriesList(_ xd: XtreamDirect) async -> [Series]?  { await build(xd: xd, kinds: ["series", "cat_series"], suffix: ":series")?.series }
 ```
 
-و`loadPaged()` (`:1025–1048`) يقرأ **صفحة واحدة فقط** بـ keyset، خارج الخيط الرئيسي:
+## لماذا **لا** يُنقل تنفيذه — ولماذا فكرته تُنقل رغم ذلك
+
+- **تنفيذه غير قابل للنقل بنيوياً.** يعتمد كلّياً على خادمه: `/v2/catalog/snapshot?kinds=…`
+  (`Core.swift:3316–3328`) ومصادقة `X-App-Key` بمفتاح **مكتوب في الشيفرة**
+  (`ActivationService.swift:16`) — وهو ما حظرته الجولة الثانية صراحةً. وقد قطعنا الاتصال بـ `/v2`
+  عمداً (`PROJECT_HANDOFF §11`).
+- **لكن فكرته لا تحتاج خادمه إطلاقاً.** واجهة Xtream **أصلاً** تفصل الأنواع: `get_live_streams`
+  و`get_vod_streams` و`get_series` نداءات مستقلّة تماماً. الحاجز عندنا **ليس في الشبكة، بل في
+  توقيع الدالّة**: نجمع ثلاث استجابات مستقلّة في كائن واحد ثم نسلّمه دفعة واحدة.
+
+## هل هناك ما هو أحدث في 2026؟
+
+**لا يوجد API جديد يحلّ هذا نيابةً عنك، والحلّ الحديث هو تصميمي لا واجهيّ.** فحصتُ ثلاثة بدائل:
+
+- **`AsyncStream` / `AsyncSequence`** — الأداة الطبيعية لبثّ نتائج جزئية، وهي متاحة على iOS 17 بلا
+  أي شرط. لكن تحويل `PlaylistService` كلّه إلى بثّ يعني إعادة كتابة سبعة نماذج عرض، وهذا **خطر
+  أعلى مما يشتريه**. المسار الأقل خطراً هو نشر النتائج الجزئية على المُمثِّل ثم إيقاظ المنتظرين.
+- **`TaskGroup` بنتائج جزئية** — يعطي نفس الأثر بصياغة أنظف، لكنه يتطلّب أن يكون المستهلك حلقةً،
+  وهو ليس شكل `ContentService` عندنا.
+- **`URLSession.bytes(for:)` + فكّ JSON تدريجي** — يسمح ببدء البناء قبل وصول آخر بايت. ⚠ **لكن
+  Foundation لا تملك مُحلّل JSON تدفّقياً**: لا `JSONDecoder` ولا `JSONSerialization` يقبلان تغذية
+  جزئية. تنفيذه يعني كتابة مُحلِّل، وهو خطر غير مبرَّر. **لا توصية.**
+
+> **الخلاصة:** فكرة المرجع (تسليم لكل نوع) هي الصحيحة في 2026، وتنفيذه ليس كذلك. **ننفّذ الفكرة
+> بأدواتنا.**
+
+## سكتش التنفيذ — أقلّ تغيير بأكبر أثر
+
+الفكرة: أبقِ `load()` كما هي تماماً (فلا يُكسر أي مستدعٍ)، وأضِف **مساراً موازياً للمباشر فقط** —
+لأنه أخفّ حمولة وأول ما يريده المستخدم.
+
+**`BlankTV/Core.swift` — داخل `actor PlaylistService`:**
 
 ```swift
-let (cats, counts, first, total) = await Task.detached(priority: .userInitiated) {
-    (CatalogDB.categories(scope: s, kind: "movie"),
-     CatalogDB.movieCategoryCounts(scope: s),
-     CatalogDB.pageMovies(scope: s, category: nil, after: nil, limit: ps),   // ps = 150
-     CatalogDB.countMovies(scope: s, category: nil))
-}.value
+/// النتيجة الجزئية للقنوات المباشرة، منشورة فور وصولها ودون انتظار حمولة VOD.
+/// السبب: `_load` لا تعود قبل أن تكتمل الستّة (Core.swift:2109–2129)، و`get_vod_streams`
+/// على خطّ بـ 100 ألف عنوان يستغرق 20–45 ثانية — فتبويب المباشر ينتظر شيئاً لا يحتاجه.
+private var liveOnly: (cats: [Category], channels: [Channel])?
+private var liveWaiters: [CheckedContinuation<(cats: [Category], channels: [Channel]), Never>] = []
+
+/// يُستدعى من داخل `loadXtreamDirect` بمجرّد أن تصل قائمة المباشر.
+private func publishLive(_ cats: [Category], _ channels: [Channel]) {
+    guard liveOnly == nil else { return }          // أوّل نشرة فقط؛ الحمل الكامل يصحّحها لاحقاً
+    liveOnly = (cats, channels)
+    let ws = liveWaiters; liveWaiters = []
+    for w in ws { w.resume(returning: (cats, channels)) }
+}
+
+/// القنوات المباشرة بأسرع ما يمكن: من الحمل الكامل إن كان جاهزاً، وإلا من النشرة الجزئية.
+func liveFast() async -> (cats: [Category], channels: [Channel]) {
+    if let c = content { return (c.liveCategories, c.channels) }   // الحمل الكامل جاهز
+    if let l = liveOnly { return l }
+    // شغّل الحمل الكامل في الخلفية إن لم يكن يعمل، ثم انتظر النشرة الجزئية فقط.
+    if inFlight == nil { Task { _ = try? await self.load() } }
+    return await withCheckedContinuation { c in liveWaiters.append(c) }
+}
 ```
 
-و`loadMore()` (`:1051–1065`) يُلحق الصفحة التالية عند اقتراب الشبكة من نهايتها. حالة التصفيح كلها
-أربعة حقول: `paged` / `cursor` / `reachedEnd` / `pageSize` (`:983–988`).
+**وداخل `loadXtreamDirect` (`Core.swift:2142`، مباشرةً بعد حلقة بناء القنوات):**
 
-## ما نفعله اليوم
-**نملك المخزن كاملاً ولا نقرأ منه شيئاً من هذا.**
+```swift
+        }
+        // ⬇ جديد: انشر المباشر الآن. حمولتا VOD والمسلسلات لا تزالان في الطريق،
+        // ولا علاقة لهما بهذا التبويب.
+        publishLive(c.liveCategories, c.channels)
+```
 
-- `BlankTV/CatalogDB.swift:206–292` يحتوي `pageChannels` و`pageMovies` و`pageSeries` (keyset على عمود
-  `pos`، مع `nextCursor`) و`countMovies` و`movieCategoryCounts` و`categories` و`isPopulated`
-  (`:170`). **كلها مطابقة لما يحتاجه `loadPaged` — وكلها بلا مستهلك واحد.**
-- المستهلكون الوحيدون لـ `CatalogDB` في التطبيق كلّه هم البحث (`ContentViews.swift:3220, 3278–3288`)
-  وبصمات الصور (`DesignSystem.swift:1372, 1394, 1397`) والحذف (`Services.swift:342`). **لا شيء
-  يستدعي `pageMovies` أو `pageChannels` أو `pageSeries` أو `countMovies` أو `movieCategoryCounts`
-  أو `isPopulated`.**
-- وبدلاً من ذلك `MoviesVM.load` (`ContentViews.swift:869–884`) يجلب **الكتالوج كاملاً إلى الذاكرة**
-  ويبني فوقه أربع بِنى مشتقّة.
+⚠ **لكن انتبه:** `async let` في Swift **لا يبدأ التنفيذ عند التصريح فقط، بل تُنتَظر النتيجة عند
+`await`**. في شيفرتنا الحالية `let liveRaw = try? await liveStreamsData` يقع **قبل** انتظار VOD
+(`Core.swift:2120–2122`)، فترتيب الأسطر صحيح أصلاً وحلقة بناء القنوات تُنفَّذ قبل أن يُنتظر أي شيء
+آخر — **بشرط ألّا يُعاد ترتيب تلك الأسطر الثلاثة أبداً.** وثّق ذلك بتعليق صريح عند `:2120`.
 
-### حساب الذاكرة — وهو المبرِّر الحقيقي للبند
-`MoviesVM` (`ContentViews.swift:818–853`) يحتفظ في آنٍ واحد بـ:
+**والوصلة في `HomeVM`** (`HomeView.swift:184–188`):
 
-| الحقل | ما هو | السطر |
+```swift
+private func loadChannels() async {
+    // liveFast تعود عند وصول قائمة المباشر، لا عند اكتمال الكتالوج كلّه.
+    // بهذا يصير مؤشّر التقدّم الثلاثي في شاشة الإقلاع صادقاً بدل أن ينقلب دفعةً واحدة.
+    let l = await PlaylistService.shared.liveFast()
+    liveChannels = l.channels
+    doneChannels = true
+}
+```
+
+## الفائدة، وكيف تُقاس
+
+| ما يُقاس | كيف | المتوقَّع |
 |---|---|---|
-| `movies: [Movie]` | الكتالوج كاملاً | `:821` |
-| `filtered: [Movie]` | **نسخة كاملة ثانية** | `:822` |
-| `grouped: [String: [Movie]]` | **نسخة كاملة ثالثة**، موزّعة على قواميس | `:834` |
-| `foldedNames: [String]` | سلسلة مطويّة لكل عنصر | `:842` |
-| `lastResults: [Movie]` | نتائج آخر استعلام | `:844` |
+| زمن ظهور أول قناة بعد تسجيل الدخول | ساعة إيقاف على جهاز حقيقي، خطّ ذو 100 ألف عنوان VOD | من «زمن VOD» إلى ~1–2 ث |
+| صدق مؤشّر التقدّم | مشاهدة: هل تنقلب الثلاثة معاً؟ | يجب أن ينقلب المباشر أولاً |
+| زمن الإقلاع | `MXAppLaunchMetric` عبر MetricKit القائم (`Diagnostics.swift`, مُستدعىً من `BlankTVApp.swift:167`) | يجب ألّا يسوء |
 
-`Movie` (`Models.swift`) بنية ذات **13 حقلاً نصّياً** — أي ~208 بايت تخزين داخلي لكل عنصر قبل
-محتوى السلاسل نفسها. على كتالوج بحجم 176 ألف عنوان (وهو الحجم الذي يقيس عليه المرجع صراحةً في
-`ContentViews.swift:1012`) فذلك **~37 ميغابايت لكل نسخة كاملة**. ونحن نحتفظ بثلاث. ونفس النمط
-مكرَّر حرفياً في `SeriesVM` (`:2038–2055`) و`LiveTVVM` (`:13–30`).
-
-### 🔴 المكسب الفوري المجّاني: `filtered` عندنا **حقل ميّت**
-بحثتُ عن كل قارئ لـ `filtered` في `BlankTV/` كلّها. النتيجة: **يُكتب ولا يُقرأ أبداً**.
-
-- `LiveTVVM.filtered` — يُكتب في `:69` و`:91`، لا قارئ.
-- `MoviesVM.filtered` — يُكتب في `:898`، لا قارئ.
-- `SeriesVM.filtered` — يُكتب في `:2110`، لا قارئ.
-
-العروض تقرأ `vm.movies` أو `vm.searchResults` (`:1565`) أو `vm.grouped` — لا `filtered`.
-**في المرجع هذا الحقل حيّ** (`loadPaged` يضبط `filtered = first.items`، و`loadMore` يضبط
-`filtered = movies`، `ContentViews.swift:1038, 1060, 1088`) — أي أنه جزء من آلة التصفيح. عندنا
-وُرِث الحقل وبقيت آلته خلفه، فصار **نسخة كاملة من الكتالوج تعيش في الذاكرة بلا غرض**، ومعها
-`@Published` تبثّ تغيّراً في كل مرة.
-
-> **افعل هذا أولاً، قبل أي شيء آخر في هذا التقرير:** احذف الحقول الثلاثة (أو اجعلها نافذة التصفيح
-> كما في المرجع). **~37 ميغابايت لكل تبويب، بلا أي مخاطرة، في ثلاثة أسطر.**
-
-## هل هناك ما هو أحدث من keyset paging في 2026؟
-**لا، والبديل الشائع أسوأ.** التصفيح بـ `LIMIT/OFFSET` يجعل SQLite تمسح وتتخطّى كل صفٍّ قبل
-الإزاحة، فتصير الصفحة رقم 1000 أبطأ بألف مرّة من الأولى — بينما `WHERE pos > ? ORDER BY pos LIMIT n`
-تصيب الفهرس مباشرة. هذا سلوك مُوثَّق في محرّك SQLite نفسه ([sqlite.org/optoverview.html](https://sqlite.org/optoverview.html))
-وليس رأياً. وشيفرتنا في `CatalogDB.swift:216–225` **تنفّذ الشكل الصحيح أصلاً**.
-
-- **هل تُغني `ValueObservation` من GRDB عن هذا؟** لا. `ValueObservation` تُبقي العرض متزامناً مع
-  قاعدة البيانات، لكنها **لا تحدّ حجم ما يُحمَّل**؛ ملاحظةٌ على استعلام يعيد 176 ألف صف تعيدها كلها
-  في كل تغيير. الملاحظة تحلّ مشكلة الاتّساق، والتصفيح يحلّ مشكلة الذاكرة — وهما مشكلتان مختلفتان.
-  ([GRDB ValueObservation](https://swiftpackageindex.com/groue/GRDB.swift/documentation/grdb/valueobservation))
-- **هل SwiftData/`@Query` أنسب؟** لا. أُجيب على هذا في `TECH_ADJUDICATION` البند 6 ولا أعيده؛
-  والأهم أن التبديل يعني مكدّس تخزين ثانياً إلى جانب GRDB.
-
-> **الخلاصة:** أسلوب المرجع هو الصحيح في 2026. التعديل المطلوب ليس في الطريقة بل في **الاكتمال**.
-
-## التعديلات الأربعة على نسخة المرجع
-
-1. **الحارس يجب أن يعمل على الحالة الجزئية.** `isPopulated` (`CatalogDB.swift:170`) يُشغّل ثلاث
-   عمليات `COUNT` مُصفّاة — على 176 ألف صف. المرجع نفسه انتبه لهذا ونقلها خارج الخيط الرئيسي
-   (`ContentViews.swift:1011–1013`). **انقلها كما نقلها**، ولا تستدعِها من `body` أبداً.
-2. **`P7` لم يُلغَ.** كتالوج مُعلَّم `isPartial` (انظر `PROJECT_HANDOFF §9`) **لا يُصفَّح** — لأنه
-   لم يُكتب إلى `CatalogDB` أصلاً. اجعل الشرط `isPopulated && !lastLoadWasPartial`، وإلا صفّحتَ فوق
-   كتالوج قديم بينما الذاكرة تحمل واحداً أحدث وأصدق.
-3. **ينقصنا ثلاث دوال عدّ.** نملك `countMovies` و`movieCategoryCounts` فقط
-   (`CatalogDB.swift:264–280`). التصفيح لـ `SeriesVM` و`LiveTVVM` يحتاج نظيرَيهما. ~24 سطراً،
-   نسخٌ حرفيّ لنمطٍ موجود.
-4. **لا تصفّح البحث.** `SearchVM` عندنا يمرّ على FTS5 ثم `moviesByIds` (`:3278`) — وهذا المسار
-   **أفضل من مسار المرجع**. لا تلمسه. التصفيح خاصّ بالتصفّح لا بالبحث، ونفس القاعدة عند المرجع
-   (`loadMore` يخرج فوراً إذا `!search.isEmpty`، `ContentViews.swift:1052`).
-
-## الفائدة، وكيف تُقاس (لا «يبدو أسرع»)
-| ما يُقاس | الأداة | الرقم |
-|---|---|---|
-| ذاكرة مقيمة بعد فتح «أفلام» ثم التمرير 2000 صفّاً | Instruments → Allocations → *Persistent Bytes* | متوقَّع: من ~110–150 م.ب إلى ~15–25 م.ب |
-| ذروة الذاكرة على الأسطول | **MetricKit — نملكه أصلاً** (`Diagnostics.swift`): `MXMemoryMetric.peakMemoryUsage` | يُقارن قبل/بعد بلا شيفرة جديدة |
-| زمن أول رسم لتبويب «أفلام» | `MXAppLaunchMetric` + Instruments → *Time Profiler* على `load()` | القراءة تصير 150 صفاً بدل 176 ألفاً |
-| توقّفات الإطارات أثناء التمرير | Instruments → *Animation Hitches* → نسبة زمن التلعثم (م.ث/ث) | يجب أن تنخفض، لأن `ForEach` يمشي على مجموعة أصغر |
-
-**استعمل MetricKit.** هذه أرخص نقطة قياس في التقرير كلّه: `Diagnostics.shared.start()` مُستدعىً
-بالفعل من `BlankTVApp.swift:159`، والحمولات تُحفَظ في `Caches/Diagnostics/`. القياس متاح **بلا سطر
-واحد جديد**.
-
-## الخطر والجهد
-- **الجهد:** 6–10 ساعات (ثلاثة نماذج عرض + ثلاث دوال عدّ + وصلة `onNearEnd`).
-- **الخطر:** **متوسط** — مسار ساخن يمسّ ثلاثة تبويبات. **ينصّ `PROJECT_HANDOFF §6` البند 6 على أن
-  هذا يحتاج موافقة المالك أولاً؛ احترم ذلك.**
-- **قاعدة إلزامية:** المسار الاحتياطي في الذاكرة **يبقى**. مستخدم لم تُملأ قاعدة بياناته بعد (أو
-  مسار Xtream-credentials الخالص الذي لا يُعبّئ المخزن حتى اليوم — `PROJECT_HANDOFF §6` البند 5)
-  يجب أن يرى نفس التطبيق تماماً.
-
-## سكتش التنفيذ — `BlankTV/ContentViews.swift`، داخل `MoviesVM`
-
-```swift
-// ── حالة التصفيح (مطابقة لمرجعنا: ContentViews.swift:983–988) ──
-private(set) var paged = false
-private var cursor: Int? = nil
-private var reachedEnd = false
-private let pageSize = 150
-private var loadingPage = false
-
-func load(force: Bool = false) async {
-    if loaded && !force { return }
-    isLoading = true; error = nil
-    let s = Store.shared.m3uURL ?? ""
-    // isPopulated = ثلاث COUNT مُصفّاة على 176k صفّاً — لا تلمس الخيط الرئيسي.
-    // ‏!lastLoadWasPartial: كتالوج P7 الجزئي لا يُكتب إلى CatalogDB، فتصفيحه
-    // يعني تقديم بيانات أقدم من التي في الذاكرة.
-    paged = s.isEmpty ? false
-          : await Task.detached(priority: .userInitiated) { CatalogDB.isPopulated(scope: s) }.value
-    if paged { await loadPaged(scope: s) } else { await loadFallback() }
-    isLoading = false
-}
-
-private func loadPaged(scope s: String) async {
-    let ps = pageSize
-    let (cats, counts, first, total) = await Task.detached(priority: .userInitiated) {
-        (CatalogDB.categories(scope: s, kind: "movie"),
-         CatalogDB.movieCategoryCounts(scope: s),
-         CatalogDB.pageMovies(scope: s, category: nil, after: nil, limit: ps),
-         CatalogDB.countMovies(scope: s, category: nil))
-    }.value
-    categories   = [.all] + cats
-    folderCounts = counts
-    movies       = first.items                  // النافذة، لا الكتالوج
-    cursor       = first.nextCursor
-    reachedEnd   = first.nextCursor == nil
-    totalCount   = total
-    loaded       = true
-    // في وضع التصفيح لا يوجد `grouped` ولا `foldedNames`: الفئة استعلام،
-    // والبحث يمرّ على FTS5. هذا هو موضع مكسب الذاكرة الحقيقي.
-}
-
-func loadMore() {
-    guard paged, !loadingPage, !reachedEnd, selected == "all", search.isEmpty else { return }
-    loadingPage = true
-    let s = Store.shared.m3uURL ?? "", after = cursor, ps = pageSize
-    Task { @MainActor [weak self] in
-        let pg = await Task.detached(priority: .userInitiated) {
-            CatalogDB.pageMovies(scope: s, category: nil, after: after, limit: ps)
-        }.value
-        guard let self else { return }
-        self.movies.append(contentsOf: pg.items)
-        self.cursor = pg.nextCursor
-        self.reachedEnd = pg.nextCursor == nil
-        self.loadingPage = false
-    }
-}
-```
-
-**الوصلة في العرض** — `PosterGrid` عندنا (`ContentViews.swift:1946–1955`) يملك سلفاً حارس النافذة
-الذي يحتاجه هذا البند:
-
-```swift
-if shown < movies.count {
-    Color.clear.frame(height: 1)
-        .onAppear { shown = min(shown + S8KListWindow.step, movies.count) }
-} else if let onNearEnd {                 // ← جديد: النافذة استُنفدت ⇒ اطلب صفحة
-    Color.clear.frame(height: 1).onAppear { onNearEnd() }
-}
-```
-
-⚠ **لا تحذف نافذة `shown`.** هي تحلّ مشكلة مختلفة (P2: `ForEach` يمشي على المجموعة كاملة لبناء
-خريطة الهوية في كل إبطال)، والتصفيح لا يُغني عنها — بل يعملان معاً: التصفيح يحدّ ما في الذاكرة،
-والنافذة تحدّ ما يمشي عليه `ForEach`.
+- **الجهد:** 6–8 ساعات. **الخطر:** **متوسط** — يمسّ المُمثِّل الأكثر سخونة في التطبيق.
+  **يحتاج موافقة المالك** بحسب بروتوكول المراحل. **لا تنفّذه في نفس البناء مع البند 2.**
 
 ---
 
-# البند 2 — الهجرة من `ObservableObject` إلى `@Observable`
+# البند 2 — Stale-While-Revalidate حقيقي
 
-## الحكم: **REPLACE WITH SOMETHING NEWER** 🔴 — المرجع على النموذج القديم، والأحدث يتفوّق عليه بنيوياً
+## الحكم: **ADOPT NEWER** 🔴 — المرجع يملك نصف الآلية، والتعليق عندنا يَعِد بما لا يفعله
 
-## ما يفعله المرجع، وما نفعله — النموذج نفسه في التطبيقين
-- المرجع: 18 صنفاً على `ObservableObject`.
-- نحن: **19 صنفاً على `ObservableObject` و128 خاصية `@Published`**، وصفر استعمال لـ `@Observable`
-  في التطبيقين معاً.
+## الخلل المتحقَّق منه
 
-أثقل الحالات عندنا:
-
-| الصنف | عدد `@Published` | الموضع |
-|---|---|---|
-| `HomeVM` | **18** | `HomeView.swift:26–44` |
-| `MoviesVM` | 10 | `ContentViews.swift:818–830` |
-| `SeriesVM` | 10 | `ContentViews.swift:2038–2049` |
-| `LiveTVVM` | 7 | `ContentViews.swift:13–21` |
-| `SearchVM` | 6 | `ContentViews.swift:3132–3138` |
-
-و`HomeView` (`HomeView.swift:1–15`) يراقب **سبعة** من هذه الأشياء في آنٍ واحد
-(`vm`, `config`, `theme`, `auth`, `activation`, `bars`, `router`, `searchVM`).
-
-## المشكلة البنيوية — وهي مُثبَتة في تاريخ مستودعنا نفسه
-مع `ObservableObject`، أي تغيير على **أي** خاصية `@Published` يبثّ `objectWillChange`، فيُبطَل
-**كل** عرض يراقب الكائن — لا العروض التي تقرأ الخاصية المتغيّرة فقط.
-
-هذا ليس تنظيراً. **دفعناه ثلاث مرات، وأصلحناه ثلاث مرات يدوياً:**
-
-1. **`heroIndex`** — مؤقّت يزيده كل 5 ثوانٍ (`HomeView.swift:229–245`). التعليق عند `:253–260`
-   يوثّق النتيجة حرفياً: *«كل نبضة تُعيد تقييم كل الأقسام (أشرطة الترتيب، الأفلام، المسلسلات،
-   المباشر) — مصدر رئيسي للتلعثم المُبلَّغ عنه»*. الحلّ كان **استخراج `HeroCarouselView` يدوياً**.
-2. **المفضّلات (P8)** — `PROJECT_HANDOFF §9`: *«كل `ChannelRow` كان يحمل `@StateObject` خاصاً به على
-   الـ singleton — صندوق حالة واشتراك Combine لكل صفّ مرئي»*. الحلّ كان **رفعها يدوياً**.
-3. **بحث مطويّ (P5)** — `searchResults` كانت خاصية محسوبة تُقرأ من `body`، فتُمسح كل الكتالوج مع
-   كل إعادة رسم. الحلّ كان **فهرساً مطويّاً + مذكِّرة يدوية**.
-
-**ثلاثة إصلاحات، ثلاث حالات، ونمط واحد.** `@Observable` يغلق النمط كلّه بدل الحالات واحدةً واحدة.
-
-**وحالة رابعة لا تزال حيّة:** `MoviesView.favorites` (`ContentViews.swift:1586`) خاصية محسوبة
-`vm.movies.filter { favs.movies.contains($0.id) }` — تصفية O(n) على الكتالوج كاملاً، تُعاد في كل
-تقييم للجسم يشمل فرع المفضّلات، أي مع كل ضغطة مفتاح بحث ومع كل تغيير في أيٍّ من الأشياء السبعة.
-
-## البحث — هل `@Observable` هو الأحدث فعلاً في 2026؟
-- `@Observable` أُدخل مع إطار Observation في iOS 17، وهو **بالضبط حدّنا الأدنى** — لا حاجة إلى
-  `if #available` ولا مسار احتياطي.
-  ([Observation](https://developer.apple.com/documentation/observation) ·
-  [`@Observable`](https://developer.apple.com/documentation/observation/observable()))
-- Apple تنشر دليل ترحيل مخصّصاً لهذه العملية بالذات:
-  [Migrating from the Observable Object protocol to the Observable macro](https://developer.apple.com/documentation/swiftui/migrating-from-the-observable-object-protocol-to-the-observable-macro).
-  **وجود دليل ترحيل رسمي من Apple هو الجواب على سؤال «هل هذا هو الاتجاه؟»** — لا يُكتب دليل ترحيل
-  إلا في اتجاه واحد.
-- الأساس المعياري: [SE-0395 Observability](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0395-observability.md).
-- جلسة الإطلاق: [WWDC23 · Discover Observation in SwiftUI (10149)](https://developer.apple.com/videos/play/wwdc2023/10149/).
-- ⚠ **غير متحقَّق منه لدى Apple:** لم أجد وثيقة من Apple تنشر **رقماً** لمقدار التحسّن. الادّعاء
-  الموثَّق هو **الدلالة** (إبطال على مستوى الخاصية بدل بثّ على مستوى الكائن)، لا نسبة مئوية. أي
-  رقم تراه في مدوّنة عن «‏@Observable أسرع بـ X%» عامله كقياسٍ لحالة ذلك الكاتب لا كحقيقة.
-
-## ثلاثة مصائد يجب توثيقها قبل السطر الأول
-1. **مِلكية الحالة تنقلب.** مع `@Observable` يصير `@StateObject` خطأ ترجمة و`@ObservedObject` كذلك:
-   الملكية تصير `@State` (لما يملكه العرض) أو `let`/`@Bindable` (لما يُمرَّر إليه). أشياؤنا كلها
-   **singletons** (`MoviesVM.shared`…) فالنمط الصحيح لها هو `private let vm = MoviesVM.shared`
-   **لا** `@State` — لأن العرض لا يملكها. راجع دليل الترحيل أعلاه؛ هذه أكثر نقطة يُخطئ فيها الناس.
-2. **الإبطال يتبع القراءة، فاحذر الخصائص المحسوبة.** `@Observable` يُبطل العرض الذي **قرأ** الخاصية.
-   خاصية محسوبة مثل `favorites` تقرأ `vm.movies` — فتبقى مرتبطة بالمصفوفة كاملها. **الهجرة وحدها لا
-   تُصلح هذه؛** يجب مع الهجرة تحويل `favorites` إلى قيمة تُبنى عند التغيير لا عند القراءة.
-3. **`@ObservationIgnored` للتخزين غير المعروض.** حقول مثل `foldedNames` و`lastResults` و`grouped`
-   لا يقرأها أي عرض مباشرة؛ وسمها بـ `@ObservationIgnored` كي لا تدخل في التتبّع أصلاً.
-
-## الفائدة، وكيف تُقاس
-- **العدّاد الصحيح ليس زمناً بل عدد إعادات التقييم.** ضع `let _ = Self._printChanges()` في أول
-  `body` لـ `HomeView` و`MoviesView`، ثم نفّذ سيناريو ثابتاً (افتح الرئيسية، انتظر ثلاث نبضات
-  للـ hero، اكتب خمسة أحرف في البحث). **قِس العدد قبل وبعد.** هذا رقم قابل للتكرار، بخلاف
-  «يبدو أنعم».
-- **ثم** Instruments → قالب SwiftUI → *Long View Body Updates* (الأحمر = تلعثم) و
-  *Animation Hitches*. القياس على **بناء Release وجهاز حقيقي فقط**.
-
-## الخطر والجهد
-- **الجهد:** 4–6 ساعات، **على مراحل**. ابدأ بـ `AppTheme` و`LocalizationManager` و`BarVisibility`
-  (صغيرة، سطحها ضيّق) للتحقّق من نمط الملكية على الجهاز، ثم `HomeVM` (أكبر عائد)، ثم الثلاثة الكبار.
-- **الخطر:** **متوسط** — ليس لأن التقنية صعبة، بل لأن `@StateObject` → `let` يمسّ **كل ملف عرض**،
-  و`TabView` يُقيّم أجسام كل التبويبات عند الإقلاع (`PROJECT_HANDOFF §3`): خطأ زمن-تشغيل في أي جسم
-  = انهيار عند الإقلاع. **لا تهاجر أكثر من صنف واحد في بناء واحد.**
-
-## سكتش التنفيذ — `BlankTV/HomeView.swift`
+عنوان القسم في شيفرتنا يقول حرفياً (`BlankTV/Core.swift:1593`):
 
 ```swift
-import Observation
+// CATALOG DISK CACHE — instant cold-start (stale-while-revalidate)
+```
 
-@MainActor @Observable
-final class HomeVM {
-    static let shared = HomeVM()
-    var liveChannels: [Channel] = []
-    var movies: [Movie] = []
-    …
-    var heroIndex: Int = 0          // ← الآن يُبطل فقط ما يقرأ heroIndex
-    @ObservationIgnored private var heroTimer: Timer?   // ليس حالة عرض
-    @ObservationIgnored private var loaded = false
-}
+**والتنفيذ ليس stale-while-revalidate.** إنه جُرفُ TTL صلب:
 
-struct HomeView: View {
-    // لا @StateObject: العرض لا يملك singleton. مِلكيةٌ خاطئة تعني
-    // دورة حياة خاطئة، لا مجرّد أسلوب مختلف.
-    private let vm = HomeVM.shared
+```swift
+// BlankTV/Core.swift:1725–1731
+static func load(scope: String) -> M3UContent? {
+    guard let url = fileURL(scope), let data = try? Data(contentsOf: url),
+          let env = try? JSONDecoder().decode(Envelope.self, from: data),
+          Date().timeIntervalSince1970 - env.savedAt < ttl else { return nil }   // ← 12 ساعة، ثم لا شيء
     …
 }
 ```
 
----
+و`_load` (`Core.swift:1770–1776`) إمّا يعود بالكاش **أو** يذهب إلى الشبكة — ولا يوجد طريق ثالث:
 
-# البند 3 — ميزانية ذاكرة الصور ومسار الاستجابة لضغط الذاكرة
+```swift
+if !force, let cached = CatalogDiskCache.load(scope: urlString) {
+    content = cached
+    if let xd = XtreamDirect.parse(urlString) { xtream = xd }
+    return cached                    // ← يعود، ولا يُحدِّث شيئاً بعد ذلك أبداً
+}
+```
 
-## الحكم: **REPLACE WITH SOMETHING NEWER** 🔴 — المرجع ضبط رقماً ثابتاً بعد قياس؛ الصواب ألّا يكون ثابتاً
+**فينشأ سلوكان سيّئان معاً:**
+
+1. **بعد 12 ساعة وثانية**، مستخدمٌ يملك كتالوجاً كاملاً على قرصه ينتظر الشبكة من الصفر. وهذه هي
+   الحالة الشائعة: من يفتح التطبيق مرّة في اليوم يقع **دائماً** خارج النافذة.
+2. **داخل الـ 12 ساعة**، الكتالوج **لا يُحدَّث أبداً** ولو أضاف المزوّد ألف عنوان. ولا يوجد عندنا
+   أي تحديث عند العودة إلى المقدّمة: `onChange(of: scenePhase)` (`BlankTVApp.swift:184–188`) يستدعي
+   `validateSession()` و`ActivationService.check()` **فقط**.
 
 ## ما يفعله المرجع
-`Strong8K/iOS/Strong8K/DesignSystem.swift:544–557` — وهذا أفضل جزء في تعليقه، لأنه يعترف بأن الرقم
-قياسٌ لا مبدأ:
 
-```swift
-memory.countLimit = 260
-memory.totalCostLimit = 64 * 1024 * 1024   // ~64 MB … (was 96MB —
-// lowered with the 500px grid downsample … Data: 176k-movie catalog,
-// 928 fetches/session, thermal 'serious'.)
-```
+يملك النصف الأول: `CatalogDiskCache.loadStale(scope:)` (`Strong8K/iOS/Strong8K/Core.swift:1731–1736`)
+— نفس `load` بلا فحص TTL — و`exists(scope:)` (`:1721–1726`)، فحص وجود **بلا فكّ ترميز** يقرأ حجم
+الملف فقط، وتعليقه: *«Used by instant-entry to decide "returning user → enter now" without paying the
+decode.»*
 
-أي أن المرجع **قاس ضغطاً حرارياً حقيقياً على كتالوج بحجمنا**، وردّ عليه بخفض حدّ التكلفة وخفض
-حجم فكّ الترميز إلى 500 بكسل.
+ويملك النصف الثاني في `CentralRefresh.onForeground()` (`Core.swift:3414–3435`): إعادة تحقّق عند
+العودة إلى المقدّمة، **بمانع ارتداد 10 دقائق** وحارس `running` يمنع التداخل.
 
-## ما نفعله اليوم
-`BlankTV/DesignSystem.swift:1286–1298`:
+**لكن حارس صلاحيته `CatalogCentral.hasBump(host:)` — نداء إلى خادمه.** غير قابل للنقل.
 
-```swift
-memory.countLimit = 240
-memory.totalCostLimit = 96 * 1024 * 1024   // ~96 MB of decoded bitmaps
-hashMemory.countLimit = 512
-hashMemory.totalCostLimit = 8 * 1024 * 1024
-```
+## هل هناك ما هو أحدث؟
 
-### ⚠ ولا تنسخ رقم المرجع — تصميمنا مختلف، وهذه نقطة مهمّة
-أغرى في الوهلة الأولى أن أوصي بخفض `maxPixel` من 800 إلى 500 كما فعل المرجع. **فحصتُ، والتوصية
-خاطئة عندنا:**
+- **النمط نفسه معياريّ ومسمّى:** `stale-while-revalidate` معرَّف في
+  [RFC 5861](https://www.rfc-editor.org/rfc/rfc5861) — «HTTP Cache-Control Extensions for Stale
+  Content». ⚠ **المعيار من 2010، وأنا أعامله كمصدر قديم عمداً**: لا أستشهد به كـ«أحدث ممارسة»،
+  بل كدليل على أن هذا **مصطلح معياري له دلالة محدّدة**، وأن تعليقنا يستعمله بغير معناه.
+- **هل تستطيع `URLCache` أن تفعلها نيابةً عنا؟ لا.** لوحات IPTV **لا ترسل ترويسات تخزين مؤقّت**
+  أصلاً (لا `Cache-Control` ولا `ETag` ولا `Last-Modified`) — والنداءات `player_api.php` استعلامات
+  ديناميكية. آلية HTTP بلا ترويسات لا تفعل شيئاً. الحلّ يدويّ بالضرورة.
+- **هل يوجد بديل «صحّة الخادم» بلا خادمنا؟ نعم، ورخيص.** واجهة Xtream تعرض `user_info` في نداء
+  `player_api.php` بلا `action` — وهو النداء الذي نستعمله أصلاً في `validateAuth`
+  (`Core.swift:2048`, بمهلة 12 ث). لكنه **لا يحمل رقم نسخة كتالوج**، فلا يوجد مكافئ لـ`hasBump`.
+  ⚠ **غير متحقَّق منه:** لم أجد حقلاً معياريّاً في Xtream يعطي نسخة الكتالوج. **لذلك: لا تبنِ بوّابة
+  نسخة — أعِد التحقّق بمانع ارتداد زمني، وهو أبسط وأصدق.**
 
-- ملصق المرجع بارتفاع ثابت 150 نقطة (`ContentViews.swift:2055`) ⇒ ~450 بكسل عند 3x ⇒ **500 صحيح**.
-- ملصقنا **نسبة 2:3 في عمود تكيّفي بحدّ أدنى 116/168 نقطة** (`ContentViews.swift:1934, 1978–1980`).
-  على iPhone بعرض 390: بعد الهوامش ~358، فعمودان بعرض ~172 نقطة، وارتفاع 258 نقطة ⇒ **~774 بكسل
-  عند 3x**. أي أن **800 هو الرقم الصحيح لتصميمنا**، وخفضه إلى 500 كان سيُنتج ملصقات ضبابية على
-  أكبر شاشة في المصفوفة.
-
-> **الدرس:** المرجع لم يُعطِنا رقماً، أعطانا **طريقة**. وطريقته هي: طابِق الفكّ بالحجم المعروض
-> فعلاً. نحن نطبّقها بالفعل — لكن على مقاسات أكبر.
-
-### 🔴 وهنا تظهر المشكلة الحقيقية: الميزانية لا تتّسع لتصميمنا
-ملصق واحد عندنا بعد فكّ الترميز = 533 × 800 × 4 ≈ **1.7 ميغابايت**. مع سقف 96 ميغابايت، الذاكرة
-تتّسع لـ **~56 ملصقاً فقط** — بينما `countLimit` مضبوط على 240، أي أن **حدّ التكلفة هو المُلزِم
-دائماً و`countLimit` زينة**. والشبكة تعرض ~8 ملصقات في الشاشة و`prefetch` يُسخّن 30
-(`ContentViews.swift:1956`). أي أن تمريرة واحدة بطول 60 عنواناً تُخلي الذاكرة بالكامل، والعودة إلى
-الأعلى **تعيد التنزيل وفكّ الترميز**.
-
-وتعليقنا نفسه في `DesignSystem.swift:1446–1447` يوثّق هذا العَرَض حرفياً:
-*«أفسد ذاكرة الصور (~38 صورة عند 800 بكسل) وسبّب وميض إعادة فكّ الترميز أثناء التمرير»*.
-
-### 🔴 وأسوأ: لا شيء في التطبيق يستجيب لضغط الذاكرة إطلاقاً
-- **صفر** نتيجة لـ `didReceiveMemoryWarning` أو `memoryWarningNotification` في **التطبيقين معاً**.
-- `MediaPrefetcher.clear()` (`MediaPrefetcher.swift:56–59`) موثَّق حرفياً بأنه *«للحالات مثل تحذير
-  الذاكرة»* — و**لا يستدعيه أحد**. تحقّقتُ: المستدعيان الوحيدان لـ `MediaPrefetcher.shared` هما
-  `prefetch` (`ContentViews.swift:2579`) و`take` (`PlayerEngine.swift:330`). أي أن **مشغّلَين
-  دافئَين يبقيان يخزّنان فيديو VOD تحت ضغط الذاكرة حتى يقتلنا النظام**.
-
-## البحث — ما هو الأحدث؟
-- `NSCache` **يستجيب فعلاً لضغط الذاكرة تلقائياً** — توثيق Apple ينصّ على أنه *«يُخلي محتوياته
-  تلقائياً عندما تكون موارد الذاكرة شحيحة»*
-  ([NSCache](https://developer.apple.com/documentation/foundation/nscache)). فالمشكلة ليست في
-  `NSCache` بل في **ما ليس داخل `NSCache`**: المشغّلات الدافئة.
-- الرقم الثابت هو الخلل الجوهري: 96 ميغابايت رقمٌ واحد لجهاز بذاكرة 3 غ.ب وآخر بـ 8 غ.ب. الواجهة
-  المُوثَّقة لمعرفة ما تبقّى **لهذه العملية** هي `os_proc_available_memory()` (iOS 13+، من
-  `<os/proc.h>`) ([os_proc_available_memory](https://developer.apple.com/documentation/os/os_proc_available_memory())).
-- والبديل/المكمّل للتحذير: `DispatchSource.makeMemoryPressureSource(eventMask:queue:)` — مصدر
-  GCD يُطلق عند `.warning` و`.critical`، ويعمل خارج دورة حياة UIKit
-  ([DispatchSource](https://developer.apple.com/documentation/dispatch/dispatchsource/makememorypressuresource(eventmask:queue:))).
-- ⚠ **غير متحقَّق منه لدى Apple:** لم أجد توثيقاً رسمياً يقول «اشتقّ `totalCostLimit` من
-  `os_proc_available_memory()`». الواجهتان موثَّقتان كلٌّ على حدة؛ **الربط بينهما اجتهادٌ هندسي
-  مني، لا توصية من Apple.** عامله كذلك، وقِس النتيجة.
-- ⚠ **وحذارِ من الصياغة الخاطئة الشائعة:** `ProcessInfo.processInfo.physicalMemory` يعطي ذاكرة
-  **الجهاز**، لا حصّة التطبيق. الاشتقاق منه يعطي أرقاماً متفائلة تنتهي بالقتل (jetsam). استعمل
-  `os_proc_available_memory()`.
-
-## الفائدة، وكيف تُقاس
-| ما يُقاس | كيف | ما نتوقّعه |
-|---|---|---|
-| نسبة إصابة ذاكرة الصور | أضِف عدّادَين ذرّيَّين في `S8KImageCache.load` (إصابة/إخفاق) واعرضهما في لوحة التشخيص القائمة (`EngineStatsView`) | ترتفع بوضوح عند العودة بالتمرير |
-| عدد التنزيلات لكل جلسة تصفّح | العدّاد نفسه | ينخفض — وهو **بطارية وبيانات**، لا سرعة فقط |
-| ذروة الذاكرة | `MXMemoryMetric.peakMemoryUsage` عبر MetricKit القائم | يجب ألّا ترتفع رغم زيادة السقف على الأجهزة الكبيرة |
-| عمليات القتل بسبب الذاكرة | `MXAppExitMetric` (`cumulativeMemoryResourceLimitExitCount`) | يجب أن تصير صفراً |
-
-## الخطر والجهد
-- **الجهد:** 2–3 ساعات. **الخطر:** منخفض — لا يمسّ أي منطق عرض.
-- **قيد إلزامي:** لا تجعل الحدّ يعتمد على قياس يُجرى **مرّة واحدة عند الإقلاع** فقط؛ الذاكرة
-  المتاحة تتغيّر. أعِد التقييم عند العودة إلى المقدّمة.
+> **الخلاصة:** لا يوجد API أحدث. المرجع يملك القطعتين لكن مربوطتين بخادمه. **نأخذ الشكل ونرمي
+> الرباط.**
 
 ## سكتش التنفيذ
 
-**`BlankTV/DesignSystem.swift` — داخل `S8KImageCache.init()`:**
+**(أ) `BlankTV/Core.swift` — أضِف إلى `enum CatalogDiskCache` (بجوار `load`, `:1731`):**
 
 ```swift
-import os          // os_proc_available_memory()
-
-/// ميزانية النقوش المفكوكة، مشتقّة من الذاكرة المتبقّية لهذه العملية.
-/// الرقم الثابت (96 م.ب) كان يعني شيئين مختلفين تماماً على جهاز 3 غ.ب وجهاز 8 غ.ب:
-/// إفراطاً يقود إلى القتل على الأول، وإهداراً يقود إلى إعادة تنزيل على الثاني.
-/// ملصقنا 2:3 عند 800 بكسل = ~1.7 م.ب، فسقف 96 م.ب يسع ~56 ملصقاً — أقلّ من
-/// شاشتين — وهو سبب "وميض إعادة الفكّ" الموثَّق عند :1446.
-private static func imageBudget() -> Int {
-    let available = Int(os_proc_available_memory())        // بايت متبقّية لهذه العملية
-    guard available > 0 else { return 96 * 1024 * 1024 }   // احتياطي: السلوك الحالي
-    // الخُمس، ضمن حدَّين. ليست توصية من Apple — اجتهاد يُقاس، انظر التقرير.
-    return min(max(available / 5, 48 * 1024 * 1024), 220 * 1024 * 1024)
+/// نفس `load` **بلا** فحص الـ TTL. الطازجة تحكمها إعادة التحقّق في الخلفية، لا الساعة:
+/// كتالوج عمره 13 ساعة أفضل بما لا يُقاس من شاشة فارغة تنتظر الشبكة.
+/// nil فقط إن كان الملف مفقوداً أو فارغاً أو تالفاً.
+static func loadStale(scope: String) -> M3UContent? {
+    guard let url = fileURL(scope),
+          // .mappedIfSafe: الملف عشرات الميغابايتات على خطٍّ كبير — انظر البند 7.
+          let data = try? Data(contentsOf: url, options: .mappedIfSafe),
+          let env = try? JSONDecoder().decode(Envelope.self, from: data) else { return nil }
+    let c = content(from: env)
+    return (c.channels.isEmpty && c.movies.isEmpty && c.series.isEmpty) ? nil : c
 }
 
-init() {
-    memory.totalCostLimit = Self.imageBudget()
-    memory.countLimit = 0          // 0 = بلا حدّ عددي. الحدّ المُلزِم هو التكلفة،
-                                   // وكان 240 رقماً لا يُبلَغ أبداً (التكلفة تسبقه دائماً).
-    …
-}
-
-/// أفرغ ما يمكن إفراغه فوراً. تُستدعى من مصدر ضغط الذاكرة.
-func purge() {
-    memory.removeAllObjects()      // الصور الكاملة أولاً — أغلى ما نملك
-    // لا تُفرغ hashMemory: بصمات ThumbHash ~32 بكسل، ووجودها هو ما يمنع
-    // الشاشة الرمادية بعد الإفراغ. إفراغها يجعل الاسترداد يبدو كعطل.
+/// عمر الكاش بالثواني، بلا فكّ ترميز — لقرار «هل أعيد التحقّق؟».
+/// nil إن لم يوجد ملف. يقرأ سمة نظام الملفات فقط، فهو مجّاني عملياً.
+static func age(scope: String) -> TimeInterval? {
+    guard let url = fileURL(scope),
+          let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+          let mod = attrs[.modificationDate] as? Date else { return nil }
+    return Date().timeIntervalSince(mod)
 }
 ```
 
-**`BlankTV/BlankTVApp.swift` — داخل `AppDelegate` (وهو موجود عند `:72`):**
+**(ب) `BlankTV/Core.swift` — بدّل كتلة الكاش في `_load` (`:1770–1776`) بهذه:**
 
 ```swift
-private var memoryPressure: DispatchSourceMemoryPressure?
-
-func application(_ app: UIApplication,
-                 didFinishLaunchingWithOptions o: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-    // مسار واحد للاستجابة لضغط الذاكرة. لم يكن في التطبيق أيّ مسار من قبل —
-    // ولا حتى في المرجع — فكان النظام يقتلنا بدل أن نتراجع.
-    let src = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical],
-                                                      queue: .main)
-    src.setEventHandler {
-        // المشغّلات الدافئة أولاً: مشغّلا AVPlayer يخزّنان فيديو VOD، وهما
-        // أغلى ما نملك وأسهل ما يُعاد بناؤه (يُعاد التسخين عند فتح الصفحة).
-        // clear() موجودة منذ اليوم الأول وموثَّقة "مثلاً عند تحذير الذاكرة" —
-        // ولم يستدعِها أحد قط.
-        MediaPrefetcher.shared.clear()
-        S8KImageCache.shared.purge()
-    }
-    src.resume()
-    memoryPressure = src
-    return true
-}
-```
-
-⚠ **تحفّظ صادق:** `NSCache` يُخلي تلقائياً تحت الضغط، فجزء `S8KImageCache.purge()` قد يكون
-مكرِّراً لعمل النظام. **الجزء الذي لا بديل عنه هو `MediaPrefetcher.shared.clear()`** — لأن
-`AVPlayer` ليس `NSCache` ولا يُخلي نفسه. إن أردت أقلّ تغيير بأكبر أثر، **نفّذ ذلك السطر وحده.**
-
----
-
-# البند 4 — `PosterCollectionView` (UICollectionView + `UIHostingConfiguration`)
-
-## الحكم: **REJECT (الآن)** — والسبب الأقوى هو أن **المرجع نفسه لم يُشغّله**
-
-## ما يفعله المرجع
-`Strong8K/iOS/Strong8K/ContentViews.swift:1963–2040` — بنية `UIViewRepresentable` كاملة:
-`UICollectionViewCompositionalLayout` + `UICollectionViewDiffableDataSource` +
-`UIHostingConfiguration` تستضيف `MoviePosterCell` حرفياً + `UICollectionViewDataSourcePrefetching`
-يغذّي `S8KImageCache.prefetch` ويُطلق `onNearEnd` للتصفيح.
-
-وتعليقه (`:1955–1962`) يشرح الحجّة بدقّة: *«LazyVGrid لا تُعيد استعمال الخلايا حقاً ⇒ عند 100 ألف
-عنصر تُبدّد التمريرات السريعة مخزن العروض وتتجاوز ميزانية 8.33 م.ث»*.
-
-## لماذا الرفض — أربعة أسباب، مرتَّبة بقوّتها
-
-**١. المرجع أبقاه مطفأً.** موضع الاستدعاء (`ContentViews.swift:1795`) مسوَّر بـ
-`if Store.shared.gridEngine == "uikit"`، وتعليقه يقول حرفياً **«Dark-launch»**، والفرع الآخر
-*«المسار LazyVGrid غير المتغيّر»*. ولا يظهر إلا في **جزء iPad** (`padGrid`) — لا على iPhone.
-**المرجع لم يشحن هذه التقنية؛ شحن مفتاحاً لها ولم يقلبه.** تبنّي شيء لم يثبت في الميدان عند مصدره
-هو بالضبط ما تمنعه القاعدة الحاكمة.
-
-**٢. المشكلة التي يحلّها حلَلناها بطريقة أرخص.** حجّته هي «100 ألف عنصر في `ForEach` واحدة».
-عندنا `S8KListWindow` (`ContentViews.swift:555–561`) يحدّ ما تمشي عليه `ForEach` بـ 120 صفاً + 180
-لكل خطوة، وهو الإصلاح P2 المُقاس. **والبند 1 من هذا التقرير يحدّ الذاكرة أيضاً.** بعد البند 1 لن
-تحمل الشبكة 176 ألف عنصر أصلاً، بل 150 وتنمو — فالفرضية التي بُني عليها البند تسقط.
-
-**٣. ثمنه المعماري مرتفع عندنا تحديداً.** تعليق المرجع نفسه يحذّر: *«⚠️ هذا **يملك** تمريره — يجب
-ألّا يُعشِّشه المستدعي داخل ScrollView»*. وصفحاتنا **ليست شبكة عارية**: `MoviesView` بُني على نمط
-الرئيسية — بطل مُمتدّ كامل العرض + أشرطة تحريرية + شبكة، كلّها داخل `ScrollView` واحد
-(`PROJECT_HANDOFF §5f`). إدخال عرض يملك تمريره يعني **تفكيك الصفحة** التي بُنيت لأجل حجّة التمايز
-عن Strong8K. الثمن ليس «ساعات»، بل تراجع عن قرار تصميمي مُوقَّع.
-
-**٤. ومفارقة التمايز.** `UIHostingConfiguration` تستضيف `MoviePosterCell` **حرفياً**. نقل هذه
-البنية يعني إعادة إدخال ملف عرضٍ مطابق للمرجع سطراً بسطر إلى ثنائيّتنا — بعد أن قضينا جولة كاملة
-(`DIFFERENTIATION_REPORT.md`، `PROJECT_HANDOFF §5f`) في تفكيك تطابقٍ من هذا النوع بالضبط. حتى لو
-كان الأداء رابحاً، **هذا وحده يكفي لتأجيله.**
-
-## ما يبقى صحيحاً منه ويستحقّ الأخذ — بلا UIKit
-الفكرة الجيّدة الوحيدة القابلة للفصل هي **إطلاق `prefetch` عند نموّ النافذة، لا عند `onAppear`
-مرّة واحدة**. اليوم نُسخّن أول 30 ملصقاً فقط (`ContentViews.swift:1956`) ولا نُسخّن شيئاً بعدها
-أبداً، مهما طال التمرير. سطر واحد، بلا `UIViewRepresentable`:
-
-```swift
-if shown < movies.count {
-    Color.clear.frame(height: 1)
-        .onAppear {
-            let next = min(shown + S8KListWindow.step, movies.count)
-            // سخّن الخطوة التي نحن على وشك عرضها. اليوم يقع التسخين مرّة واحدة
-            // عند onAppear لأول 30، فكل ما بعد الشاشة الأولى يُنزَّل عند ظهوره.
-            S8KImageCache.shared.prefetch(
-                movies[shown..<next].compactMap { $0.posterURL }, maxPixel: 800)
-            shown = next
+// STALE-WHILE-REVALIDATE. سابقاً كان هذا جُرفاً: بعد 12 ساعة يعود `load` بـ nil ويقف
+// المستخدم أمام شاشة فارغة بينما كتالوج كامل يرقد على قرصه. والأسوأ أنه **داخل**
+// النافذة لم يكن يُحدَّث أبداً. الآن: اخدم المحفوظ فوراً دائماً، ثم أعِد التحقّق في
+// الخلفية إن تجاوز عمره النافذة. المستخدم لا ينتظر الشبكة في أي من الحالتين.
+if !force, let cached = CatalogDiskCache.loadStale(scope: urlString) {
+    content = cached
+    if let xd = XtreamDirect.parse(urlString) { xtream = xd }
+    let age = CatalogDiskCache.age(scope: urlString) ?? .greatestFiniteMagnitude
+    if age > CatalogDiskCache.ttl, !revalidating {
+        revalidating = true
+        // مُنفصلة تماماً عن هذا الإرجاع: تجلب، وتُحدِّث `content`، وتكتب الكاش.
+        // فشلها لا يكلّف المستخدم شيئاً — المحفوظ يظلّ معروضاً.
+        Task { [weak self] in
+            defer { Task { await self?.endRevalidate() } }
+            _ = try? await self?.load(force: true)
         }
+    }
+    return cached
 }
 ```
 
-**الجهد:** ~8 أسطر. **الخطر:** منخفض. **الفائدة:** يقلّ ظهور الهيكل الرمادي أثناء التمرير المتواصل.
-**قِسها** بعدّاد إصابة/إخفاق الذاكرة من البند 3، لا بالنظر.
-
-⚠ **وملاحظة يجب ألّا تُنسى إن عاد أحدٌ يوماً إلى `PosterCollectionView`:** المرجع ينفّذ
-`prefetchItemsAt` (`:2034`) ولا ينفّذ `cancelPrefetchingForItemsAt` إطلاقاً. أي أن تمريرة سريعة
-تُطلق تنزيلات لعشرات الملصقات التي تجاوزها المستخدم فعلاً، بلا إلغاء. البروتوكول يعرّف الدالتين
-معاً لسبب ([UICollectionViewDataSourcePrefetching](https://developer.apple.com/documentation/uikit/uicollectionviewdatasourceprefetching)).
-
----
-
-# البند 5 — تسليم تنزيل Turbo إلى جلسة الخلفية
-
-## الحكم: **REJECT (الآن)** — لأن الشيفرة التي يُصلحها **ميتة عندنا**، ويلزم قرار من المالك
-
-## ما يفعله المرجع
-`Strong8K/iOS/Strong8K/Downloads.swift:235–241`:
+**وأضِف إلى `PlaylistService`:**
 
 ```swift
-func handoffActiveTurboToBackground() {
-    for it in items where it.state == .downloading && turboTasks[it.id] != nil {
-        guard let urlStr = it.remoteURL, let url = URL(string: urlStr) else { continue }
-        turboTasks[it.id]?.cancel(); turboTasks[it.id] = nil
-        launchBackground(it.id, url: url, ext: extFor(it.id))
-    }
-}
+/// حارس إعادة التحقّق. بدونه: كل مستدعٍ يجد الكاش قديماً يُطلق جلبةً كاملة،
+/// وسبعة نماذج عرض تعني سبع جلبات لكتالوج واحد على لوحةٍ تُقيّد المعدّل.
+private var revalidating = false
+private func endRevalidate() { revalidating = false }
 ```
 
-مُستدعىً من `Strong8KApp.swift:165–171` في فرع `scenePhase == .background`. وتعليقه يذكر شكوى
-مستخدم حقيقية عالجها: *«"لا عدّاد عند العودة"»*. والمنطق سليم تماماً: تنزيل Turbo يعيش على `Task`
-+ جلسة عادية، والنظام يعلّقه ثم يقتله عند التخلّف؛ بينما جلسة `URLSessionConfiguration.background`
-هي **الآلية الوحيدة** التي يواصل النظام تنفيذها خارج العملية.
+⚠ **مأخذٌ يجب أن يُقرأ قبل التنفيذ — وهو المصيدة التي وثّقها المرجع بنفسه:**
+`load(force: true)` تُطلق `CatalogDB.save` **مُنفصلة** (`Core.swift:1803`) وتعود **قبل** أن تُودَع
+المعاملة. تعليق المرجع عند `Core.swift:3427–3429` يصف العاقبة حرفياً:
 
-## لماذا لا ننقله — الفحص الذي قلب الحكم
-كنتُ سأضع هذا البند في المرتبة الأولى. ثم فحصتُ ما إذا كان `runTurbo` قابلاً للوصول عندنا أصلاً:
+> *«PlaylistService fires its save DETACHED and returns before it commits, so the serialized
+> DatabaseQueue could hand loadPaged() the OLD rows.»*
 
-```
-BlankTV/Core.swift:850   var turboDownloads: Bool {
-BlankTV/Core.swift:851       get { ud.bool(forKey: "s8k.turboDownloads") }   // ← الافتراضي false
-BlankTV/Downloads.swift:194  if Store.shared.turboDownloads {
-```
+فإن نُفِّذ البند 1 من الجولة الثانية (القراءة المُصفَّحة) لاحقاً، **يجب أن تُنتظر الكتابة** قبل
+إعادة تحميل التبويبات، كما يفعل هو عند `:3431`.
 
-- `ud.bool(forKey:)` يعيد `false` لمفتاح غير مضبوط ⇒ **Turbo مطفأ افتراضياً**.
-- بحثتُ عن أي `setter` أو مفتاح في الواجهة: **لا يوجد**. لا شيء في `SettingsView.swift` يضبط
-  `turboDownloads`، ولا مفتاح ترجمة له، ولا تحكّم عن بُعد.
+⚠ **ومأخذ ثانٍ:** `loadStale` **لا يجوز** أن تخدم كتالوجاً موسوماً `isPartial`. الحارس موجود عندنا
+على الكتابة (`Core.swift:1791`) — لا تُضعِفه على القراءة.
 
-> **النتيجة:** `runTurbo` (`Downloads.swift:248–355`) — ~110 سطراً — **شيفرة لا يمكن لأي مستخدم
-> بلوغها**. وبناء التسليم إليها يعني كتابة إصلاحٍ لمسارٍ لا يُنفَّذ.
->
-> **والخبر الجيّد:** مسارنا الفعلي (`launchBackground`, `Downloads.swift:202–223`) هو **جلسة خلفية
-> حقيقية** منذ البداية، و`AppDelegate.handleEventsForBackgroundURLSession`
-> (`BlankTVApp.swift:85–92`) موصول بشكل صحيح، وبيانات الاستئناف تُحترم (`:206`). **تنزيلاتنا
-> موثوقة في الخلفية اليوم.**
-
-## القرار المطلوب من المالك (وليس بنداً هندسياً)
-1. **إمّا احذف `runTurbo` و`turboTasks` و`turboDownloads`** — ~120 سطراً من شيفرة ميتة تُصعّب كل
-   قراءة لاحقة لـ `Downloads.swift`، وتُغري كل مراجع بأن يُصلح فيها ما لا يعمل أصلاً.
-2. **وإمّا أَظهِر المفتاح في الإعدادات — وعندها التسليم إلى الخلفية إلزاميّ لا اختياري**، وإلا شحنّا
-   بالضبط الخلل الذي اشتكى منه مستخدمو المرجع. نفّذ الاثنين في **بناءٍ واحد**، لا أحدهما.
-
-⚠ **وإن نُفِّذ يوماً، انتبه لهذا في نسخة المرجع:** `handoff` يستدعي `launchBackground` **فوراً بعد**
-`turboTasks[id]?.cancel()`. والإلغاء في Swift **تعاوني**: لا يوقف `runTurbo` لحظياً، بل يضع رايةً
-تُفحص عند نقاط التعليق. المرجع نفسه يعرف ذلك ويحرس ضدّه بفحصين للإلغاء (`Downloads.swift:287–300`
-مع تعليق صريح: *«التسليم يفوز؛ نحن ننسحب»*). **انقل الحارسَين معه، وإلا فتحتَ نافذة يعمل فيها
-تحويلان على خطّ Xtream يقبل اتصالاً واحداً، فيُرفض الثاني.**
+- **الجهد:** 3–4 ساعات. **الخطر:** منخفض. **الفائدة:** يزيل انتظار الشبكة من **كل** إقلاع بارد
+  لمستخدم عائد، ويُدخل أول تحديث تلقائي للكتالوج في تاريخ التطبيق.
 
 ---
 
-# قسم إضافي — تقنية لا يملكها أيٌّ من التطبيقين
+# البند 3 — ترقية `MobileVLCKit` من 3.6.0 إلى 3.7.3
 
-## ج-أ · التكيّف مع الحالة الحرارية ووضع الطاقة المنخفضة
+## الحكم: **ADOPT NEWER** 🔴 — **ولا يملكه أيٌّ من التطبيقين. هذا حكمٌ ضدّ المرجع وضدّنا معاً.**
 
-**الحكم: ابنِه — لكن بعد البندين 1 و3، لا قبلهما.**
+## الحقيقة المتحقَّق منها
 
-**الدليل على أن المشكلة حقيقية يأتي من المرجع نفسه:** تعليق ذاكرة الصور عنده
-(`DesignSystem.swift:548–552`) يسجّل بيانات ميدانية: *«كتالوج 176 ألف فيلم، 928 جلبة/جلسة، حراري
-'serious'»*. أي أن هذا الصنف من التطبيقات **يبلغ `.serious` فعلاً** على أجهزة حقيقية.
+```ruby
+# blankstor/Podfile:8   — ونفس السطر حرفياً في Strong8K/iOS/Podfile:8
+pod 'MobileVLCKit', '~> 3.6.0'
+```
 
-**وما يفعله أيٌّ من التطبيقين حيال ذلك: لا شيء.** المرجع **يقيس** الحالة الحرارية
-(`Telemetry.swift:206`) ولا يتصرّف بناءً عليها. ونحن لا نقيسها ولا نتصرّف.
+عامل `~>` مع ثلاثة مقاطع يعني `>= 3.6.0, < 3.7.0`. **أي أننا محبوسون خارج كل 3.7.x بحكم الصياغة،
+لا بحكم قرار.**
 
-**ما تقوله Apple:** `ProcessInfo.thermalState` مع `thermalStateDidChangeNotification`
-([thermalState](https://developer.apple.com/documentation/foundation/processinfo/thermalstate)) —
-والتوثيق واضح في أن على التطبيق **تقليل العمل** عند `.serious` و`.critical`. ونظيرها للبطارية
-`isLowPowerModeEnabled` + `NSProcessInfoPowerStateDidChange`
-([isLowPowerModeEnabled](https://developer.apple.com/documentation/foundation/processinfo/islowpowermodeenabled)).
+**وما هو منشور فعلاً** (من واجهة CocoaPods trunk الرسمية، `trunk.cocoapods.org/api/v1/pods/MobileVLCKit`):
 
-**أين يقع الأثر عندنا بالضبط، وهو مكان واحد:**
+| الإصدار | تاريخ النشر |
+|---|---|
+| 3.6.0 | 2023 |
+| 3.6.1b1 | 2024-06-23 |
+| **3.7.0** | **2025-12-04** |
+| 3.7.1 | 2026-01-07 |
+| 3.7.2 | 2026-01-21 |
+| **3.7.3** | **2026-02-25** |
+
+**وما تغيّر بينهما** (من واجهة GitHub، `compare/3.6.0...3.7.3` على `videolan/VLCKit` — 20 دفعة):
+
+```
+2024-06-22  libvlc: update to ac310b4b
+2025-04-09  VLCLibrary: Add currentErrorMessage class property
+2025-08-06  libvlc: update to latest 3.0.x head
+2025-12-01  libvlc: update to 3.0.22
+2026-01-02  libvlc: update to 3.0.23
+2026-01-21  libvlc: backport prefetch cancellation simplification
+2026-02-24  libvlc: add patch to prevent crashes on NULL MRLs
+```
+
+**ولماذا يهمّنا هذا تحديداً؟** لأن `StreamRouter.defaultEngine` (`StreamRouter.swift:45–49`) يرسل
+**كل** VOD وكل ملف محلّي إلى VLC. أي أن **100% من الأفلام والحلقات في هذا التطبيق تُفكَّك شفرتها
+بهذا المُفكِّك بالذات** — وهو اليوم بناءٌ من يونيو 2024.
+
+**وما يحمله التحديث، من ملف `NEWS` الرسمي في `videolan/vlc` فرع `3.0.x`:**
+
+*بين 3.0.21 و3.0.22:*
+- `Multiple fixes in MPEG-TS` ← **حاويةُ كل قناة مباشرة على لوحات Xtream**
+- `Fix crashes in multiple demuxers (reported by rub.de, oss-fuzz and others) Including fixes for malformed WAV, VOC, MMS, ASF and AVI files`
+- `Prevent FLAC seeking logic get stuck`
+- `Fix hardware decoding with VideoToolbox of XVID MPEG-4 video` ← **فكّ شفرة عتاديّ على iOS**
+- `Fix playback of very short ASF files`
+
+*بين 3.0.22 و3.0.23:*
+- `Security: Fix null deref in libass, undefined shift in theora and cc-708, integer overflow in daala, Infinite loop in h264 parsing, buffer overflow in png and multiple format-overflows`
+- `Fix malformed stream handling in Blu-ray, WebVTT and subtitle modules`
+
+> **«ملفات مشوّهة» و«بثّ مشوّه» ليستا حالتين نادرتين في تطبيق IPTV — إنهما يوم العمل العادي.**
+> لوحات المزوّدين ترسل TS بغير ترويسات صحيحة، وMKV بفهارس ناقصة، وترجمات بترميزات عجيبة. هذه
+> الإصلاحات مكتوبة لنا حرفياً.
+
+## هل الأحدث فعلاً هو 3.7.3؟ — نعم، مع تحفّظ واضح على 4.x
+
+- `MobileVLCKit 4.0.0a2` منشور منذ **2023-03-07** — و**«a2» تعني alpha**. وأحدث وسم 4.x في المستودع
+  هو `4.0.0-a22`، ولم يُنشَر إلى CocoaPods. **لا تقترب من 4.x**: ألفا، وواجهته البرمجية تغيّرت
+  (تسمية `VLCKit` الموحّدة بدل `MobileVLCKit`)، وستكسر `VLCPlayer.swift` كلّه.
+- **إذن 3.7.3 هو آخر مستقرّ، والقفزة داخل نفس الخطّ الرئيسي (3.x).** واجهة `VLCMediaPlayer` /
+  `VLCMedia` / `addOption` التي نستعملها لم تتغيّر.
+
+## الثمن — بصراحة
+
+| البند | التقييم |
+|---|---|
+| **تبعية جديدة؟** | **لا.** نفس الـ pod، نفس الاسم، رقم أعلى. |
+| **الترخيص** | `LGPL v2.1` في الحالتين — بلا تغيير في التزاماتنا. |
+| **خطر مراجعة App Store** | **بلا تغيير.** نفس المُورِّد ونفس الأطر المرتبطة (تحقّقتُ من الـ podspec: `QuartzCore, CoreText, AVFoundation, Security, CFNetwork, AudioToolbox, OpenGLES, CoreGraphics, VideoToolbox, CoreMedia` — مطابقة). |
+| **حجم الثنائية** | ⚠ **غير متحقَّق منه.** الـ podspec يشير إلى `xcframework` مُسبَق البناء، ولم أستطع قياس حجمه دون تنزيله. **مقارنة `.ipa` قبل/بعد إلزامية** قبل الرفع (وميزانية الرفع اليومية محدودة — انظر [[testflight-upload-limit]]). |
+| **الصيانة** | **تنخفض.** نحن اليوم على بناءٍ لن يتلقّى إصلاحات أمنية. |
+| **الخطر الحقيقي** | **تبديل مُفكِّك شفرة.** إصلاح في MPEG-TS قد يغيّر سلوك قناةٍ كانت تعمل «بالصدفة». |
+
+## سكتش التنفيذ
+
+**`blankstor/Podfile:8`:**
+
+```ruby
+  # Stable production VLC engine. مُثبَّت على 3.7.3 (2026-02-25) لا `~> 3.6.0`:
+  # ذلك العامل يعني `< 3.7.0`، فكان يحبسنا على libvlc من يونيو 2024 بينما
+  # 3.7.x تحمل libvlc 3.0.23 — وفيه "Multiple fixes in MPEG-TS" (حاوية كل قناة
+  # مباشرة عندنا)، وإصلاحات انهيار في المُفكِّكات على الملفات المشوّهة، وإصلاحات
+  # أمنية. StreamRouter يرسل 100% من الـ VOD إلى هذا المحرّك. مصدر: videolan/vlc NEWS.
+  # ⚠ لا تقفز إلى 4.x: أحدث ما نُشر منها alpha (4.0.0a2, 2023) وواجهتها مختلفة.
+  pod 'MobileVLCKit', '3.7.3'
+```
+
+ثم `pod update MobileVLCKit` وارفع `Podfile.lock` مع التغيير.
+
+## بروتوكول التحقّق الإلزامي (فالفريق لا يترجم محلّياً)
+
+هذا البند **لا يجوز** أن يُشحن مع أي بند آخر. قائمة الفحص على جهاز حقيقي بعد البناء:
+
+1. قناة مباشرة (HLS) — تفتح وتعمل.
+2. قناة مباشرة (TS) — تفتح وتعمل. **هذا هو الفحص الحرج.**
+3. فيلم `.mkv` — يفتح، ويقبل القفز ±10، ويحفظ الموضع.
+4. فيلم `.mp4` — نفسه.
+5. مسار الترجمات ومسار الصوت البديل — القائمتان تُملآن.
+6. ملف منزَّل محلّياً — يعمل بلا شبكة.
+7. الانتقال التلقائي بين المحرّكين لا يزال يعمل.
+
+- **الجهد:** 30 دقيقة عمل + جولة تحقّق. **الخطر:** **متوسط**، ومحصور تماماً في المشغّل.
+
+---
+
+# البند 4 — `MediaPrefetcher` يُسخّن المحرّك الخطأ
+
+## الحكم: **خلل حيّ — أصلحه** 🔴 — وهذا **ليس** سؤال «أحدث»، بل تناقضٌ داخلي متحقَّق منه
+
+## البرهان — ثلاثة أسطر تكفي
+
+**١) نُسخّن `AVPlayer` لكل فيلم يُفتح:**
+```swift
+// BlankTV/ContentViews.swift:2593  (داخل .task لصفحة تفاصيل الفيلم)
+MediaPrefetcher.shared.prefetch(.movie(movie))   // warm the stream while the page loads
+```
+و`MediaPrefetcher.prefetch` (`MediaPrefetcher.swift:27–45`) يبني `AVURLAsset` + `AVPlayerItem` +
+`AVPlayer` ويبدأ التخزين المؤقّت فعلياً.
+
+**٢) لكن روابط أفلام Xtream عندنا ليست HLS إطلاقاً:**
+```swift
+// BlankTV/Core.swift:1588
+func movieURL(id: String, ext: String) -> String { "\(base)/movie/\(user)/\(pass)/\(id).\(ext)" }
+```
+حيث `ext` = `container_extension` من اللوحة (`Core.swift:2147`) — أي `mkv` أو `mp4` أو `avi`.
+
+**٣) و`StreamRouter` يرسل كل ما ليس HLS إلى VLC:**
+```swift
+// BlankTV/StreamRouter.swift:45–49
+static func defaultEngine(for item: ContentItem) -> PlayerEngineKind {
+    let s = classify(item)
+    if s.isLocalFile { return .vlc }
+    return s.container == .hls ? .av : .vlc        // ← فيلم .mkv/.mp4 ⇒ .vlc دائماً
+}
+```
+
+**والاستهلاك الوحيد للتسخين يقع داخل `AVPlayerVM` فقط:**
+```swift
+// BlankTV/PlayerEngine.swift:330
+if let warm = MediaPrefetcher.shared.take(for: item) { pItem = warm }
+```
+
+### النتيجة، وهي قاطعة
+
+`PlayerEngineSelector.initialKind` (`PlayerEngine.swift:757–768`) يختار `.av` لفيلم في حالتين فقط:
+تفضيل صريح من المستخدم (`playerEnginePref == "av"`)، أو ذاكرة قرار سابقة `.av` — **وتلك لا تُكتَب إلا
+بعد نجاح على AVPlayer، أي بعد التفضيل الصريح أو انتقالٍ فاشل من VLC**. وفي التهيئة الافتراضية:
+**`take(for:)` لا تُستدعى أبداً، ويُهدَر كل تسخين.**
+
+**والثمن الفعلي:**
+- **بيانات وبطارية.** كل فتحة صفحة تفاصيل فيلم تبدأ تنزيلاً لن يُستعمل. تصفّح 20 فيلماً = 20 بدايةً
+  مهدورة (السقف `cap = 2` يحدّ الذاكرة **لا** الشبكة: المطرود قد بدأ التنزيل فعلاً،
+  `MediaPrefetcher.swift:40–43`).
+- **ذاكرة.** مشغّلان دافئان يُخزّنان فيديو VOD، وهما بالضبط ما وصفته الجولة الثانية بأنه أخطر ما
+  يبقى حيّاً تحت ضغط الذاكرة (بند 3 هناك).
+
+## هل هناك «أحدث» هنا؟ — السؤال غير ذي موضوع
+
+هذا **تناقض توجيه داخليّ**، لا اختيار API. لا توجد واجهة في iOS 17/18/26 تجعل `AVPlayer` يسخّن
+مسارَ VLC. والمرجع يملك المشكلة نفسها (`PlayerEngine.swift`: `prefetch`/`take` موجودتان عنده أيضاً)
+— **إذن هذا ليس بنداً يُنقل من المرجع، بل خللٌ ورثناه معه.**
+
+## الخياران — واختَر واحداً، لا نصفاً
+
+**(أ) الحلّ الأصغر والأصحّ اليوم — سطر واحد. `BlankTV/ContentViews.swift:2593`:**
 
 ```swift
-// BlankTV/DesignSystem.swift — S8KImageCache
-/// حجم التسخين المسموح به الآن. التسخين عملٌ اختياري بالكامل — لا شيء على
-/// الشاشة ينتظره — فهو أول ما يجب أن يتراجع تحت الضغط، وآخر ما ينبغي أن
-/// نُبقيه يعمل بينما النظام يخفض تردّد المعالج ويستنزف البطارية.
-private var prefetchAllowance: Int {
-    if ProcessInfo.processInfo.isLowPowerModeEnabled { return 0 }
-    switch ProcessInfo.processInfo.thermalState {
-    case .critical: return 0
-    case .serious:  return 8
-    case .fair:     return 20
-    default:        return .max
-    }
-}
-
-func prefetch(_ urls: [String], maxPixel: CGFloat) {
-    let budget = prefetchAllowance
-    guard budget > 0 else { return }
-    for u in urls.prefix(budget) { … }
+// سخّن فقط إن كان المحرّك الذي سيُشغّل هذا العنصر فعلاً هو AVPlayer.
+// StreamRouter يوجّه كل VOD غير HLS إلى VLC (StreamRouter.swift:45–49)، وروابط
+// أفلام Xtream تنتهي بـ .mkv/.mp4 (Core.swift:1588) — فالتسخين في التهيئة
+// الافتراضية كان يُبنى ثم يُرمى، ويكلّف بياناتٍ وبطاريةً وذاكرةً بلا مقابل.
+// `take` تُستدعى من AVPlayerVM وحده (PlayerEngine.swift:330).
+if PlayerEngineSelector.initialKind(for: .movie(movie)) == .av {
+    MediaPrefetcher.shared.prefetch(.movie(movie))
 }
 ```
 
-**كيف تُقاس:** MetricKit مرة أخرى — `MXCPUMetric.cumulativeCPUTime` و`MXCellularConditionMetric`،
-ولوحة `EngineStatsView` القائمة لعرض عدد الجلبات لكل جلسة. والقياس المباشر: `xcrun devicectl` +
-Instruments → *Energy Log*، أو ببساطة قِس `thermalState` قبل/بعد في نفس سيناريو التمرير.
+**(ب) الحلّ الأكبر (لاحقاً، وبموافقة):** بناء مكافئ للتسخين على VLC. ⚠ **ولا توجد له طريقة نظيفة:**
+`VLCMediaPlayer` لا يفصل «التحضير» عن «التشغيل»، و`VLCMedia.parse` تقرأ البيانات الوصفية لا الحمولة.
+الأقرب هو `libvlc` وخيار `:start-paused`، وهو **غير مختبر عندنا** و**سيبني مُفكِّك شفرة كاملاً في
+الخلفية** — كلفة ذاكرة أعلى بكثير من `AVPlayer`. **توصيتي: لا تبنِه. نفّذ (أ) واكتفِ.**
 
-**الجهد:** ساعتان. **الخطر:** منخفض. ⚠ **لكن رتّبه بعد البندين 1 و3**: البند 1 يقلّل ما يُحمَّل،
-والبند 3 يقلّل ما يُعاد تنزيله. خنق التسخين **قبلهما** يعالج عَرَضاً بينما السببان قائمان، ويجعل
-التمرير يبدو أبطأ بلا داعٍ.
-
-## واجهات فحصتُها ولم أجد فيها ما يُضاف — نتائج سلبية مؤكَّدة
-- **`NWPathMonitor` / كشف الاتصال:** المرجع يستعمله في `Telemetry.swift:31` فقط (وقد رُفض
-  `Telemetry` كلّه في الجولة الأولى). **ولا أوصي بنقله:** توجيه Apple منذ سنوات هو **ألّا** تُستعمل
-  فحوص الوصول المسبقة، بل يُحاول الطلب ويُترك النظام يقرّر، مع
-  `URLSessionConfiguration.waitsForConnectivity` حيث يكون الانتظار مقبولاً — وهو **مضبوط عندنا
-  بالفعل حيث يلزم** (`Downloads.swift:79, 253`).
-  ([waitsForConnectivity](https://developer.apple.com/documentation/foundation/urlsessionconfiguration/waitsforconnectivity))
-- **`HostFailover`** (`ActivationService.swift:469–559`): **لا ينطبق علينا.** يقرأ
-  `Store.shared.resellerHosts`، ونحن أزلنا مسار رمز الموزّع كلّه في جولة الاستعداد للمتجر
-  (`PROJECT_HANDOFF §11`, البند 2.1). فالقائمة عندنا فارغة دائماً و`canFailover` دائماً `false`.
-  وهو **حتى في المرجع غير موصول** بإقراره الخاص (`:465–467`).
-- **مشغّل الوسائط الدافئ** (`MediaPrefetcher`): طابقتُ الملفين سطراً بسطر — **متطابقان**. منقول
-  بالكامل. لا شيء متبقٍّ.
-- **ذاكرة الصور**: بنيتنا (`DesignSystem.swift:1281–1433`) **أحدث من المرجع** — نملك مذكِّرة سالبة
-  لبصمات ThumbHash (`:1356, 1371`) لا يملكها، وفحص `hasImageHash` نُقل داخل المهمّة الخلفية
-  (`:1391–1394`) بينما هو عنده على مسار العودة. **لا شيء يُؤخذ في الاتجاه الآخر.**
-- **توجيه المحرّكات**: `StreamRouter` + `EngineDecisionCache` عندنا **أحدث** — ذاكرة قرار لكل
-  محتوى، بينما المرجع يتذكّر لكل قناة مباشرة فقط (`PlayerEngine.swift:930–935`). ومسار HLS-VOD عنده
-  (`vodHLSRoutingEnabled`) مربوط بخادمه وبمِسبار `HLSProbe` داخل `Telemetry` المرفوض.
+- **الجهد:** 15 دقيقة. **الخطر:** شبه معدوم. **الفائدة:** توقّف نزيفٍ صامت في البيانات والذاكرة.
+  **هذا أعلى بند «فائدة ÷ خطر» في التقرير.**
 
 ---
 
-# ما يجب ألّا نُنسخ من المرجع — مهما بدا مفيداً
+# البند 5 — خيارا الساعة في VLC: واحدٌ يُتبنّى مجزوءاً، وآخر يُرفض
 
-**١. 🔴 مفتاح سرّي مكتوب في الشيفرة.**
+## الحكم: **ADOPT REFERENCE — مجزوءاً**، بعد قراءة شيفرة VLC الأصلية
+
+## ما يفعله المرجع، وما ندّعيه نحن
+
+`Strong8K/iOS/Strong8K/VLCPlayer.swift:283–284` — يضيفهما **لكل وسيط، مباشراً كان أو VOD**:
+
+```swift
+media.addOption(":clock-jitter=0")
+media.addOption(":clock-synchro=0")
 ```
-Strong8K/iOS/Strong8K/ActivationService.swift:16
-static let appKey = "s8k_1ba20e7bead5716bb9e9b871fb71f3f304919f125dd62e91"
+
+وتعليقه (`:277–282`) يحمل **بيانات ميدانية تخصّنا مباشرةً**:
+
+> *«Field data showed VOD/VLC TTFF ~16s vs AVPlayer ~4s. clock-jitter=0 shrinks the drift-acceptance
+> window (default 5000ms) and clock-synchro=0 disables input clock sync for these provider streams
+> → the first frame lands sooner.»*
+
+**ونحن لا نملك أيّاً منهما** (`BlankTV/VLCPlayer.swift:259–293`).
+
+## البحث — ولم أعتمد على تعليق المرجع، بل قرأتُ شيفرة VLC
+
+من `videolan/vlc` فرع `3.0.x` (المصدر الأوّليّ، لا وثيقة ثانوية):
+
+**`src/libvlc-module.c` — التعريفات والقيم الافتراضية:**
+```c
+add_integer( "network-caching", CLOCK_FREQ / 1000, … )   /* = 1000 ms */
+add_integer( "clock-jitter", 5 * CLOCK_FREQ/1000, … )    /* = 5000 ms */
+add_integer( "clock-synchro", -1, … )                    /* = -1 (تلقائي) */
+add_bool   ( "input-fast-seek", false, … )
 ```
-هذا ينتهك قيداً غير قابل للتفاوض في `PROJECT_HANDOFF §3` («لا مفاتيح API مكتوبة في الشيفرة»).
-**تطبيقنا نظيف اليوم — تحقّقتُ.** أبقِه كذلك.
+ونصّ المساعدة لـ`clock-jitter`: *«This defines the maximum input delay jitter that the synchronization
+algorithms should try to compensate (in milliseconds).»*
+ولـ`clock-synchro`: *«It is possible to disable the input clock synchronisation **for real-time
+sources**. Use this if you experience jerky playback of network streams.»*
 
-**٢. 🔴 `Diagnostics.uploadStored()`** (`Strong8K/iOS/Strong8K/Diagnostics.swift:36–60`). نسختنا
-(`BlankTV/Diagnostics.swift`) تحفظ حمولات MetricKit محلّياً فقط، ونسخته **ترفعها إلى خادمه** مع
-`DeviceIdentity.current`، مصادَقةً بالمفتاح المكتوب في الشيفرة أعلاه. لا تنقلها: (أ) تعتمد على
-البند ١، (ب) ترفع حمولات انهيار تحمل مسارات ورموزاً، (ج) تفتح التزامات في
-`PrivacyInfo.xcprivacy` أُغلقت بالفعل، (د) قطعنا الاتصال بـ `/v2` عمداً
-(`ActivationService.swift:5`). **الاحتفاظ المحلّي هو القرار الصحيح — لا تتراجع عنه.**
+**✅ ملاحظة جانبية مؤكَّدة:** تعليقنا عند `VLCPlayer.swift:280` يقول *«1000 is libVLC's OWN default
+for network input»* — **صحيح حرفياً**، مُتحقَّق منه من المصدر.
 
-**٣. `Telemetry.swift` كاملاً** — مرفوض في الجولة الأولى (`TECH_ADJUDICATION` البند 8)، ولا يزال
-مرفوضاً؛ و`accessLog()`/`errorLog()` اللتان يقوم عليهما مهجورتان.
+### `clock-jitter` — كيف يعمل فعلاً (`src/input/es_out.c:2539–2568`)
 
-**٤. نمط `HostFailover.apply()`** (`ActivationService.swift:537–545`) — يعيد بناء رابط Xtream يحمل
-**اسم المستخدم وكلمة المرور** ويكتبه في `Store.shared.m3uURL`، أي في `UserDefaults` بلا تشفير. هذا
-هو بالضبط الخلل المفتوح عندنا في `PROJECT_HANDOFF §13` البند 4. **لا تُضِف موضع كتابة خامساً لهذا
-السرّ.**
+```c
+const vlc_tick_t i_pts_delay_base = p_sys->i_pts_delay - p_sys->i_pts_jitter;
+vlc_tick_t i_pts_delay = input_clock_GetJitter( p_pgrm->p_clock );
+const vlc_tick_t i_jitter_max = INT64_C(1000) * var_InheritInteger( p_sys->p_input, "clock-jitter" );
+if( i_pts_delay > __MIN( i_pts_delay_base + i_jitter_max, INPUT_PTS_DELAY_MAX ) )
+{
+    msg_Err( ... "ES_OUT_SET_(GROUP_)PCR is called too late (jitter of %d ms ignored)" ... );
+    i_pts_delay = p_sys->i_pts_delay;
+    /* … reset clock … */
+}
+else { msg_Warn( ... "buffering more (%d ms)" ... ); }
+```
 
-**٥. تخصيص `Dictionary(uniqueKeysWithValues:)`** في `PosterCollectionView.apply`
-(`ContentViews.swift:2027`) — يتوقّف (trap) على مفتاح مكرّر. المرجع ينجو لأنه يُزيل التكرار في
-السطر السابق. **إن نُقل هذا الملف يوماً، فالسطران لا ينفصلان.** (ونفس الحذر عندنا: `CatalogDB`
-يستعمل `uniquingKeysWith:` وهو الشكل الآمن — `CatalogDB.swift:243, 251, 259`.)
+> **الترجمة الهندسية:** `clock-jitter` هو **السقف الذي تسمح به VLC لنفسها كي تُضخّم المخزن فوق
+> `network-caching`** حين تقيس اضطراباً في وصول الحزم. بالقيمة الافتراضية (5000 مل.ث) تستطيع VLC أن
+> تضيف حتى **خمس ثوانٍ** من التأخير قبل أول إطار. **`=0` يمنع هذا التضخّم كلّياً** — وهذا يفسّر
+> تماماً الفارق «16 ث مقابل 4 ث» الذي قاسه المرجع.
 
-**ولا شيء آخر.** فحصتُ `try!`/`as!` و`Data(contentsOf:)` على الخيط الرئيسي وأنماط التخطيط المحظورة
-في ملفات المرجع الساخنة: `layer as! AVPlayerLayer` (`PlayerEngine.swift:844`) هو نمط Apple القياسي
-مع تجاوز `layerClass` وآمن؛ وقراءات `Data(contentsOf:)` كلها على مسارات مُفصَّلة عن الخيط الرئيسي
-أو صغيرة بما يكفي. **لا توجد قنابل أخرى في المرجع في المساحات التي فحصتها.**
+**⚠ لكن الشيفرة تكشف ثمناً لم يذكره المرجع:** حين يُتجاوَز السقف، VLC **لا تكتفي بالرفض — بل تُعيد
+ضبط الساعة** وتسجّل خطأً. وإعادة ضبط ساعة في منتصف بثٍّ مباشر مضطرب = **تقطيع مرئيّ**. والفرع
+الآخر (`buffering more`) هو **السلوك التكيّفي المقصود لمصادر الشبكة المضطربة** — وIPTV على الإنترنت
+المفتوح **هو** المصدر المضطرب النموذجي.
+
+### `clock-synchro` — والحكم هنا سلبيّ (`src/input/input.c:2875–2876`)
+
+```c
+if( var_GetInteger( p_input, "clock-synchro" ) != -1 )
+    in->b_can_pace_control = !var_GetInteger( p_input, "clock-synchro" );
+```
+
+`clock-synchro=0` ⇒ `b_can_pace_control = true` — أي **إخبار نواة VLC بأن المصدر يمكن قراءته
+بالسرعة التي نشاء** (سلوك ملف).
+
+- **لملف VOD عبر HTTP** المصدر **أصلاً** كذلك (وحدة `http` تُبلّغ عن ذلك)، فالخيار **بلا أثر**.
+- **لبثّ مباشر** الخيار **يكذب على النواة**: يقول إن المصدر في الزمن الحقيقي ليس في الزمن الحقيقي.
+  ونصّ VLC نفسه يصف الخيار كعلاج لـ«التشغيل المتقطّع»، **لا كمُسرِّع بدء**.
+- **ولا توجد أي علاقة موثَّقة بينه وبين زمن أول إطار.**
+
+> 🔴 **الحكم: ارفض `:clock-synchro=0`.** المرجع يشحنه بلا دليل، وهو في أحسن الأحوال بلا أثر على VOD
+> وفي أسوئها ضارّ على المباشر. **هذه بالضبط الحالة التي تقول فيها القاعدة الحاكمة: تجاهل المرجع.**
+
+## سكتش التنفيذ — `BlankTV/VLCPlayer.swift`، داخل `makeMedia` (بعد `:290`)
+
+```swift
+            media.addOption(":input-fast-seek")
+            // ⬇ جديد، للـ VOD وحده:
+            // clock-jitter هو السقف الذي تسمح به VLC لنفسها كي تُضخّم المخزن فوق
+            // network-caching حين تقيس اضطراباً في الوصول. الافتراضي 5000 مل.ث، أي
+            // خمس ثوانٍ إضافية قبل أول إطار (es_out.c:2543، فرع "buffering more").
+            // ملف VOD يُسلَّم بنطاقات بايت ويُعاد طلب ما فُقد، فالتضخّم التكيّفي هنا
+            // تكلفة بلا مقابل. المصدر: videolan/vlc 3.0.x, src/input/es_out.c:2539–2568.
+            //
+            // ⚠ لا تنقل هذا السطر إلى فرع isLive أبداً: على المباشر، تجاوز السقف
+            // يجعل VLC تُعيد ضبط الساعة (نفس الموضع، فرع msg_Err) — وذلك تقطيع
+            // مرئيّ، والتضخّم التكيّفي هناك هو آلية الموثوقية لا عيباً فيها.
+            //
+            // ⚠ ولا تُضِف ":clock-synchro=0" (المرجع يفعل، ونحن رفضناه): input.c:2875
+            // يجعله يضبط b_can_pace_control — وهو true أصلاً لملف HTTP، فبلا أثر على
+            // VOD؛ وعلى المباشر يكذب على النواة. لا دليل يربطه بزمن أول إطار.
+            media.addOption(":clock-jitter=0")
+```
+
+**وكيف تُقاس:** ساعة إيقاف من لمسة «تشغيل» إلى أول إطار، على **نفس الفيلم** و**نفس الشبكة**،
+خمس مرات قبل وخمس بعد. **إن لم يتحرّك الرقم، أعِد السطر.** هذا ما قاله المرجع عن نفسه (*«MEASURED
+via ttff_vlc — revert if it doesn't move the number»*)، وهو الموقف الصحيح.
+
+## ملاحظة مرافقة عن `network-caching` — ولا أوصي بتغييره الآن
+
+المرجع رفع الافتراضي من 1500 إلى **3000** استناداً إلى بيانات أسطول حقيقية (*«stall counts
+52→2691»*)، وجعله قابلاً للضبط عن بُعد `vlc_net_cache` مقيَّداً بـ`[1500, 8000]`. **ونحن على 1000
+لـ VOD و1500 للمباشر** (`VLCPlayer.swift:272, 285`) بعد قرارٍ مُوثَّق لتسريع القفز.
+
+⚠ **لا تنسخ الرقم 3000.** هو قياسٌ لأسطولٍ آخر على مزوّدٍ آخر، والمرجع نفسه يقول ذلك. **والأهم:
+البند أعلاه (`clock-jitter=0`) يشتري زمن بدءٍ بلا أن يمسّ المخزن إطلاقاً** — وهو الطريق الصحيح.
+إن ظهرت شكوى «تقطيع» بعد ذلك، فالرافعة هي `network-caching` للـ VOD من 1000 إلى 1500، **بقياس لا
+بتخمين**، وليس اليوم.
+
+- **الجهد:** 20 دقيقة. **الخطر:** منخفض (VOD فقط، وقابل للتراجع بسطر).
+
+---
+
+# البند 6 — مهلة `get_vod_streams`
+
+## الحكم: **ADOPT REFERENCE** — أصغر تغيير في التقرير، وأثره ليس صغيراً
+
+## الحقيقة
+
+```swift
+// BlankTV/Core.swift:2109–2111 — الثلاثة على المهلة الافتراضية 22 ثانية
+async let liveStreamsData = apiData(xd, action: "get_live_streams")
+async let vodStreamsData  = apiData(xd, action: "get_vod_streams")
+async let seriesData      = apiData(xd, action: "get_series")
+```
+
+**والمرجع يميّزها** (`Strong8K/iOS/Strong8K/Core.swift:2587–2589`) بتعليق يشرح السبب:
+
+```swift
+// VOD is the largest list (often 100k+ items) → it needs a longer ceiling than the
+// 22s default to finish on a slow cellular link before the default would time it out.
+async let vodStreamsData  = apiData(xd, action: "get_vod_streams", timeout: 45)
+```
+
+**والعاقبة عندنا محدَّدة تماماً:** انتهاء المهلة على VOD يُشعل `c.isPartial = true`
+(`Core.swift:2126`)، ومسار `isPartial` (`:1791`) يمنع الكتابة إلى القرص وإلى `CatalogDB`. أي أن
+**تجاوزاً واحداً للمهلة يعني: تبويب أفلام فارغ في هذه الجلسة، ولا شيء يُحفَظ، ونفس النتيجة في
+الإقلاع التالي.** ودالّة `apiData` لا تعيد المحاولة بعد المهلة عمداً (`Core.swift:1971`) — وهو قرار
+صحيح، لكنه يجعل الرقم 22 هو الحكم النهائي.
+
+**هل هناك أحدث؟** لا. `URLRequest.timeoutInterval` هو الآلية، وهي غير مهجورة. البديل الأحدث
+(`URLSessionConfiguration.timeoutIntervalForResource`) يعمل على مستوى الجلسة لا الطلب، وهو أخشن هنا
+لأننا نشارك `URLSession.shared`.
+
+## سكتش التنفيذ — `BlankTV/Core.swift:2110`
+
+```swift
+// VOD هي أضخم قائمة في النظام (100 ألف عنوان فأكثر على خطّ نموذجي) وتحتاج سقفاً
+// أعلى من 22 ث كي تكتمل على وصلة خلوية بطيئة. وانتهاء مهلتها ليس عَرَضاً بسيطاً:
+// يرفع isPartial (:2126) فيمنع الحفظ إلى القرص وإلى CatalogDB (:1791) — فيصير
+// تبويب الأفلام فارغاً هذه الجلسة والتالية. المرجع تعلّم هذا ميدانياً.
+async let vodStreamsData  = apiData(xd, action: "get_vod_streams", timeout: 45)
+```
+
+**⚠ تعارض يجب حلّه أولاً:** إن نُفِّذ **البند 1** (التسليم التدريجي)، فرفع مهلة VOD يصير **مجّانياً
+تماماً** — لأن المستخدم يشاهد المباشر بينما VOD في الطريق. **إن لم يُنفَّذ البند 1، فأنت تشتري
+اكتمال الكتالوج بـ 23 ثانية إضافية من شاشة الانتظار في أسوأ الحالات.** نفّذ البند 6 **بعد** البند 1،
+أو معه.
+
+- **الجهد:** 5 دقائق. **الخطر:** صفر تقنياً؛ الأثر على تجربة الانتظار يعتمد على البند 1.
+
+---
+
+# البند 7 — قراءة كاش الكتالوج بـ `.mappedIfSafe`
+
+## الحكم: **ADOPT NEWER (صغير، وصادق في حجمه)**
+
+## الحقيقة
+
+```swift
+// BlankTV/Core.swift:1726
+guard let url = fileURL(scope), let data = try? Data(contentsOf: url),
+```
+
+`Data(contentsOf:)` بلا خيارات **يقرأ الملف كلّه إلى ذاكرة العملية**. وملف
+`Caches/S8KCatalog/cat_*.json` على خطٍّ بـ 100 ألف فيلم هو **عشرات الميغابايتات من JSON**. ثم
+`JSONDecoder` يبني `Envelope`، ثم `content(from:)` (`Core.swift:1669–1697`) يبني **نسخة ثانية كاملة**
+من كل النماذج. **الذروة = الملف + المفكوك + المُحوَّل، حاضرة كلها في آن.**
+
+## البحث
+
+- `NSData.ReadingOptions.mappedIfSafe` (متحقَّق من توثيق Apple عبر واجهة JSON): *«A hint indicating
+  the file should be mapped into virtual memory, if possible and safe.»* — متاح **منذ iOS 2.0**،
+  غير مهجور. النواة تُصفّح الملف عند الطلب بدل نسخه دفعةً واحدة، فتسقط ذروة النسخة الأولى.
+- ⚠ **«hint» تعني تلميحاً لا ضماناً**، وTوثيق Apple لا يَعِد بمكسب. والملف في `Caches/` فقد
+  يُزيله النظام أثناء التصفيح — **لكن كل استدعاءاتنا ملفوفة بـ`try?` أصلاً**، فالفشل يعود بـ`nil`
+  وهو السلوك القائم.
+- **الأحدث حقيقةً هو ألّا نقرأ الملف إطلاقاً**، بل نقرأ من `CatalogDB` بالتصفيح — وذلك **بند 1 من
+  الجولة الثانية**، مؤجَّل بموافقة المالك. هذا البند **جسرٌ رخيص إلى أن يُنفَّذ ذاك**، لا بديل عنه.
+
+## سكتش التنفيذ — `BlankTV/Core.swift:1726` (وفي `loadStale` من البند 2)
+
+```swift
+    // .mappedIfSafe: الملف عشرات الميغابايتات على خطٍّ كبير، والمسار كلّه يبني
+    // نسختين كاملتين بعده (JSONDecoder ثم content(from:), :1669). التصفيح عند
+    // الطلب يُسقط ذروة النسخة الأولى. تلميحٌ لا ضمانة — وكل شيء هنا ملفوف بـtry?
+    // فسلوك الفشل لا يتغيّر.
+    guard let url = fileURL(scope),
+          let data = try? Data(contentsOf: url, options: .mappedIfSafe),
+```
+
+**⚠ وكن صادقاً مع الحجم:** هذا **لا يُسرّع** فكّ الترميز ولا يقلّل الذاكرة النهائية. يقلّل
+**الذروة**. وقياسه الوحيد الصادق هو `MXMemoryMetric.peakMemoryUsage` عبر MetricKit القائم
+(`Diagnostics.swift`). **إن كنت تبحث عن ثوانٍ، هذا ليس البند — البندان 1 و2 هما.**
+
+- **الجهد:** 5 دقائق. **الخطر:** صفر. **الترتيب:** منخفض، ولا يُشحن وحده.
+
+---
+
+# البند 8 — كاش الصور على القرص: **قِس أولاً، لا تبنِ**
+
+## الحكم: **مفتوح — لا توصية بلا قياس**
+
+## ما لاحظته
+
+```swift
+// BlankTV/DesignSystem.swift:1329–1335
+let disk = URLCache(memoryCapacity: 16 * 1024 * 1024, diskCapacity: 256 * 1024 * 1024)
+let cfg = URLSessionConfiguration.default
+cfg.urlCache = disk
+cfg.requestCachePolicy = .returnCacheDataElseLoad
+```
+
+طبقة القرص عندنا هي `URLCache` كلّها. و`URLCache` **تخزّن استجابةً فقط إن اعتبرتها قابلة للتخزين**
+— أي بحسب ترويسات HTTP. ومضيفو ملصقات اللوحات متفاوتون تماماً؛ منهم من يرسل `Cache-Control: no-store`.
+**إن لم تُخزَّن، فكل إقلاع بارد يعيد تنزيل كل ملصق** — والبصمة (ThumbHash) تُخفي ذلك بصرياً لكنها
+**لا توفّر بايتاً واحداً من الشبكة**.
+
+## لماذا لا أوصي بشيء بعد
+
+- **لم أتحقّق أن المشكلة قائمة.** لا أملك التقاطاً للشبكة ولا استجابة حقيقية من مضيف ملصقات المالك.
+  **بناء كاش قرصٍ خاص (~60 سطراً) لحلّ مشكلة قد لا توجد يخالف قاعدة التقرير.**
+- **ولا أوصي بتبعية طرف ثالث.** `Kingfisher`/`Nuke`/`SDWebImage` تحلّ هذا، **والثمن حقيقي:** تبعية
+  ثالثة في `Podfile`، ونموّ في حجم الثنائية، و**إعادة كتابة `S8KImage` كلّها** — وهي عنصر عرضٍ
+  مركزيّ ملموس التصميم عندنا. **وطبقتنا بالفعل أحدث من المرجع** بمذكِّرة البصمات السالبة
+  (الجولة الثانية، «نتائج سلبية مؤكَّدة»). لا مبرّر.
+
+## القياس المطلوب — رخيص، وسطران
+
+أضِف عدّادين ذرّيّين في `S8KImageCache.fetch` (`DesignSystem.swift:1374`) وفي `load` (`:1349`):
+كم مرّة أُصيبت الذاكرة، وكم مرّة خرجنا إلى `session.data(from:)`. اعرضهما في `EngineStatsView`
+القائمة (`SettingsView.swift:532`). ثم **أعِد تشغيل التطبيق من بارد وتصفّح الشبكة نفسها مرتين**:
+
+- إن انخفض عدّاد التنزيل بوضوح في المرة الثانية ⇒ **`URLCache` تعمل. أغلق البند.**
+- إن لم ينخفض ⇒ **المشكلة مؤكَّدة**، وعندها يُفتح ملف «كاش قرصٍ خاص» بمعطيات لا بتخمين.
+
+- **الجهد:** 30 دقيقة للقياس. **الخطر:** صفر. **القرار:** مؤجَّل بحق.
+
+---
+
+# البند 9 — `waitsForConnectivity` على جلسة الخلفية
+
+## الحكم: **KEEP OURS — لكن وثّق أنه بلا أثر**
+
+```swift
+// BlankTV/Downloads.swift:62–79
+let cfg = URLSessionConfiguration.background(withIdentifier: "com.blanktv.player.downloads")
+…
+cfg.waitsForConnectivity = true          // ← السطر 79
+```
+
+**توثيق Apple لـ`waitsForConnectivity`** (متحقَّق منه نصّاً عبر واجهة JSON):
+
+> *«This property is ignored by background sessions, which always wait for connectivity.»*
+
+**أي أن السطر 79 لا يفعل شيئاً** — والسلوك المرغوب **قائم بالفعل ومجّاناً** لأن الجلسة جلسة خلفية.
+والمرجع يحمل نفس السطر الزائد (`Strong8K/iOS/Strong8K/Downloads.swift:79`).
+
+**لا تحذفه** — حذفه لا يغيّر سلوكاً ويفتح باب سوء فهم لاحق («هل كنّا ننتظر الاتصال؟»). **أضِف تعليقاً:**
+
+```swift
+        // Apple: "This property is ignored by background sessions, which always wait
+        // for connectivity." مضبوط للتوثيق لا للأثر — السلوك مضمون بحكم نوع الجلسة.
+        cfg.waitsForConnectivity = true
+```
+
+⚠ **والسطر 261 (`URLSessionConfiguration.default` لمسار Turbo) حالة أخرى تماماً**: هناك الخاصية
+**فعّالة**. لكن الجولة الثانية أثبتت أن `runTurbo` **شيفرة لا يمكن لأي مستخدم بلوغها**
+(`Store.shared.turboDownloads` بلا ضابط في الواجهة)، وأن `4e76bd9` أطفأته قسراً. **القرار هناك
+قرار المالك، لا هندسة.**
+
+- **الجهد:** دقيقتان. **الخطر:** صفر.
+
+---
+
+# البند 10 — حفظ EPG في SQLite
+
+## الحكم: **مؤجَّل — خارج أولويات هذه الجولة**
+
+المرجع يملك `CatalogDB.saveEPG(host:channelID:programs:)` و`epgGuide(host:channelID:)`
+(`Strong8K/iOS/Strong8K/Core.swift:1969–1993`) — جدول `EpgRow` دائم في نفس قاعدة البيانات.
+**ونحن نملك ذاكرةً مؤقّتة في الـ RAM فقط**: `epgCache` داخل `PlaylistService` بمدّة 5 دقائق
+(`BlankTV/Core.swift:1871–1876`)، تُمحى مع كل إقلاع.
+
+**لكن:** جزؤه المفيد الآخر (`nowNext`, `guide`, `Core.swift:2940, 2960`) يعتمد على خادمه ومفتاحه
+المكتوب في الشيفرة. والباقي هو جدول SQLite عاديّ — تقنيةٌ لا يوجد فيها «أحدث» يُبحث عنه.
+**والمالك لم يضع EPG في أولويات هذه الجولة.** يُسجَّل ولا يُنفَّذ.
+
+---
+
+# ما فحصتُه ولم أجد فيه شيئاً يُضاف — نتائج سلبية مؤكَّدة
+
+| ما فُحص | النتيجة |
+|---|---|
+| **إعدادات جلسة التنزيل في الخلفية** | `Downloads.swift:62–79` و`Strong8K/…/Downloads.swift:62–79` **متطابقتان سطراً بسطر**. و`isExcludedFromBackup` مضبوط عندنا (`Downloads.swift:531`) كما عنده (`:558`). **لا شيء يُنقل.** |
+| **موضع تخزين التنزيلات** | `documentDirectory/Downloads` مع راية استثناء النسخ الاحتياطي — مطابق لتوصية Apple. **صحيح كما هو.** |
+| **`AVURLAsset` والخيارات** | لا نضبط `AVURLAssetPreferPreciseDurationAndTimingKey` — **وهذا صحيح**؛ ضبطه `true` يجبر AVFoundation على مسح الملف كلّه قبل التشغيل. لا تضبطه. |
+| **`HostFailover` / `CatalogCentral` / `Telemetry` / `HLSProbe`** | كلها معلَّقة بخادم المرجع وبمفتاحه المكتوب في الشيفرة. **مرفوضة سلفاً في الجولتين السابقتين، ولا جديد.** |
+| **`ReminderService`** (تذكيرات البرامج) | ميزة مستخدم لا تقنية أداء. خارج نطاق هذه الجولة. |
+| **`EngineDecisionCache` / `StreamRouter`** | **نحن الأحدث** — المرجع لا يملك مكافئاً لذاكرة القرار لكل محتوى. لا شيء يُؤخذ. |
+| **فكّ JSON تدفّقي لحمولة Xtream** | **لا يوجد في Foundation.** لا `JSONDecoder` ولا `JSONSerialization` يقبل تغذية جزئية. التنفيذ يعني كتابة مُحلِّل — **خطر غير مبرَّر، لا توصية.** |
+| **`MobileVLCKit 4.x`** | آخر ما نُشر إلى CocoaPods هو `4.0.0a2` (2023-03-07) — **alpha**، وواجهته البرمجية مختلفة. **لا تقترب.** |
+
+---
+
+# ما يجب ألّا نُنسخ من المرجع في هذه الجولة
+
+**١. `:clock-synchro=0`** (`Strong8K/iOS/Strong8K/VLCPlayer.swift:284`). شرحتُه في البند 5: بلا أثر
+على VOD، ومضلّل للنواة على المباشر، وبلا أي دليل يربطه بزمن أول إطار. **هذا مثالٌ نموذجيّ للقاعدة
+الحاكمة: المرجع شحنه على حدس، والمصدر الأصليّ يقول غير ذلك.**
+
+**٢. الرقم `3000` لـ`network-caching`** — قياسُ أسطولٍ آخر. خُذ **الطريقة** (قِس، ثم اضبط) لا
+**الرقم**.
+
+**٣. `Dictionary(uniqueKeysWithValues:)`** في `loadXtreamDirect` (`Strong8K/…/Core.swift:2582`) —
+**يتوقّف (trap) على مفتاح مكرّر**، ولوحات IPTV تُعيد `category_id` مكرّراً بانتظام. **نحن نستعمل
+الشكل الآمن `uniquingKeysWith:` (`BlankTV/Core.swift:2104–2105`) — لا تتراجع عنه أبداً.**
+
+**٤. مانع الانحدار الذي يرمي عند فراغ نوعٍ كان مملوءاً** (`Strong8K/…/Core.swift:2656–2660`) —
+**نهجنا (`isPartial`) أفضل**: يخدم ما وصل لهذه الجلسة ولا يسجّله حقيقة، بينما نهجه يرمي فلا يرى
+المستخدم شيئاً. **أبقِ نهجنا.**
 
 ---
 
 # ترتيب التنفيذ الموصى به
 
-| ترتيب | العمل | لماذا هنا | جهد |
-|---|---|---|---|
-| **0** | احذف `filtered` من `LiveTVVM`/`MoviesVM`/`SeriesVM` (البند 1) | مكسب ذاكرة فوري، ثلاثة أسطر، خطر صفر | 15 د |
-| **1** | `MediaPrefetcher.shared.clear()` من مصدر ضغط الذاكرة (البند 3) | أعلى أثر لكل سطر في التقرير | 30 د |
-| **2** | تسخين الملصقات عند نموّ النافذة (ما بقي من البند 4) | معزول تماماً، ويُهيّئ عدّادات القياس | 30 د |
-| **3** | ميزانية الصور من `os_proc_available_memory()` (البند 3) | يحتاج العدّادات من الخطوة 2 ليُقاس | 2 س |
-| **4** | التصفيح — ابدأ بـ `MoviesVM` وحدها (البند 1) | **موافقة المالك أولاً** (`PROJECT_HANDOFF §6.6`) | 4 س |
-| **5** | التصفيح — `SeriesVM` ثم `LiveTVVM` | بعد تحقّق البناء 4 على الجهاز | 4 س |
-| **6** | `@Observable` — الأصناف الصغيرة أولاً (البند 2) | التحقّق من نمط الملكية على شيء لا يُسقط الإقلاع | 2 س |
-| **7** | `@Observable` — `HomeVM` ثم الثلاثة الكبار | أكبر عائد، وأكبر نصف قطر انفجار | 4 س |
-| **8** | التكيّف الحراري (ج-أ) | بعد أن تُعالَج الأسباب لا الأعراض | 2 س |
-| **—** | **قرار المالك:** احذف Turbo أو أَظهِره ومعه التسليم (البند 5) | ليس عملاً هندسياً بل قراراً | — |
+| ترتيب | العمل | لماذا هنا | جهد | خطر |
+|---|---|---|---|---|
+| **0** | البند 4 — حارس المحرّك على `MediaPrefetcher.prefetch` | سطر واحد، يوقف نزيفاً صامتاً. أعلى فائدة ÷ خطر في التقرير | 15 د | ~0 |
+| **1** | البند 9 — تعليق `waitsForConnectivity` + البند 7 — `.mappedIfSafe` | تنظيفان بلا خطر، يمهّدان لمسار الكاش | 10 د | 0 |
+| **2** | البند 3 — `MobileVLCKit 3.7.3` | **وحده في بنائه**، ومعه قائمة الفحص السبعة | 30 د + جهاز | متوسط |
+| **3** | البند 5 — `:clock-jitter=0` لـ VOD | بعد أن يستقرّ المحرّك الجديد، وإلا اختلط أثر التغييرين | 20 د | منخفض |
+| **4** | البند 2 — SWR | أكبر مكسب لكل ساعة، ومستقلّ عن البند 1 | 3–4 س | منخفض |
+| **5** | البند 1 — التسليم التدريجي (**موافقة المالك أولاً**) | يمسّ المُمثِّل الأسخن؛ لا يُشحن مع غيره | 6–8 س | متوسط |
+| **6** | البند 6 — مهلة VOD 45 ث | **بعد** البند 1، وإلا اشترينا الاكتمال بانتظار أطول | 5 د | 0 |
+| **—** | البند 8 — قياس كاش الصور | قرار مؤجَّل حتى تصل الأرقام | 30 د | 0 |
 
-**قاعدة واحدة تحكم الجدول كلّه:** بندٌ واحد لكل بناء، ومراجعة خصومية قبل كلٍّ منها. سجّل
-`PROJECT_HANDOFF §11` أن المراجعة الخصومية **وجدت عيباً حقيقياً في كل جولة بلا استثناء**. ولا يوجد
-في هذا التقرير بندٌ يستحقّ أن يكون الاستثناء الأول.
+**قاعدة واحدة تحكم الجدول:** بندٌ واحد لكل بناء، ومراجعة خصومية قبل كلٍّ منها. سجّل
+`PROJECT_HANDOFF §11` أن المراجعة الخصومية **وجدت عيباً حقيقياً في كل جولة بلا استثناء** — وسجلّ
+`40b5438` يؤكّده (خمسة عيوب حقيقية في دفعة الجولة الأولى نفسها). لا يوجد في هذا التقرير بندٌ يستحقّ
+أن يكون الاستثناء الأول.
 
 ---
 
 ## ملحق — المصادر المُستشهَد بها
 
+**شيفرة VLC الأصلية (مستودع `videolan/vlc`، فرع `3.0.x`)**
+- `src/libvlc-module.c` — التعريفات والقيم الافتراضية لـ`network-caching` / `clock-jitter` / `clock-synchro` / `input-fast-seek`
+  — https://raw.githubusercontent.com/videolan/vlc/3.0.x/src/libvlc-module.c
+- `src/input/es_out.c:2539–2568` — كيف يُطبَّق سقف `clock-jitter` وماذا يحدث عند تجاوزه
+  — https://raw.githubusercontent.com/videolan/vlc/3.0.x/src/input/es_out.c
+- `src/input/input.c:2875–2876` — دلالة `clock-synchro` الحقيقية (`b_can_pace_control`)
+  — https://raw.githubusercontent.com/videolan/vlc/3.0.x/src/input/input.c
+- `NEWS` — تغييرات 3.0.21 → 3.0.22 → 3.0.23
+  — https://raw.githubusercontent.com/videolan/vlc/3.0.x/NEWS
+
+**سجلّ إصدارات المحرّك**
+- CocoaPods trunk API — قائمة إصدارات `MobileVLCKit` وتواريخها
+  — https://trunk.cocoapods.org/api/v1/pods/MobileVLCKit
+- `MobileVLCKit 3.7.3` podspec (الأطر المرتبطة والترخيص)
+  — https://raw.githubusercontent.com/CocoaPods/Specs/2784b87814ee092b4961f524ff3205c76515bf56/Specs/b/f/7/MobileVLCKit/3.7.3/MobileVLCKit.podspec.json
+- GitHub API — `videolan/VLCKit` compare `3.6.0...3.7.3` (20 دفعة)
+  — https://api.github.com/repos/videolan/VLCKit/compare/3.6.0...3.7.3
+
 **توثيق Apple**
-- Observation — https://developer.apple.com/documentation/observation
-- `@Observable` — https://developer.apple.com/documentation/observation/observable()
-- دليل الترحيل من `ObservableObject` — https://developer.apple.com/documentation/swiftui/migrating-from-the-observable-object-protocol-to-the-observable-macro
-- `NSCache` — https://developer.apple.com/documentation/foundation/nscache
-- `os_proc_available_memory()` — https://developer.apple.com/documentation/os/os_proc_available_memory()
-- `DispatchSource.makeMemoryPressureSource` — https://developer.apple.com/documentation/dispatch/dispatchsource/makememorypressuresource(eventmask:queue:)
-- `ProcessInfo.thermalState` — https://developer.apple.com/documentation/foundation/processinfo/thermalstate
-- `ProcessInfo.isLowPowerModeEnabled` — https://developer.apple.com/documentation/foundation/processinfo/islowpowermodeenabled
-- `URLSessionConfiguration.waitsForConnectivity` — https://developer.apple.com/documentation/foundation/urlsessionconfiguration/waitsforconnectivity
-- `URLSessionConfiguration.background(withIdentifier:)` — https://developer.apple.com/documentation/foundation/urlsessionconfiguration/background(withidentifier:)
-- `UICollectionViewDataSourcePrefetching` — https://developer.apple.com/documentation/uikit/uicollectionviewdatasourceprefetching
-- `UIHostingConfiguration` — https://developer.apple.com/documentation/swiftui/uihostingconfiguration
-- MetricKit — https://developer.apple.com/documentation/metrickit
+- `URLSessionConfiguration.waitsForConnectivity` (بما فيه جملة تجاهل جلسات الخلفية)
+  — https://developer.apple.com/documentation/foundation/urlsessionconfiguration/waitsforconnectivity
+- `NSData.ReadingOptions.mappedIfSafe`
+  — https://developer.apple.com/documentation/foundation/nsdata/readingoptions/mappedifsafe
 
-**جلسات WWDC**
-- WWDC23 · Discover Observation in SwiftUI (10149) — https://developer.apple.com/videos/play/wwdc2023/10149/
-- WWDC22 · Use SwiftUI with UIKit (10072) — https://developer.apple.com/videos/play/wwdc2022/10072/
-- WWDC18 · iOS Memory Deep Dive (416) — https://developer.apple.com/videos/play/wwdc2018/416/
-
-**غير Apple**
-- SE-0395 Observability — https://github.com/swiftlang/swift-evolution/blob/main/proposals/0395-observability.md
-- SQLite Query Optimizer Overview — https://sqlite.org/optoverview.html
-- GRDB · ValueObservation — https://swiftpackageindex.com/groue/GRDB.swift/documentation/grdb/valueobservation
+**معايير**
+- ⚠ RFC 5861 — *HTTP Cache-Control Extensions for Stale Content* (2010 — **مصدر قديم، مُستشهَد به
+  كتعريف مصطلح فقط، لا كممارسة حديثة**) — https://www.rfc-editor.org/rfc/rfc5861
 
 **مصادر داخلية (وهي الأقوى في هذا التقرير)**
-- `TECH_ADJUDICATION.md` — البنود الثمانية السابقة، لا تُعاد
-- `PROJECT_HANDOFF.md` §3 (القيود) · §5f (التمايز) · §6.6 (التصفيح مؤجَّل بموافقة) · §9 (P2–P8) · §11 (المراجعة الخصومية) · §13 (المفتوح)
-- `RESEARCH.md` §6 — أوصى بـ `@Observable` وبمَخرج UIKit؛ هذا التقرير يحكم عليهما
-- `DEVICE_MATRIX.md` — مقاسات الشاشات التي بُني عليها حساب 800 بكسل في البند 3
+- `TECH_ADJUDICATION.md` — البنود الثمانية للجولة الأولى، لا تُعاد
+- `TECH_HUNT_V2.md` (النسخة السابقة من هذا الملف) — البنود الخمسة للجولة الثانية، لا تُعاد
+- `PROJECT_HANDOFF.md` §3 (القيود) · §6 (المؤجَّل بموافقة) · §9 (P2–P8) · §11 (المراجعة الخصومية) · §13 (المفتوح)
+- `git show 4e76bd9` و`git show 40b5438` — العيوب الثلاثة المُبلَّغة من الجهاز، والخمسة التي وجدتها المراجعة الخصومية بعدها

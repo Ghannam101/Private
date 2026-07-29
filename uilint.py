@@ -43,6 +43,8 @@ TOUCH = re.compile(r'\.(?:s8kMinTouch|s8kMinTouchV)\s*\(')
 CLIP = re.compile(r'\.clipShape\s*\(')
 BUTTON = re.compile(r'\bButton\s*[({]')
 DECL = re.compile(r'\b(?:func|var)\s+([A-Za-z_][A-Za-z0-9_]*)')
+FORMATTER = re.compile(r'\b(DateFormatter|NumberFormatter|DateComponentsFormatter'
+                       r'|ByteCountFormatter|MeasurementFormatter|RelativeDateTimeFormatter)\s*\(\s*\)')
 BODY = re.compile(r'\bvar\s+body\s*:\s*some\s+View\s*\{')
 # The lookahead sits IMMEDIATELY after `{` on purpose. Written as `\s*\{\s*(?!_\s+in)`
 # it silently matched everything: `\s*` backtracks to consume nothing, the lookahead
@@ -156,6 +158,20 @@ def check_file(path, lines):
             report(path, i, "banned-pattern",
                    "UIScreen.main.bounds is wrong in a split window - use S8KMetrics",
                    raw)
+        # D-20. A formatter built in code never sees the app's injected locale, so it
+        # follows the DEVICE — and on an Arabic device that means Arabic-Indic digits in
+        # a product whose standing rule is Western digits in every language. The app
+        # pins its numbering system once, in BlankTVApp; anything that builds its own
+        # formatter opts out of that and has to say so explicitly.
+        fm = FORMATTER.search(code)
+        if fm:
+            window = "".join(strip(lines[k]) for k in range(i, min(i + 6, len(lines))))
+            if ".locale" not in window:
+                report(path, i, "formatter-no-locale",
+                       "%s() with no explicit .locale - it will follow the DEVICE and "
+                       "render Arabic-Indic digits; pin en_US_POSIX or the app language"
+                       % fm.group(1), raw)
+
         m = FOREACH.search(nostr)
         if m:
             report(path, i, "banned-pattern",
