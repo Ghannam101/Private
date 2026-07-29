@@ -1263,10 +1263,14 @@ struct HomeView: View {
                         Button(action: { clearHistory() }) {
                             Label(L("home.clear_all"), systemImage: "trash")
                                 .font(S8KFont.caption1.weight(.semibold)).foregroundColor(.s8kRed)
+                                // ~16pt of text → 40pt. 12 is the ceiling downward: the
+                                // card rail starts 12pt below and would take the touch.
+                                .s8kMinTouch(h: 12, v: 12)
                         }
                         Spacer()
                         Button(action: { withAnimation { editingHistory = false } }) {
                             Text(L("common.done")).font(S8KFont.caption1.weight(.bold)).foregroundColor(.s8kGoldMid)
+                                .s8kMinTouch(h: 12, v: 12)   // see the note above
                         }
                     } else {
                         Button(action: { cover = .allHistory }) {
@@ -1275,6 +1279,7 @@ struct HomeView: View {
                                 Image(systemName: "chevron.left").font(.system(size: 10, weight: .bold))
                             }
                             .foregroundColor(.s8kGoldMid)
+                            .s8kMinTouch(h: 12, v: 12)       // see the note above
                         }
                         Spacer()
                         Text(L("home.continue")).font(S8KFont.headline).foregroundColor(.s8kTextPrimary)
@@ -1329,6 +1334,11 @@ struct HomeView: View {
                         .background(Color.s8kRed).clipShape(Circle())
                         .overlay(Circle().strokeBorder(Color.white.opacity(0.6), lineWidth: 1.5))
                         .shadow(color: .black.opacity(0.4), radius: 3)
+                        // 24 → 44pt, after the clip. The badge sits 7pt inside the card's
+                        // corner, so the extra area is mostly the card underneath — and
+                        // in edit mode the card only leaves edit mode, while a missed tap
+                        // here is a delete that never happened.
+                        .s8kMinTouch(10)
                 }
                 .buttonStyle(S8KButtonStyle())
                 .padding(7)
@@ -1638,12 +1648,18 @@ struct AllHistoryView: View {
                         Button(action: onClearAll) {
                             Label(L("home.clear_all"), systemImage: "trash")
                                 .font(S8KFont.caption1.weight(.semibold)).foregroundColor(.s8kRed)
+                                // 12 is the ceiling downward — the grid begins there.
+                                .s8kMinTouch(h: 12, v: 12)
                         }
                     }
                     Spacer()
                     Text(L("home.continue")).font(S8KFont.title3).foregroundColor(.s8kTextPrimary)
                     Spacer()
-                    Button(L("common.close")) { onClose() }
+                    Button { onClose() } label: {
+                        // Explicit label: outside the Button the expansion would widen the
+                        // layout cell only and leave the gesture on the ~44×17 text.
+                        Text(L("common.close")).s8kMinTouch(h: 12, v: 12)
+                    }
                         .font(S8KFont.subhead).foregroundColor(.s8kGoldMid)
                 }
                 .padding(.horizontal, S8KSpace.xl).padding(.top, max(56, metrics.safeTop + S8KSpace.md)).padding(.bottom, S8KSpace.md)
@@ -1738,7 +1754,12 @@ struct ChannelInfoSheet: View {
                 GoldButton(title: L("channel.play"), icon: "play.fill", action: onPlay)
                     .padding(.horizontal, 40)
 
-                Button(L("common.close")) { dismiss() }
+                Button { dismiss() } label: {
+                    // Explicit label so the expansion sits inside it. 14 a side takes the
+                    // ~17pt text to 45: above it the Play button is 20pt away, below it
+                    // there is 28pt of sheet padding.
+                    Text(L("common.close")).s8kMinTouch(h: 14, v: 14)
+                }
                     .font(S8KFont.subhead).foregroundColor(.s8kTextTertiary)
             }
             .padding(.bottom, 28)

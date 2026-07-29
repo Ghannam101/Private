@@ -312,6 +312,11 @@ struct LiveTVView: View {
                 Button(action: { favs.toggleChannel(ch.id) }) {
                     Image(systemName: favs.isChannelFav(ch.id) ? "heart.fill" : "heart")
                         .foregroundColor(favs.isChannelFav(ch.id) ? .s8kRed : .s8kTextSecondary)
+                        // A bare ~17pt glyph. Vertically it can reach the HIG minimum
+                        // (the pane's own padding is above and a Divider below, neither
+                        // of them tappable); horizontally 6 is half the row's 12pt
+                        // spacing, so it stops where the pill beside it starts.
+                        .s8kMinTouch(h: 6, v: 14)
                 }
                 .buttonStyle(S8KButtonStyle())
                 .accessibilityLabel(favs.isChannelFav(ch.id) ? L("detail.fav_added") : L("detail.fav_add"))
@@ -320,6 +325,7 @@ struct LiveTVView: View {
                         .font(S8KFont.caption1.weight(.semibold)).foregroundColor(.black)
                         .padding(.horizontal, 14).padding(.vertical, 8)
                         .background(S8KGradient.goldFlat).clipShape(Capsule())
+                        .s8kMinTouchV(8)     // ~29 → 45pt tall, after the clip
                 }
                 .buttonStyle(S8KButtonStyle())
                 Spacer()
@@ -445,6 +451,10 @@ struct LiveTVView: View {
                     Image(systemName: favs.isChannelFav(ch.id) ? "heart.fill" : "heart")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(favs.isChannelFav(ch.id) ? .s8kRed : .s8kTextSecondary)
+                        // 16pt glyph. 6 a side is half the row's 12pt spacing, so this
+                        // and the fullscreen circle beside it meet without overlapping;
+                        // 14 vertically lands inside the bar's 10pt padding.
+                        .s8kMinTouch(h: 6, v: 14)
                 }
                 .buttonStyle(S8KButtonStyle())
                 .accessibilityLabel(favs.isChannelFav(ch.id) ? L("detail.fav_added") : L("detail.fav_add"))
@@ -452,6 +462,7 @@ struct LiveTVView: View {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
                         .font(.system(size: 13, weight: .bold)).foregroundColor(S8KBrand.accentInk)
                         .frame(width: 34, height: 34).background(S8KGradient.goldFlat).clipShape(Circle())
+                        .s8kMinTouch(h: 6, v: 5)   // 34 → 46×44, after the clip
                 }
                 .buttonStyle(S8KButtonStyle())
                 .accessibilityLabel(L("live.fullscreen"))
@@ -704,6 +715,10 @@ private struct InlineLiveEngineView: View {
                     Button(action: { vm.errorMsg = nil; vm.setup() }) {
                         Label(L("common.retry"), systemImage: "arrow.clockwise")
                             .font(S8KFont.caption1.weight(.semibold)).foregroundColor(.s8kGoldMid)
+                            // ~14pt of text → 44pt tall. It is the only control on the
+                            // error overlay, and the only thing within 15pt of it is the
+                            // error message itself, which takes no touches.
+                            .s8kMinTouch(h: 14, v: 15)
                     }
                 }
             }
@@ -714,6 +729,9 @@ private struct InlineLiveEngineView: View {
                             .font(.system(size: 14, weight: .semibold)).foregroundColor(.white)
                             .frame(width: 34, height: 34)
                             .background(Color.black.opacity(0.45)).clipShape(Circle())
+                            // 34 → 44pt, after the clip. It sits in a 10pt inset corner
+                            // over the video surface, which carries no gesture of its own.
+                            .s8kMinTouch(5)
                     }
                     .buttonStyle(S8KButtonStyle())
                     .accessibilityLabel(L("live.fullscreen"))
@@ -988,6 +1006,10 @@ struct ContentTitleBar: View {
                     .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
                         .strokeBorder(Color.s8kBorder, lineWidth: 1))
+                    // 38 → 44pt tall. Vertical only: the icon button beside it is 12pt
+                    // away and grows sideways by 3, so widening this one too would put
+                    // the two hit areas on top of each other.
+                    .s8kMinTouchV(3)
                 }
                 .buttonStyle(S8KButtonStyle())
             }
@@ -1009,6 +1031,10 @@ struct ContentTitleBar: View {
                 .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
                     .strokeBorder(Color.s8kBorder, lineWidth: 1))
+                // 38 → 44pt, drawn identically. Inside the label and after the clip —
+                // clipShape clips hit testing too. This is the back button on every
+                // category screen, where the swipe-to-pop gesture is also disabled.
+                .s8kMinTouch(3)
         }
         .buttonStyle(S8KButtonStyle())
         .accessibilityLabel(a11y.isEmpty ? icon : a11y)
@@ -1489,6 +1515,11 @@ struct SearchField: View {
             if !text.isEmpty {
                 Button(action: { text = "" }) {
                     Image(systemName: "xmark.circle.fill").foregroundColor(.s8kTextDisabled)
+                        // ~17pt glyph. 14 vertically fills the 46pt row (the row's own
+                        // clipShape would cut anything past it); 5 sideways is half the
+                        // 10pt gap to the text field, so it cannot swallow the tap that
+                        // focuses the field.
+                        .s8kMinTouch(h: 5, v: 14)
                 }
                     .accessibilityLabel(L("a11y.clear_text"))
             }
@@ -1554,6 +1585,9 @@ struct CategorySidebar: View {
                             .frame(width: 34, height: 34)
                             .background(Color.s8kElevated).clipShape(Circle())
                             .overlay(Circle().strokeBorder(Color.s8kBorder, lineWidth: 1))
+                            // 34 → 44pt. Nothing tappable is within 5pt: a Spacer to one
+                            // side, the sidebar's 16pt padding to the other.
+                            .s8kMinTouch(5)
                     }
                     .buttonStyle(S8KButtonStyle())
                     .accessibilityLabel(L("a11y.reorder"))
@@ -3421,8 +3455,14 @@ struct SearchView: View {
             HStack {
                 Text(L("search.title")).font(S8KFont.title1).foregroundColor(.s8kTextPrimary)
                 Spacer()
-                Button(L("common.close")) {
+                Button {
                     if let onClose { onClose() } else { dismiss() }
+                } label: {
+                    // Written with an explicit label so the expansion can live INSIDE it:
+                    // on the outside it would only widen the layout cell and leave the
+                    // gesture on the ~44×17 text. 14 down stops exactly at the search
+                    // field below; a Spacer and the 20pt page margin flank it sideways.
+                    Text(L("common.close")).s8kMinTouch(h: 12, v: 14)
                 }.foregroundColor(.s8kGoldMid).font(S8KFont.subhead)
             }
             searchField
@@ -3455,6 +3495,10 @@ struct SearchView: View {
             } else if !vm.query.isEmpty {
                 Button(action: { vm.query = ""; vm.results = []; vm.failed = false }) {
                     Image(systemName: "xmark.circle.fill").foregroundColor(.s8kTextDisabled)
+                        // ~17pt glyph inside a 50pt row; 5 sideways is half the gap to
+                        // the text field, so focusing the field still works right up to
+                        // the glyph.
+                        .s8kMinTouch(h: 5, v: 14)
                 }
                     .accessibilityLabel(L("a11y.clear_text"))
             }
@@ -3483,6 +3527,10 @@ struct SearchView: View {
                     .clipShape(Capsule())
                     .overlay(Capsule().strokeBorder(active ? Color.clear : Color.s8kBorder, lineWidth: 1))
                     .shadow(color: active ? .s8kGoldMid.opacity(0.35) : .clear, radius: 6, y: 2)
+                    // ~33 → 45pt tall, after the clip. Vertical only: the three chips
+                    // divide the row's width between them with 8pt gaps, so any sideways
+                    // growth here is growth into the next chip.
+                    .s8kMinTouchV(6)
                 }
                 .buttonStyle(S8KButtonStyle())
             }

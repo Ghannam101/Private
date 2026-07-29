@@ -294,6 +294,7 @@ struct SettingsProV2: View {
                 .frame(width: 38, height: 38)
                 .background(.ultraThinMaterial, in: Circle())
                 .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
+                .s8kMinTouch(3)      // 38 → 44pt; nothing else is within 3pt of it
         }
         .buttonStyle(S8KButtonStyle())
         .padding(.leading, 18).padding(.top, 6)
@@ -616,6 +617,7 @@ struct AccountSwitcherView: View {
                         Image(systemName: "xmark").font(.system(size: 15, weight: .bold)).foregroundColor(.s8kTextSecondary)
                             .frame(width: 38, height: 38).background(Circle().fill(Color.white.opacity(0.06)))
                             .overlay(Circle().strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
+                            .s8kMinTouch(3)   // 38 → 44pt; a Spacer and the 20pt margin flank it
                     }.buttonStyle(S8KButtonStyle())
                     .accessibilityLabel(L("common.close"))
                     Spacer()
@@ -676,6 +678,9 @@ struct AccountSwitcherView: View {
                     .padding(.horizontal, 9).padding(.vertical, 3)
                     .background(Capsule().fill(Color.white.opacity(0.06)))
                     .overlay(Capsule().strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
+                    // ~18 → 44pt tall. It is the last thing in the tile: above it are two
+                    // labels, below it 26pt of grid spacing before the next tile's avatar.
+                    .s8kMinTouch(h: 12, v: 13)
             }.buttonStyle(S8KButtonStyle())
         }
     }
@@ -978,10 +983,17 @@ struct PINEntryView: View {
                 Text(error).font(S8KFont.caption1).foregroundColor(.s8kRed).frame(height: 14)
                 pinPad
                 if allowForgot, mode == .verify {
-                    Button(L("pin.forgot")) { onForgot?() }
+                    Button { onForgot?() } label: {
+                        // Explicit label so the expansion is inside it. The stack's spacing
+                        // is 24 and the keypad above it is all buttons, so 12 a side is the
+                        // most this can take without reaching into a neighbour.
+                        Text(L("pin.forgot")).s8kMinTouch(h: 12, v: 12)
+                    }
                         .font(S8KFont.caption1).foregroundColor(.s8kGoldMid)
                 }
-                Button(L("common.cancel")) { onDone(nil) }
+                Button { onDone(nil) } label: {
+                    Text(L("common.cancel")).s8kMinTouch(h: 12, v: 13)   // see the note above
+                }
                     .font(S8KFont.callout).foregroundColor(.s8kTextSecondary).padding(.top, 2)
             }
             .padding(30)
@@ -1226,6 +1238,9 @@ struct ParentalControlView: View {
                 .background(Color.s8kSurface).clipShape(RoundedRectangle(cornerRadius: S8KRadius.md))
             Button(action: { UIPasteboard.general.string = recoveryCode }) {
                 Label(L("actgate.copy_id"), systemImage: "doc.on.doc").font(S8KFont.subhead).foregroundColor(.s8kGoldMid)
+                    // ~20 → 44pt tall. The code panel above and the Saved button below are
+                    // 18 and 24pt away, so 12 a side clears both.
+                    .s8kMinTouch(h: 12, v: 12)
             }
             GoldButton(title: L("pc.recovery_saved"), icon: "checkmark") { step = .menu }
                 .padding(.horizontal, S8KSpace.xl).padding(.top, 6)
@@ -1307,11 +1322,16 @@ struct LockedCategoriesView: View {
                         Button(action: { parental.setLockedBulk(kind, ids: filtered.map { $0.id }, true) }) {
                             Label(L("locked.lock_all"), systemImage: "lock.fill")
                                 .font(S8KFont.caption1.weight(.semibold)).foregroundColor(.s8kGoldMid)
+                                // ~16 → 40pt tall. 12 is the ceiling: the search field is
+                                // 12pt above and the category list starts 8pt below, and
+                                // both of those take touches of their own.
+                                .s8kMinTouch(h: 14, v: 12)
                         }
                         Spacer()
                         Button(action: { parental.setLockedBulk(kind, ids: filtered.map { $0.id }, false) }) {
                             Label(L("locked.unlock_all"), systemImage: "lock.open")
                                 .font(S8KFont.caption1.weight(.semibold)).foregroundColor(.s8kTextSecondary)
+                                .s8kMinTouch(h: 14, v: 12)   // see the note above
                         }
                     }
                     .padding(.horizontal, S8KSpace.xl).padding(.bottom, S8KSpace.sm)

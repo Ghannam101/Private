@@ -198,6 +198,11 @@ private struct GatewayModeSwitcher: View {
             // leaving dead spots exactly where a thumb lands. The pill stays visually
             // a capsule — only the TAP area is square.
             .contentShape(Rectangle())
+            // ~38 → 44pt tall, AFTER the contentShape above (it would otherwise pin the
+            // hit area back to the drawn pill). Vertical only: the two segments are flush
+            // against each other, so sideways growth is growth into the other tab. The
+            // 3pt a side lands in the track's own 4pt inset and reaches nothing else.
+            .s8kMinTouchV(3)
         }
         .buttonStyle(.plain)   // NOT S8KButtonStyle: isPressed is unreliable in a ScrollView
     }
@@ -356,6 +361,7 @@ struct GatewayView: View {
                     Image(systemName: "xmark").font(.system(size: 15, weight: .bold)).foregroundColor(.white)
                         .frame(width: 40, height: 40).background(.ultraThinMaterial, in: Circle())
                         .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
+                        .s8kMinTouch(2)    // 40 → 44pt; the language pill is 12pt away
                 }
                 .buttonStyle(S8KButtonStyle())
                 .accessibilityLabel(L("common.close"))
@@ -406,6 +412,10 @@ struct GatewayView: View {
                     .frame(width: 32, height: 32)
                     .background(Circle().fill(Color.white.opacity(0.06)))
                     .contentShape(Circle())
+                    // 32 → 44pt, AFTER the contentShape above — otherwise that circle
+                    // would pin the hit area back to 32. Its only neighbour is the name
+                    // block, which takes no touches.
+                    .s8kMinTouch(6)
             }
             .buttonStyle(S8KButtonStyle())
             .accessibilityLabel(L("accounts.title"))
@@ -442,6 +452,10 @@ struct GatewayView: View {
                 }
             }
             .contentShape(Rectangle())
+            // 34 → 42×44, after the contentShape above. Sideways it stops at 4: up to
+            // three of these tiles sit 8pt apart, and each one signs a DIFFERENT account
+            // in — overlapping hit areas here would log the user into the wrong one.
+            .s8kMinTouch(h: 4, v: 5)
         }
         .buttonStyle(S8KButtonStyle())
         .disabled(entering != nil)
@@ -624,6 +638,10 @@ struct GatewayView: View {
                 Text(L("login.demo")).font(S8KFont.subhead.weight(.semibold))
                     .foregroundColor(.s8kTextSecondary)
                     .lineLimit(1).minimumScaleFactor(0.85)
+                    // The footer stacks four text links 13pt apart, so 6 a side is all
+                    // any of them can take before two of them overlap. 44 here needs the
+                    // footer itself to open up — a layout change, not a hit-area one.
+                    .s8kMinTouch(h: 16, v: 6)
             }
             .buttonStyle(S8KButtonStyle()).padding(.top, 14)
             // Reseller support — this lived on the retired SubscriptionsGateView, and
@@ -634,13 +652,21 @@ struct GatewayView: View {
                     Text(L("login.need_help")).font(S8KFont.caption1.weight(.semibold))
                         .foregroundColor(.s8kTextSecondary)
                         .lineLimit(1).minimumScaleFactor(0.85)
+                        .s8kMinTouch(h: 16, v: 6)     // see the note above
                 }
                 .buttonStyle(S8KButtonStyle())
             }
             HStack(spacing: 5) {
-                Button(L("set.terms"))   { showTerms = true }.foregroundColor(.s8kTextTertiary)
+                // Explicit labels: outside the Button the expansion would widen the layout
+                // cell only and leave the gesture on the ~13pt line of text. 6 a side is
+                // half the distance between the two links, with the "·" between them.
+                Button { showTerms = true } label: {
+                    Text(L("set.terms")).s8kMinTouch(6)
+                }.foregroundColor(.s8kTextTertiary)
                 Text("·").foregroundColor(.s8kTextDisabled)
-                Button(L("set.privacy")) { showPrivacy = true }.foregroundColor(.s8kTextTertiary)
+                Button { showPrivacy = true } label: {
+                    Text(L("set.privacy")).s8kMinTouch(6)
+                }.foregroundColor(.s8kTextTertiary)
             }
             .font(S8KFont.caption2)
 

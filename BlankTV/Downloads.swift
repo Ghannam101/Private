@@ -827,6 +827,9 @@ struct DownloadsView: View {
             }
             Button(action: { svc.remove(d.id) }) {
                 Image(systemName: "trash").font(.system(size: 16)).foregroundColor(.s8kTextTertiary)
+                    // 16pt glyph → 44pt tall inside an 84pt row. Sideways it can only take
+                    // 6: the state button is 12pt away, and this one deletes.
+                    .s8kMinTouch(h: 6, v: 14)
             }.buttonStyle(S8KButtonStyle())
             .accessibilityLabel(L("common.delete"))
         }
@@ -839,6 +842,10 @@ struct DownloadsView: View {
     private func ctlBtn(_ icon: String, _ size: CGFloat, a11y: String = "", _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon).font(.system(size: size)).foregroundColor(.s8kGoldMid)
+                // 28-30pt glyphs. 8 vertically clears 44 inside the 84pt row; 6 is half
+                // the 12pt gap to the delete button, so pause/resume and delete cannot
+                // reach into each other.
+                .s8kMinTouch(h: 6, v: 8)
         }
         .buttonStyle(S8KButtonStyle())
         .accessibilityLabel(a11y.isEmpty ? icon : a11y)
