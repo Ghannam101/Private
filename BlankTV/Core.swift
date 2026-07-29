@@ -529,8 +529,8 @@ enum APIConfig {
     // in the app, and no request here can reach the network. Verified by tracing
     // every call site, not assumed.
     //
-    // It used to read `https://strong8k.app/api/v1`, and that shipped as a literal in
-    // the binary. `strings` on the IPA showed the REFERENCE app's live domain sitting
+    // It used to read another vendor's live API host, and that shipped as a literal in
+    // the binary. `strings` on the IPA showed that domain sitting
     // inside an app we are arguing is independent — which is precisely the kind of
     // evidence that makes a Guideline 4.3 rejection stick. `.invalid` is reserved by
     // RFC 2606 and can never resolve, so it also documents the truth: there is no
@@ -2622,7 +2622,7 @@ enum ContentService {
 
     // INDEPENDENCE (M0b-1, 2026-07-22): DIRECT-ONLY. Every content path now goes to
     // the user's OWN provider via PlaylistService (raw M3U or Xtream-direct), or to
-    // DemoContent. The old `XtreamService` proxy fallback (→ strong8k.app) has been
+    // DemoContent. The old `XtreamService` proxy fallback has been
     // removed structurally, so no content request can ever reach the backend —
     // regardless of `mode`. Blank Prime is a pure, independent player.
     // The two live accessors take the fast path: channels do not wait on the movies

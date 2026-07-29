@@ -2,7 +2,7 @@
 // BLANK TV — ActivationService.swift
 // INDEPENDENCE (M0a, 2026-07-22): BLANK TV is a fully independent, pure IPTV
 // player. ALL dependency on the external management / control-panel server
-// (strong8k.app: /v2/device/check + /v2/device/resolve) has been SEVERED.
+// (the old vendor's /v2/device/check + /v2/device/resolve) has been SEVERED.
 //
 // This service is now a LOCAL, always-allowed stub: it keeps the exact public
 // @Published surface every screen consumes (gate, maintenance, notifications,

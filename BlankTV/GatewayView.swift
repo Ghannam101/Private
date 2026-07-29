@@ -1,6 +1,6 @@
 // ============================================================
 // BLANK TV — GatewayView.swift
-// The login GATEWAY (owner-approved muvy-style design, distinct from the Strong8K
+// The login GATEWAY (owner-approved design, deliberately unlike the stacked-form
 // reference for App Store distinctiveness): a full-bleed 3-row poster wall that
 // scrolls SEAMLESSLY in alternating directions, behind the app's own logo/wordmark
 // and a compact Xtream/M3U login card. Responsive across iPhone / iPad / Mac.

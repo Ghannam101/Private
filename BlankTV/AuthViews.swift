@@ -141,18 +141,6 @@ struct SplashView: View {
 }
 
 // MARK: - Logo Mark (real Logo asset, used everywhere)
-struct S8KLogoMark: View {
-    let size: CGFloat
-    var showGlow: Bool = false
-
-    var body: some View {
-        Image(S8KBrand.logoAsset)
-            .resizable()
-            .scaledToFit()
-            .frame(width: size, height: size)
-    }
-}
-
 // MARK: - Login View
 struct LoginView: View {
     @Environment(\.s8kMetrics) private var metrics

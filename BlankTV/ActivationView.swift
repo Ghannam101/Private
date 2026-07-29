@@ -346,36 +346,6 @@ struct ActivationRequiredView: View {
     }
 }
 
-// MARK: - Trial banner (shown inside the app when status == trial)
-struct TrialBanner: View {
-    @StateObject private var act = ActivationService.shared
-
-    var body: some View {
-        if act.isTrial, let days = act.daysLeft {
-            HStack(spacing: 7) {
-                Image(systemName: "hourglass")
-                    .font(.system(size: 11, weight: .bold))
-                Text(L("trial.banner"))
-                    .font(S8KFont.caption2.weight(.bold))
-                Text("·").font(S8KFont.caption2).opacity(0.6)
-                Text("\(days) \(L("unit.day"))")
-                    .font(S8KFont.caption2.weight(.heavy))
-            }
-            .foregroundColor(.s8kGoldHigh)
-            .lineLimit(1)
-            .padding(.horizontal, 13).padding(.vertical, 6)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(Color.s8kGoldMid.opacity(0.14))
-                    .overlay(Capsule(style: .continuous)
-                        .strokeBorder(Color.s8kBorderGold, lineWidth: 1))
-            )
-            .frame(maxWidth: .infinity)          // centered, responsive
-            .padding(.top, 8).padding(.bottom, 2)
-        }
-    }
-}
-
 // MARK: - Loading dots
 struct LoadingDots: View {
     @State private var phase = 0.0

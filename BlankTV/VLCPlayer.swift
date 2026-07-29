@@ -98,7 +98,7 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
     }
 
     /// VLC renders into this UIView (the unified surface used by PlayerView,
-    /// replacing the old standalone VLCVideoView).
+    /// replacing the standalone surface view this used to carry).
     override func makeSurfaceView() -> UIView {
         let view = VLCSurfaceView()
         view.backgroundColor = .black
@@ -724,28 +724,6 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
         if currentTime - lastNowPlaying >= 1 { lastNowPlaying = currentTime; updateNowPlaying() }
     }
     private var lastNowPlaying: Double = -10
-}
-
-// MARK: - VLC video surface
-struct VLCVideoView: UIViewRepresentable {
-    let player: VLCMediaPlayer
-
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView()
-        view.backgroundColor = .black
-        player.drawable = view
-        return view
-    }
-    func updateUIView(_ uiView: UIView, context: Context) {}
-}
-
-// MARK: - UIKit Share Sheet
-struct ShareActivityView: UIViewControllerRepresentable {
-    let items: [Any]
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-    func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
 }
 
 // MARK: - Now Playing (lock screen / Control Center / Dynamic Island)

@@ -6,7 +6,7 @@
 // plus an FTS5 index for instant diacritic-insensitive search across 20k–50k
 // channels / movies / series.
 //
-// Adapted from the proven Strong8K store but rebuilt CLEAN for BLANK: a single v1
+// A clean-sheet v1 store for BLANK: a single v1
 // migration that bakes in `pos` (provider order = keyset sort key) + covering
 // indexes + the multi-field FTS index from the start — no legacy migration dance.
 //

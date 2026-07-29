@@ -1916,37 +1916,6 @@ struct GoldDivider: View {
     }
 }
 
-// MARK: - Loading View
-struct LoadingView: View {
-    var message: String = L("loading.generic")
-    @State private var rotation: Double = 0
-
-    var body: some View {
-        VStack(spacing: S8KSpace.lg) {
-            Circle()
-                .trim(from: 0.1, to: 0.9)
-                .stroke(
-                    AngularGradient(
-                        colors: [.s8kGoldHigh, .s8kGoldMid, .s8kGoldHigh],
-                        center: .center
-                    ),
-                    style: StrokeStyle(lineWidth: 3, lineCap: .round)
-                )
-                .frame(width: 44, height: 44)
-                .rotationEffect(.degrees(rotation))
-                .onAppear {
-                    withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
-                        rotation = 360
-                    }
-                }
-            // Big-app minimal (owner spec): the spinner alone — no "loading…" text.
-            // `message` stays for source-compat with existing call sites (unused).
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.s8kBlack)
-    }
-}
-
 // MARK: - Error View
 struct ErrorView: View {
     let message: String
@@ -2655,19 +2624,6 @@ extension View {
     /// Convenience for the common rounded-rect glass card.
     func s8kGlassCard(radius: CGFloat = S8KRadius.xl, tinted: Bool = false) -> some View {
         s8kGlass(RoundedRectangle(cornerRadius: radius, style: .continuous), tinted: tinted)
-    }
-}
-
-/// Wrap a cluster of nearby glass elements so they can morph/merge on iOS 26.
-/// On older systems it is a transparent passthrough container.
-struct S8KGlassGroup<Content: View>: View {
-    @ViewBuilder var content: () -> Content
-    var body: some View {
-        if #available(iOS 26.0, *) {
-            GlassEffectContainer(spacing: S8KSpace.lg) { content() }
-        } else {
-            content()
-        }
     }
 }
 

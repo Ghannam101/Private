@@ -4,9 +4,7 @@
 // a muted AVPlayer that buffers the first HLS chunk BEFORE the user taps Play, so
 // real playback starts near-instantly by adopting the already-buffering item.
 // Bounded to `cap` warm items so memory never balloons; a backed-out prefetch is
-// evicted. VOD only (live is fast-start already). Ported from the proven Strong8K
-// implementation. Consumer wiring (AVPlayerVM.setup take + detail-page prefetch)
-// lands in the next step.
+// evicted. VOD only (live is fast-start already).
 // ============================================================
 
 import Foundation
