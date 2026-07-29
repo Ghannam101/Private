@@ -394,6 +394,7 @@ enum L10n {
         "common.error":     [.ar: "خطأ",                .en: "Error",           .fr: "Erreur",          .tr: "Hata",            .es: "Error"],
 
         // Splash
+        "splash.tagline":  [.ar: "مشغّلك، لا أكثر",  .en: "Your player, nothing more", .fr: "Votre lecteur, rien d'autre", .tr: "Oynatıcın, fazlası değil", .es: "Tu reproductor, nada más"],
         "splash.device_id": [.ar: "معرّف الجهاز",       .en: "Device ID",       .fr: "ID de l'appareil",.tr: "Cihaz Kimliği",   .es: "ID del dispositivo"],
 
         // Privacy policy

@@ -10,67 +10,131 @@ import SwiftUI
 struct SplashView: View {
     let onComplete: () -> Void
 
-    @State private var logoOpacity: Double  = 0
-    @State private var logoScale:   CGFloat = 0.88
-    @State private var textOpacity: Double  = 0
-    @State private var macOpacity:  Double  = 0
+    /// One named size the rest of the composition is derived from, so there is a
+    /// single place to retune it and no bare literals scattered through the layout.
+    private let markSize: CGFloat = 56
+
+    // No scale anywhere. Fading in from 0.88 is the most-copied splash gesture there
+    // is; a short rise reads as deliberate instead.
+    @State private var enter:  Double  = 0     // ONE timeline for everything that fades
+    @State private var rise:   CGFloat = 14
+    @State private var drawn:  CGFloat = 0     // the rule, 0...1
+
+    /// The brand lockup sits on the reading edge, so it lands where the eye already is
+    /// in each language rather than dead centre.
+    private var edge: Alignment { s8kFrameAlign }
 
     var body: some View {
         ZStack {
-            // Pure charcoal — no ambient glow
             Color.s8kBlack.ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                Spacer()
+            VStack(alignment: s8kTextAlign, spacing: S8KSpace.xl) {
+                // Two above, one below: the lockup settles about two thirds down on
+                // ANY height. The first version pinned it 96pt off the bottom, which
+                // put it in the corner of an 83%-empty iPad — a screen App Review sees.
+                Spacer(minLength: 0)
+                Spacer(minLength: 0)
 
-                VStack(spacing: 18) {
-                    BrandLogo(size: 132)
-                        .opacity(logoOpacity)
-                        .scaleEffect(logoScale)
+                lockup
+                rule
 
-                    S8KWordmark(size: 26)
-                        .opacity(textOpacity)
-                }
-
-                Spacer()
-
-                // Subtle progress + device id at the bottom
-                VStack(spacing: 14) {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .tint(.s8kGoldMid)
-                        .scaleEffect(0.9)
-
-                    VStack(spacing: 4) {
-                        Text(L("splash.device_id"))
-                            .font(S8KFont.caption2).foregroundColor(.s8kTextDisabled)
-                        Text(DeviceIdentity.current)
-                            .font(.system(size: 13, weight: .bold, design: .monospaced))
-                            .foregroundColor(.s8kTextTertiary)
-                            .textSelection(.enabled)
-                    }
-                    .opacity(macOpacity)
-                }
-                .padding(.bottom, 54)
+                Spacer(minLength: 0)
+                deviceLine
             }
+            .padding(.horizontal, S8KSpace.xxl)
+            .padding(.bottom, S8KSpace.xxl)
         }
         .onAppear { startAnimation() }
-        // Resolve activation WHILE the splash is showing, so by the time it
-        // ends the gate is already decided — removes the separate
-        // "جارٍ التحقق" flash between splash and the content loader.
+        // Resolve activation WHILE the splash is showing, so by the time it ends the
+        // gate is already decided — no separate "checking" flash afterwards.
         .task { if !Store.shared.demoMode { await ActivationService.shared.check() } }
     }
 
+    /// HORIZONTAL lockup — mark beside the wordmark, not stacked above it.
+    private var lockup: some View {
+        HStack(spacing: S8KSpace.md) {
+            // Mirrored for RTL. Without this the mark stayed to the LEFT of the
+            // wordmark in Arabic, which is the app's default language.
+            if s8kIsRTL {
+                wordmarkBlock
+                BrandLogo(size: markSize)
+            } else {
+                BrandLogo(size: markSize)
+                wordmarkBlock
+            }
+        }
+        // The bloom rides WITH the lockup instead of being centred on the screen, so
+        // it actually sits behind the mark on every width. No blur: blurring a radial
+        // ramp yields the same radial ramp and costs a full offscreen pass on the
+        // coldest frame in the app.
+        .background(
+            RadialGradient(colors: [Color.s8kGoldHigh.opacity(0.18), .clear],
+                           center: .center, startRadius: 0, endRadius: markSize * 3.4)
+                .frame(width: markSize * 6.8, height: markSize * 6.8)
+                .opacity(enter)
+                .allowsHitTesting(false)
+        )
+        .frame(maxWidth: .infinity, alignment: edge)
+        .opacity(enter)
+        .offset(y: rise)
+    }
+
+    private var wordmarkBlock: some View {
+        VStack(alignment: s8kTextAlign, spacing: 2) {
+            S8KWordmark(size: 30)
+            Text(L("splash.tagline"))
+                .font(S8KFont.footnote)
+                .foregroundColor(.s8kTextSecondary)
+                // Tracking is Latin-only. Letter-spacing a cursive script pulls its
+                // joined glyphs apart and reads as broken text.
+                .tracking(s8kIsRTL ? 0 : 1.2)
+                .lineLimit(2).minimumScaleFactor(0.8)
+        }
+    }
+
+    /// A rule that draws itself, in place of a circular ProgressView — the same
+    /// "something is happening" signal without the system control every app shares.
+    private var rule: some View {
+        ZStack(alignment: edge) {
+            Capsule().fill(Color.white.opacity(0.08))
+            Capsule().fill(S8KGradient.goldFlat)
+                .frame(maxWidth: .infinity)
+                .scaleEffect(x: drawn, y: 1, anchor: s8kIsRTL ? .trailing : .leading)
+        }
+        .frame(height: 2)
+        .frame(maxWidth: markSize * 4, alignment: edge)
+        .frame(maxWidth: .infinity, alignment: edge)
+        .opacity(enter)
+    }
+
+    /// The device id stays visible and LABELLED: the owner panel activates this exact
+    /// string and support reads it back. The first rewrite dropped it to 20% white at
+    /// 11pt — about 1.8:1 against the brand base, well under the 4.5:1 floor — and put
+    /// it on its own fade that reversed halfway. One timeline, readable weight.
+    private var deviceLine: some View {
+        VStack(alignment: s8kTextAlign, spacing: 3) {
+            Text(L("splash.device_id"))
+                .font(S8KFont.caption2)
+                .foregroundColor(.s8kTextTertiary)
+            Text(DeviceIdentity.current)
+                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                .foregroundColor(.s8kTextSecondary)
+                .textSelection(.enabled)
+        }
+        .frame(maxWidth: .infinity, alignment: edge)
+        .opacity(enter)
+    }
+
     private func startAnimation() {
-        withAnimation(.easeOut(duration: 0.7)) { logoOpacity = 1; logoScale = 1.0 }
-        withAnimation(.easeOut(duration: 0.6).delay(0.25)) { textOpacity = 1 }
-        withAnimation(.easeOut(duration: 0.6).delay(0.5))  { macOpacity = 1 }
-        // Snappy splash: hold only long enough to register the branded intro, then
-        // fade. The activation check runs in the background (optimistic gate), so we
-        // never block the splash on the network. Hold trimmed 1.0s→0.5s = ~0.5s off
-        // every relaunch, keeping a quick, elegant brand beat.
+        withAnimation(.easeOut(duration: 0.5)) { enter = 1; rise = 0 }
+        // Finishes at 0.42, BEFORE the fade-out starts at 0.50. The first version ran
+        // 0.62s from a 0.06 delay, so the bar only ever reached full as it vanished.
+        withAnimation(.easeInOut(duration: 0.42)) { drawn = 1 }
+        // Timing unchanged from what shipped: ~0.75s to onComplete. The app now loads
+        // the catalogue during this window (BlankTVApp), so the beat is no longer dead
+        // time, and shortening it is a separate decision that belongs to the owner.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            withAnimation(.easeInOut(duration: 0.32)) { logoOpacity = 0; textOpacity = 0; macOpacity = 0 }
+            withAnimation(.easeInOut(duration: 0.32)) { enter = 0; rise = -10 }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { onComplete() }
         }
     }
