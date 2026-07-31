@@ -190,7 +190,7 @@ struct PlayerEngineView: View {
     /// the double-tap detector, so the next real tap within 0.32s jumped 10 seconds.
     @State private var boostEndedAt: Date? = nil
 
-    // Netflix-style double-tap ripple (visual feedback on the tapped side).
+    // Double-tap ripple: visual feedback on the tapped side.
     @State private var ripple: (forward: Bool, id: Int)? = nil
     @State private var rippleSeq = 0
 
@@ -397,7 +397,7 @@ struct PlayerEngineView: View {
                 .transition(.opacity)
             }
 
-            // Netflix-style double-tap ripple
+            // Double-tap ripple
             if let r = ripple {
                 HStack {
                     if !r.forward { Spacer() }
@@ -514,8 +514,8 @@ struct PlayerEngineView: View {
         .statusBarHidden(true)
         // Hide the system Home Indicator (the bottom bar) during fullscreen playback.
         // SwiftUI equivalent of a UIViewController's prefersHomeIndicatorAutoHidden:
-        // the system still flashes it briefly on touch, then auto-hides (Netflix/
-        // YouTube behavior). iOS 16+; app targets iOS 17+.
+        // the system still flashes it briefly on touch, then auto-hides — the standard
+        // fullscreen-video behaviour. iOS 16+; app targets iOS 17+.
         .persistentSystemOverlays(.hidden)
         .animation(.easeInOut(duration: 0.18), value: showControls)
         .animation(.easeInOut(duration: 0.15), value: volumeHUD?.value)
@@ -676,7 +676,7 @@ struct PlayerEngineView: View {
         }
     }
 
-    // MARK: - Double-tap seek (±10s, accumulating) + Netflix ripple
+    // MARK: - Double-tap seek (±10s, accumulating) with a touch ripple
     private func doubleTapSeek(forward: Bool) {
         guard !vm.isLive else { return }
         vm.skip(forward ? 10 : -10)
@@ -721,7 +721,7 @@ struct PlayerEngineView: View {
         .clipShape(RoundedRectangle(cornerRadius: S8KRadius.lg))
     }
 
-    // Netflix-style expanding ripple on the double-tapped side.
+    // Expanding ripple on the double-tapped side.
     private func rippleBadge(_ forward: Bool) -> some View {
         Image(systemName: forward ? "goforward.10" : "gobackward.10")
             .font(.system(size: 40, weight: .semibold))

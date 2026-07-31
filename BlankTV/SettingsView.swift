@@ -588,7 +588,7 @@ struct EngineStatsView: View {
 }
 
 // ============================================================
-// MARK: - Account switcher (Netflix-profile style, opened from the hero)
+// MARK: - Account switcher (profile grid, opened from the hero)
 // A grid of profile avatars: the current account (highlighted) + the other saved
 // accounts (tap to switch) + a dashed "+" tile to add a new one (Xtream / M3U via
 // the existing LoginView). Each account name is editable (owner spec). Switching

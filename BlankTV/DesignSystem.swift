@@ -1845,26 +1845,46 @@ enum S8KBrand {
     /// COMPUTED, never fixed. It was a hard-coded black, which is right for this app's
     /// lime accent and silently wrong for a dark one — the first buyer who picked a
     /// deep blue would have shipped buttons whose labels were invisible, and nothing
-    /// in the code would have complained. Derived from luminance, a rebrand cannot
-    /// produce an unreadable button.
+    /// in the code would have complained. Derived from measured contrast, a rebrand
+    /// cannot produce an unreadable button.
     static var accentInk: Color {
+        // MEASURE both candidates, take the winner. This used to branch on a threshold
+        // (raw luma > 0.55), and a threshold has a dead band no reviewer can see: the
+        // shipped accent #FF6029 has a raw luma of 0.493, so the rule chose WHITE, and
+        // white on #FF6029 measures 3.02:1 — under the 4.5:1 AA floor, on every primary
+        // button in the app. Contrast is what the guideline is written in, so contrast
+        // is what we compare. A white-label system cannot be correct any other way: the
+        // reseller supplies the colour, and no constant survives an arbitrary one.
+        //
         // `.s8kBlack`, NOT `.black`: s8kBlack is BrandTheme.active.base, a deep brand
         // tone rather than #000000, and that was a deliberate choice — the CTA is meant
-        // to re-skin with the palette. What was missing is only the white branch, for
-        // an accent too dark to read a deep ink on.
-        BrandTheme.active.accentHigh.s8kLuminance > 0.55 ? .s8kBlack : .white
+        // to re-skin with the palette.
+        let accent = BrandTheme.active.accentHigh
+        return accent.s8kContrast(.s8kBlack) >= accent.s8kContrast(.white) ? .s8kBlack : .white
     }
 }
 
 extension Color {
-    /// Relative luminance (Rec. 709). Used to pick legible ink for any accent.
-    var s8kLuminance: CGFloat {
+    /// WCAG 2.1 relative luminance — gamma-DECODED, unlike a raw Rec. 709 luma.
+    ///
+    /// The decode is the whole point. Raw luma over-reports mid-tones badly enough to
+    /// invert an ink decision: it read #FF6029 at 0.493 where the real figure is 0.298.
+    var s8kRelativeLuminance: CGFloat {
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        // Guarded like `adjusted(brightness:)` below, and failing toward 1 (deep ink) —
-        // the app's status quo. An unguarded read would leave r/g/b at 0 on failure and
-        // silently turn every button's label white.
-        guard UIColor(self).getRed(&r, green: &g, blue: &b, alpha: &a) else { return 1 }
-        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+        // Guarded like `adjusted(brightness:)` below. On failure we report black, which
+        // makes `s8kContrast` fail toward the deep ink — the app's status quo — rather
+        // than silently turning every button's label white.
+        guard UIColor(self).getRed(&r, green: &g, blue: &b, alpha: &a) else { return 0 }
+        func lin(_ c: CGFloat) -> CGFloat {
+            c <= 0.03928 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+    }
+
+    /// WCAG contrast ratio between two colours, 1…21.
+    func s8kContrast(_ other: Color) -> CGFloat {
+        let a = s8kRelativeLuminance, b = other.s8kRelativeLuminance
+        return (max(a, b) + 0.05) / (min(a, b) + 0.05)
     }
 }
 

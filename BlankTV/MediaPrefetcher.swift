@@ -1,6 +1,6 @@
 // ============================================================
 // BLANK TV — MediaPrefetcher.swift
-// Netflix-style warm-player pool: when a VOD detail page appears, we quietly build
+// Warm-player pool: when a VOD detail page appears, we quietly build
 // a muted AVPlayer that buffers the first HLS chunk BEFORE the user taps Play, so
 // real playback starts near-instantly by adopting the already-buffering item.
 // Bounded to `cap` warm items so memory never balloons; a backed-out prefetch is

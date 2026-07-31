@@ -41,7 +41,7 @@ enum RailEngine {
 
     // Known streaming networks → canonical chip label.
     // Matched case-insensitively as a substring of the (lowercased) category name.
-    // Array ORDER = display priority (Netflix first, …).
+    // Array ORDER = display priority, most-subscribed network first.
     private static let networks: [(keys: [String], label: String)] = [
         (["netflix", "نتفلكس", "نتفليكس"],                 "NETFLIX"),
         (["shahid", "شاهد"],                               "SHAHID"),

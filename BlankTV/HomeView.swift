@@ -36,7 +36,7 @@ final class HomeVM: ObservableObject {
     @Published var doneMovies   = false
     @Published var doneSeries   = false
     @Published var heroItems:     [HeroItem]      = []   // mixed swipeable hero (movies + series)
-    @Published var topMovies:     [Movie]         = []   // top-rated (Netflix Top 10 rail) — sorted ONCE
+    @Published var topMovies:     [Movie]         = []   // top-rated (ranked rail) — sorted ONCE
     @Published var topSeries:     [Series]        = []   // top-rated series rail — sorted ONCE
     @Published var newMovies:     [Movie]         = []   // recently added (id desc) — sorted ONCE
     @Published var newSeries:     [Series]        = []   // recently added (id desc) — sorted ONCE
@@ -496,7 +496,7 @@ struct HeroCarouselView: View {
 }
 
 // MARK: - Rank rail (shared editorial "Top-10")
-// Netflix-style numbered ranking row — a hollow lime numeral with the poster
+// Numbered ranking row — a hollow accent numeral with the poster
 // overlapping it, plus year + ★rating badges. Extracted from Home so the Movies
 // and Series pages reuse the exact same component. `cells` is content-agnostic
 // (rank / id / poster / rating / year); `onTap` receives the tapped id.
@@ -1174,8 +1174,8 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Top-rated numbered rankings (Netflix "Top 10" — HOLLOW numbers ON the
-    // poster + global ★ rating). Uses the ONCE-sorted vm.topMovies/topSeries.
+    // MARK: - Top-rated numbered rankings (HOLLOW numerals ON the poster + global ★
+    // rating). Uses the ONCE-sorted vm.topMovies/topSeries.
     private var quickNav: some View {
         VStack(spacing: 0) {
             if !vm.topMovies.isEmpty {
