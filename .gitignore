@@ -20,3 +20,6 @@ Pods/
 # App Store Connect private keys — NEVER commit
 .secrets/
 *.p8
+
+# Python bytecode from the repo-root lint/API scripts
+__pycache__/
