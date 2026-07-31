@@ -16,3 +16,7 @@ temp_*/
 # CocoaPods (generated on CI by pod install)
 Pods/
 *.xcworkspace
+
+# App Store Connect private keys — NEVER commit
+.secrets/
+*.p8
