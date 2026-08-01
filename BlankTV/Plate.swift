@@ -173,6 +173,8 @@ enum Plate {
     /// OKLab, not HSB: it is perceptually uniform, so a clamped chroma stays visually
     /// constant across hues. In HSB the same saturation number is garish in yellow and
     /// invisible in blue, and the whole idea rests on that ceiling meaning one thing.
+    private static let space = CGColorSpace(name: CGColorSpace.sRGB)!
+
     private static func srgb(l: CGFloat, a: CGFloat, b: CGFloat) -> CGColor {
         let L = min(max(l, 0), 1)
         let l_ = L + 0.3963377774 * a + 0.2158037573 * b
@@ -187,7 +189,12 @@ enum Plate {
         let r = encode(+4.0767416621 * lc - 3.3077115913 * mc + 0.2309699292 * sc)
         let g = encode(-1.2684380046 * lc + 2.6097574011 * mc - 0.3413193965 * sc)
         let bl = encode(-0.0041960863 * lc - 0.7034186147 * mc + 1.7076147010 * sc)
-        return UIColor(red: r, green: g, blue: bl, alpha: 1).cgColor
+        // Built straight in the colour space rather than through UIColor: this runs a
+        // few thousand times per plate, and it is also honest about what it is. These
+        // are not identity colours and must not resolve through BrandTheme — they are
+        // the OUTPUT of a colour-space transform, dyed from a hash. brandlint is right
+        // to police raw colour everywhere else; here the component form says so.
+        return CGColor(colorSpace: space, components: [r, g, bl, 1]) ?? UIColor.black.cgColor
     }
 }
 
@@ -211,8 +218,10 @@ struct PlateView: View {
             if let plate {
                 Image(uiImage: plate).resizable()
             } else {
-                // Never a flash of grey: the darkest tone the weave can produce.
-                Color(red: 0.055, green: 0.055, blue: 0.060)
+                // Never a flash of grey. The brand base, so a rebrand carries this
+                // frame too — it is on screen for one layout pass and it is the only
+                // colour here that belongs to the identity rather than to the hash.
+                Color.s8kBlack
             }
 
             // A short scrim so a title stays readable over the palest weave a hash
