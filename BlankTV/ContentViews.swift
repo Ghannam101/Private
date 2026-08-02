@@ -1,21 +1,109 @@
-// ============================================================
-// BLANK TV — ContentViews.swift
-// Live TV + Movies + Series + Search — Complete
-// ============================================================
+// BLANK TV · ContentViews.swift
+//
+// The catalogue surface: the three browse pages, the two detail covers, the
+// search screen, and the parts they share.
+//
+// Laid out by ROLE, not by content type — one band for the shared controls
+// rather than a copy inside each vertical:
+//
+//   1  folding + windowing     the two rules every list in here obeys
+//   2  section models          live · movies · series
+//   3  shared browse controls  header bar, field, tiles, sidebar, sheets
+//   4  poster walls            movie / series / watch-history tiles
+//   5  live surfaces           lineup rows, the inline preview, the guide
+//   6  the three pages         live · movies · series
+//   7  folder ordering         the editor and the settings page around it
+//   8  detail covers           movie · series
+//   9  search                  model + screen
+//  10  chip wrapping           the Layout that wraps recent terms
 
 import SwiftUI
 import UIKit
 
-// MARK: ═══════════════════════════════════════
-// LIVE TV
-// ═══════════════════════════════════════════
+// MARK: - 1 · Folding and windowing
+
+/// The one comparison rule every catalogue search in this file obeys.
+enum CatalogText {
+    /// Flatten a title to the form searches are actually done against. Applied once
+    /// per name at load and once per query, never once per name per comparison —
+    /// `localizedCaseInsensitiveContains` reaches into ICU and allocates on every
+    /// call, and across thirty to fifty thousand titles that single call was the most
+    /// expensive thing a browse page did while the user was typing.
+    static func fold(_ s: String) -> String {
+        s.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                  locale: nil)
+    }
+
+    /// Narrow a list that is already short — one folder, one sheet — by the same rule
+    /// the catalogue-wide index uses, so a title that the main search finds can never
+    /// be one a folder search misses.
+    static func narrow<T>(_ items: [T], matching query: String,
+                          by name: (T) -> String) -> [T] {
+        let q = fold(query)
+        // Test the FOLDED needle, not the raw one: a query made only of combining
+        // marks folds away to nothing, and nothing has to mean "do not filter".
+        guard !q.isEmpty else { return items }
+        return items.filter { fold(name($0)).contains(q) }
+    }
+}
+
+/// One place for the windowing constants, so every list grows the same way.
+enum CatalogWindow {
+    /// Enough to fill any screen in the matrix plus a comfortable scroll buffer.
+    static let firstBatch = 120
+    /// Roughly a screenful and a half per extension — big enough that the sentinel
+    /// never fires twice in one flick, small enough that it stays cheap.
+    static let growth = 180
+}
+
+/// Clears all cached content (called on logout / session change).
+@MainActor
+enum ContentCache {
+    static func reset() {
+        LiveTVVM.shared.reset()
+        MoviesVM.shared.reset()
+        SeriesVM.shared.reset()
+        HomeVM.shared.reset()
+    }
+}
+
+// MARK: - 2 · Section models
+//
+// The three section models — live, movies, series — are built to one anatomy, set
+// down here once rather than three times over:
+//
+//   · a grouped index rebuilt after each load, so `folders` / `list(in:)` never
+//     rescan the whole catalogue from inside a view body;
+//   · a folded name index plus a one-entry memo behind `searchResults`, which IS
+//     read from a body — folding once at load turns an ICU comparison per title per
+//     keystroke into a plain substring test, and makes Arabic matching ignore
+//     diacritics into the bargain;
+//   · editorial rows (the hero and the top ten) computed once inside `load`;
+//   · a silent exit when the load was cancelled.
+//
+// THE COUNT CHECK COMES BEFORE THE MEMO. Movies and Series build their name index
+// off the first-paint path, so it can still be empty at the instant the user types.
+// Reading the memo first meant a result computed against an empty catalogue was
+// handed back for that same query once the real catalogue landed — and because the
+// rebuild publishes nothing, no re-render ever arrived to correct it. The page sat
+// on "no results" for a query that matches until another character was typed. So
+// the count is compared first, and rebuilding clears the memo, which is exactly
+// what that case needs. Live deliberately has no such check: its index is built
+// synchronously inside `load`, so it can never be behind.
+//
+// A CANCELLED LOAD MUST SAY NOTHING. Switching playlist or pulling to refresh
+// remounts the tab and cancels the load in flight — but a cancelled task still
+// resumes, and it would write its URLError(.cancelled) into `error` AFTER the
+// replacement load had cleared it. Every page here reads `error` ahead of content,
+// so it would show a failure over data that arrived perfectly well. That is what
+// the `Task.isCancelled` guard in front of each `error` assignment is for.
+
+// MARK: Live channels
 @MainActor
 final class LiveTVVM: ObservableObject {
     static let shared = LiveTVVM()
     @Published var categories: [Category]  = [.all]
     @Published var channels:   [Channel]   = []
-    @Published var filtered:   [Channel]   = []
-    @Published var selected:   String      = "all"
     @Published var search:     String      = ""
     @Published var isLoading:  Bool        = true
     @Published var error:      AppError?   = nil
@@ -31,25 +119,19 @@ final class LiveTVVM: ObservableObject {
         folderList = categories.filter { $0.id != "all" && !(grouped[$0.name]?.isEmpty ?? true) }
     }
 
-    // Folded search index + a one-entry memo. `searchResults` is read from the view
-    // BODY, so it ran on every single render — a full ICU
-    // `localizedCaseInsensitiveContains` sweep of the whole catalogue, more than
-    // once per frame on the Live page. Names are folded once at load, the needle
-    // once per query, and an unchanged query returns the previous array untouched.
-    // Folding also makes Arabic search diacritic-insensitive, which the ICU
-    // "case-insensitive" call was not.
+    // Folded name index + one-entry memo — the shared anatomy, described above.
     private var foldedNames: [String] = []
     private var lastQuery: String? = nil
     private var lastResults: [Channel] = []
     private func rebuildSearchIndex() {
-        foldedNames = channels.map { S8KSearch.fold($0.name) }
+        foldedNames = channels.map { CatalogText.fold($0.name) }
         lastQuery = nil; lastResults = []
     }
     /// Channels whose name matches `search`. Memoised; safe to call from a body.
     /// (Mutating plain stored properties of a class from a getter fires no
     /// objectWillChange, so this cannot re-enter the view update.)
     fileprivate func searchMatches() -> [Channel] {
-        let q = S8KSearch.fold(search)
+        let q = CatalogText.fold(search)
         if lastQuery == q { return lastResults }
         // zip truncates rather than trapping if the index is ever out of step.
         let r: [Channel] = q.isEmpty ? [] : zip(foldedNames, channels).compactMap { $0.0.contains(q) ? $0.1 : nil }
@@ -66,73 +148,21 @@ final class LiveTVVM: ObservableObject {
             let (c, ch) = try await (cats, chans)
             categories = [.all] + c
             channels   = ch
-            filtered   = ch
             rebuildGroups(); rebuildSearchIndex()
             loaded = true
-        // A load cancelled by a tab remount (playlist switch / refresh) still resumes and
-        // would write its URLError(.cancelled) into `error` — AFTER the fresh load had
-        // already cleared it. The view checks `error` before content, so the tab would
-        // sit on the error page over perfectly good data. A cancelled task must be silent.
+        // Silent on cancellation — see the note above these models.
         } catch let e as AppError { guard !Task.isCancelled else { return }; error = e }
           catch { guard !Task.isCancelled else { return }; self.error = .network(error) }
         isLoading = false
     }
 
-    func filter() {
-        var r = channels
-        // Match by category NAME — channels carry the group/category name, not its id
-        if selected != "all", let cat = categories.first(where: { $0.id == selected }) {
-            r = grouped[cat.name] ?? []
-        }
-        if !search.isEmpty {
-            let q = S8KSearch.fold(search)
-            r = r.filter { S8KSearch.fold($0.name).contains(q) }
-        }
-        filtered = r
-    }
-
-    func selectCat(_ id: String) { selected = id; filter() }
     func reset() {
         loaded = false; channels = []; categories = [.all]; isLoading = true; error = nil
         grouped = [:]; folderList = []; rebuildSearchIndex()
     }
-}
 
-/// One folding rule for every catalogue search, applied once per name at load
-/// time instead of once per name per comparison. `localizedCaseInsensitiveContains`
-/// is an ICU call that allocates on each invocation; over 30–56k titles it was the
-/// single most expensive thing the content pages did while typing.
-enum S8KSearch {
-    static func fold(_ s: String) -> String {
-        s.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
-                  locale: nil)
-    }
-}
-
-/// Folder/sheet-level search over an ALREADY-narrowed list (one category, one
-/// sheet). Uses the same folding as the catalogue-wide index so the two can
-/// never disagree — a diacritic-insensitive hit in the main search that missed
-/// inside a folder would read as a bug.
-func s8kFolderSearch<T>(_ items: [T], _ query: String, _ name: (T) -> String) -> [T] {
-    let q = S8KSearch.fold(query)
-    // Guard on the FOLDED needle, exactly like searchMatches: a query of nothing
-    // but combining marks folds to "" and must mean "no filter", not "match none".
-    guard !q.isEmpty else { return items }
-    return items.filter { S8KSearch.fold(name($0)).contains(q) }
-}
-
-/// Clears all cached content (called on logout / session change).
-@MainActor
-enum ContentCache {
-    static func reset() {
-        LiveTVVM.shared.reset()
-        MoviesVM.shared.reset()
-        SeriesVM.shared.reset()
-        HomeVM.shared.reset()
-    }
-}
-
-extension LiveTVVM {
+    // What the pages actually read. `folders` runs the user's saved arrangement over
+    // the non-empty folders; the key is a persisted UserDefaults string.
     var folders: [Category] { Store.shared.orderedCategories(folderList, "live") }
     func list(in cat: Category) -> [Channel] {
         cat.id == "all" ? channels : (grouped[cat.name] ?? [])
@@ -140,723 +170,16 @@ extension LiveTVVM {
     var searchResults: [Channel] { searchMatches() }
 }
 
-struct LiveTVView: View {
-    @StateObject private var loc  = LocalizationManager.shared
-    @StateObject private var vm   = LiveTVVM.shared
-    @StateObject private var favs = FavoritesService.shared
-    @StateObject private var hist = HistoryService.shared
-    @StateObject private var parental = ParentalService.shared
-    @ObservedObject private var router = AppRouter.shared   // global in-place search
-    @Environment(\.horizontalSizeClass) private var hSize
-    /// Canonical layout metrics — injected once by S8KMetricsRoot (BlankTVApp).
-    @Environment(\.s8kMetrics) private var metrics
-    @State private var playerItem: ContentItem? = nil
-    @State private var showCategories = false
-    @State private var showReorder = false
-    @State private var tab: ContentTab = .all
-    @State private var path = NavigationPath()
-    @State private var padCat: Category? = nil
-    @State private var padChannel: Channel? = nil
-    @State private var padShown = S8KListWindow.initial
-    @State private var currentChannel: Channel? = nil   // iPhone sticky mini-player selection
+// MARK: Movies
 
-    private var favorites: [Channel] { vm.channels.filter { favs.channels.contains($0.id) } }
-    private var liveHistory: [WatchHistory] { hist.items.filter { $0.contentType == .live } }
-    // The channel shown in the iPhone sticky mini-player — the tapped one, else
-    // the first channel (so the page auto-previews on open).
-    private var previewing: Channel? { currentChannel ?? vm.channels.first }
-    private func preview(_ ch: Channel) { currentChannel = ch }
-    private var isPad: Bool { hSize == .regular && UIDevice.current.userInterfaceIdiom == .pad }
-    // Use the 3-pane split only when there's genuinely room (full-screen iPad).
-    // In Split View / Slide Over the size class is still .regular but the width
-    // is narrow, so fall back to the phone layout to avoid overflowing panes.
-    private func useSplit(_ width: CGFloat) -> Bool { isPad && width >= 720 }
-
-    var body: some View {
-        NavigationStack(path: $path) {
-            GeometryReader { geo in
-                ZStack {
-                    Color.s8kBlack.ignoresSafeArea()
-                    if vm.isLoading {
-                        S8KListSkeleton()
-                    } else if let e = vm.error {
-                        // force: a plain load() early-returns when `loaded` is already
-                        // true, so Retry would do nothing and the tab would be stuck on
-                        // the error page (reachable when a load is cancelled mid-flight
-                        // by a tab remount).
-                        ErrorView(message: e.errorDescription ?? L("loading.error")) { Task { await vm.load(force: true) } }
-                    } else if useSplit(geo.size.width) { padBrowser(geo.size.width) }
-                    else { browser(geo.safeAreaInsets.top) }
-                }
-            }
-            .toolbar(.hidden, for: .navigationBar)
-            .navigationDestination(for: Category.self) { cat in
-                ParentalGate(kind: .live, categoryID: cat.id) {
-                    ChannelListScreen(title: cat.name, channels: vm.list(in: cat)) { playerItem = .live($0) }
-                }
-            }
-        }
-        .task { await vm.load() }
-        // Global in-place search (owner #6) — corner-menu search field drives it.
-        .onChange(of: router.searchText) { _, q in vm.search = q }
-        .onChange(of: router.searchActive) { _, a in if !a { vm.search = "" } }
-        .fullScreenCover(item: $playerItem) { PlayerView(item: $0, channels: vm.channels) }
-        .sheet(isPresented: $showCategories) {
-            CategoryPickerSheet(title: L("cats.channels"), categories: vm.folders,
-                                count: { vm.list(in: $0).count }) { path.append($0) }
-        }
-        .sheet(isPresented: $showReorder) {
-            CategoryReorderView(title: L("reorder.title"), categories: vm.folders, section: "live") { vm.objectWillChange.send() }
-        }
-    }
-
-    // MARK: iPad 3-pane (categories | channels | player + info)
-    private func padBrowser(_ width: CGFloat) -> some View {
-        // Proportional pane widths so the player pane never gets squeezed on
-        // portrait / smaller iPads (fixed 230+320 left only ~194–284pt for it).
-        let sidebarW  = min(230, max(175, width * 0.20))
-        let channelsW = min(320, max(240, width * 0.27))
-        return HStack(spacing: 0) {
-            CategorySidebar(title: L("title.live"), folders: vm.folders,
-                            selected: $padCat, count: { vm.list(in: $0).count },
-                            allCount: vm.channels.count, favoritesCount: favorites.count,
-                            onReorder: { showReorder = true })
-                .frame(width: sidebarW)
-            Divider().background(Color.s8kBorder)
-            padChannelsPane.frame(width: channelsW)
-            Divider().background(Color.s8kBorder)
-            padPlayerPane.frame(maxWidth: .infinity)
-        }
-        // Clear channel preview AND any leftover search query when switching
-        // sidebar sections — a stale query would filter the new category to
-        // "no results" (matches the Movies/Series iPad behavior).
-        .onChange(of: padCat?.id) { _, _ in padChannel = nil; vm.search = ""; padShown = S8KListWindow.initial }
-        // While viewing Favorites, if the previewing channel is un-favorited it
-        // leaves the middle list — clear the player so it doesn't keep showing a
-        // channel that's no longer in view.
-        .onChange(of: favs.channels) { _, _ in
-            if padCat?.id == Category.favorites.id, let ch = padChannel,
-               !favs.channels.contains(ch.id) { padChannel = nil }
-        }
-    }
-
-    @ViewBuilder
-    private var padChannelsPane: some View {
-        if padCat?.id == Category.favorites.id {
-            channelScroll(favorites)            // cross-category favorites (no parental gate)
-        } else if let cat = padCat {
-            ParentalGate(kind: .live, categoryID: cat.id) { channelScroll(vm.list(in: cat)) }
-        } else {
-            channelScroll(vm.channels)
-        }
-    }
-    private func channelScroll(_ chans: [Channel]) -> some View {
-        // When a search query is active, show global results across all channels
-        // (mirrors the Movies/Series iPad panes and the iPhone live browser);
-        // otherwise show the selected category's channels.
-        let list = vm.search.isEmpty ? chans : vm.searchResults
-        return ScrollView(showsIndicators: false) {
-            VStack(spacing: 0) {
-                SearchField(text: $vm.search, placeholder: L("search.live"))
-                    .padding(.horizontal, S8KSpace.lg)
-                    .padding(.top, max(50, metrics.safeTop + S8KSpace.sm)).padding(.bottom, S8KSpace.md)
-                if list.isEmpty {
-                    EmptyState(icon: "antenna.radiowaves.left.and.right.slash",
-                               title: L("live.empty.title"), subtitle: L("live.empty.sub"))
-                        .padding(.top, S8KSpace.xl)
-                } else {
-                    LazyVStack(spacing: 0) {
-                        ForEach(Array(list.prefix(padShown).enumerated()), id: \.element.id) { idx, ch in
-                            ChannelRow(channel: ch, index: idx + 1,
-                                       isFav: favs.channels.contains(ch.id),
-                                       onFav: { favs.toggleChannel(ch.id) }) { padChannel = ch }
-                                .background(padChannel?.id == ch.id ? Color.s8kGoldMid.opacity(0.12) : .clear)
-                            Divider().background(Color.s8kBorder).padding(.leading, 74)
-                        }
-                        if padShown < list.count {                  // window sentinel — grows only when scrolled to
-                            Color.clear.frame(height: 1)
-                                .onAppear { padShown = min(padShown + S8KListWindow.step, list.count) }
-                        }
-                    }
-                }
-                Color.clear.frame(height: metrics.bottomClearance)   // clear the floating AppTabBar
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var padPlayerPane: some View {
-        if let ch = padChannel {
-            VStack(spacing: 0) {
-                InlineLivePlayer(channel: ch, isExpanded: playerItem != nil) { playerItem = .live(ch) }
-                    .id(ch.id)
-                    .aspectRatio(16.0/9.0, contentMode: .fit)
-                    .frame(maxWidth: .infinity)
-                    .background(Color.black)
-                channelInfoPane(ch)
-                Spacer(minLength: 0)
-            }
-            .padding(.top, max(50, metrics.safeTop + S8KSpace.sm))   // align with the sidebar + channel list panes
-        } else {
-            VStack(spacing: 14) {
-                Image(systemName: "play.tv").font(.system(size: 54)).foregroundColor(.s8kTextDisabled)
-                Text(L("live.pick_channel")).font(S8KFont.callout).foregroundColor(.s8kTextTertiary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-    }
-
-    private func channelInfoPane(_ ch: Channel) -> some View {
-        VStack(alignment: .trailing, spacing: 10) {
-            HStack(spacing: 12) {
-                Button(action: { favs.toggleChannel(ch.id) }) {
-                    Image(systemName: favs.isChannelFav(ch.id) ? "heart.fill" : "heart")
-                        .foregroundColor(favs.isChannelFav(ch.id) ? .s8kRed : .s8kTextSecondary)
-                        // A bare ~17pt glyph. Vertically it can reach the HIG minimum
-                        // (the pane's own padding is above and a Divider below, neither
-                        // of them tappable); horizontally 6 is half the row's 12pt
-                        // spacing, so it stops where the pill beside it starts.
-                        .s8kMinTouch(h: 6, v: 14)
-                }
-                .buttonStyle(S8KButtonStyle())
-                .accessibilityLabel(favs.isChannelFav(ch.id) ? L("detail.fav_added") : L("detail.fav_add"))
-                Button(action: { playerItem = .live(ch) }) {
-                    Label(L("live.fullscreen"), systemImage: "arrow.up.left.and.arrow.down.right")
-                        .font(S8KFont.caption1.weight(.semibold)).foregroundColor(.black)
-                        .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(S8KGradient.goldFlat).clipShape(Capsule())
-                        .s8kMinTouchV(8)     // ~29 → 45pt tall, after the clip
-                }
-                .buttonStyle(S8KButtonStyle())
-                Spacer()
-                VStack(alignment: .trailing, spacing: 3) {
-                    Text(ch.name).font(S8KFont.title3).foregroundColor(.s8kTextPrimary).lineLimit(1)
-                    HStack(spacing: 5) {
-                        Circle().fill(Color.s8kRed).frame(width: 6, height: 6)
-                        Text(L("home.live_now")).font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                }
-            }
-            Divider().background(Color.s8kBorder)
-            // Live program guide (now/next) — renders nothing if the provider has no EPG.
-            EPGNowNext(channel: ch)
-        }
-        .padding(S8KSpace.xl)
-    }
-
-    // iPhone: a sticky mini-player (preview) pinned at the top + a scrolling
-    // channel list under it. Tapping a row swaps the preview channel; tapping the
-    // player expands to fullscreen. Auto-previews the first channel on open.
-    // Same pattern as Movies and Series (owner: make Live match): the page identity
-    // capsule top-leading, then ONE glass row carrying categories · the four filters
-    // (All / Favorites / Newest / History) · reorder. `topInset` is the measured
-    // safe-area top — the old hard-coded `.padding(.top, 56)` was stacked on top of the
-    // real inset, which is why this page started lower than everything else.
-    @ViewBuilder
-    private func browser(_ topInset: CGFloat) -> some View {
-        VStack(spacing: 0) {
-            liveTopBar(topInset)
-            if let ch = previewing {
-                InlineLivePlayer(channel: ch, isExpanded: playerItem != nil) { playerItem = .live(ch) }
-                    .id(ch.id)
-                    .aspectRatio(16.0/9.0, contentMode: .fit)
-                    .frame(maxWidth: .infinity)
-                    .background(Color.black)
-                miniInfoBar(ch)
-            }
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    // Search field removed — it now lives in the corner menu (owner #6).
-                    toolRow
-                    if !vm.search.isEmpty {
-                        ChannelList(channels: vm.searchResults) { preview($0) }
-                    } else {
-                        tabContent
-                    }
-                    Color.clear.frame(height: metrics.bottomClearance)
-                }
-                .s8kInstantTaps()   // on the CONTENT — the probe walks UP to the UIScrollView
-            }
-            .scrollBounceBehavior(.always)
-        .reportsScrollToTabBar()   // collapse the corner puck on scroll (owner #4)
-        }
-        // Same footing as Movies/Series: the page ZStack is inflated to the full screen
-        // by its `ignoresSafeArea` background, so `topInset` must be measured from the
-        // PHYSICAL top. Without this the capsule sat 30–60pt lower than the other pages.
-        .ignoresSafeArea(edges: .top)
-    }
-
-    private func liveTopBar(_ topInset: CGFloat) -> some View {
-        S8KSectionBar(title: L("title.live"))
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, S8KSpace.xl)
-            .padding(.top, max(0, topInset) + 6)
-            .padding(.bottom, 8)
-    }
-
-    private var toolRow: some View {
-        HStack(spacing: 10) {
-            toolButton("line.3.horizontal.decrease.circle", L("cats.channels")) { showCategories = true }
-            Menu {
-                Picker("", selection: $tab) {
-                    ForEach(ContentTab.allCases) { t in Label(t.title, systemImage: t.icon).tag(t) }
-                }
-            } label: {
-                HStack(spacing: 7) {
-                    Image(systemName: tab.icon).font(.system(size: 13, weight: .bold))
-                    Text(tab.title).font(S8KFont.subhead.weight(.bold))
-                        .lineLimit(1).minimumScaleFactor(0.8)
-                    Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
-                }
-                .foregroundColor(tab == .all ? .s8kTextSecondary : .s8kBlack)
-                .padding(.horizontal, 14).frame(height: 42)
-                .background(Capsule(style: .continuous)
-                    .fill(tab == .all ? AnyShapeStyle(Color.white.opacity(0.07))
-                                      : AnyShapeStyle(Color.s8kGoldHigh)))
-                .overlay(Capsule(style: .continuous)
-                    .strokeBorder(Color.white.opacity(tab == .all ? 0.12 : 0), lineWidth: 1)
-                    .allowsHitTesting(false))
-                .contentShape(Capsule(style: .continuous))
-            }
-            .buttonStyle(S8KButtonStyle())
-            Spacer(minLength: 0)
-            toolButton("arrow.up.arrow.down", L("reorder.button")) { showReorder = true }
-        }
-        .padding(.horizontal, S8KSpace.lg)
-        .padding(.top, 12)
-        .padding(.bottom, 4)
-    }
-
-    private func toolButton(_ icon: String, _ label: String, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 16, weight: .bold)).foregroundColor(.s8kGoldHigh)
-                .frame(width: 44, height: 44)
-                .background(Circle().fill(Color.white.opacity(0.07)))
-                .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
-                    .allowsHitTesting(false))
-                .contentShape(Circle())
-        }
-        .buttonStyle(S8KButtonStyle())
-        .accessibilityLabel(label)
-    }
-
-    // Compact info bar under the mini-player: favorite · fullscreen · name/live ·
-    // now/next EPG (renders nothing if the provider has no guide).
-    private func miniInfoBar(_ ch: Channel) -> some View {
-        VStack(alignment: .trailing, spacing: 8) {
-            HStack(spacing: 12) {
-                Button { favs.toggleChannel(ch.id) } label: {
-                    Image(systemName: favs.isChannelFav(ch.id) ? "heart.fill" : "heart")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(favs.isChannelFav(ch.id) ? .s8kRed : .s8kTextSecondary)
-                        // 16pt glyph. 6 a side is half the row's 12pt spacing, so this
-                        // and the fullscreen circle beside it meet without overlapping;
-                        // 14 vertically lands inside the bar's 10pt padding.
-                        .s8kMinTouch(h: 6, v: 14)
-                }
-                .buttonStyle(S8KButtonStyle())
-                .accessibilityLabel(favs.isChannelFav(ch.id) ? L("detail.fav_added") : L("detail.fav_add"))
-                Button { playerItem = .live(ch) } label: {
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                        .font(.system(size: 13, weight: .bold)).foregroundColor(S8KBrand.accentInk)
-                        .frame(width: 34, height: 34).background(S8KGradient.goldFlat).clipShape(Circle())
-                        .s8kMinTouch(h: 6, v: 5)   // 34 → 46×44, after the clip
-                }
-                .buttonStyle(S8KButtonStyle())
-                .accessibilityLabel(L("live.fullscreen"))
-                Spacer()
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(ch.name).font(S8KFont.subhead).foregroundColor(.s8kTextPrimary).lineLimit(1)
-                    HStack(spacing: 5) {
-                        Circle().fill(Color.s8kRed).frame(width: 6, height: 6)
-                        Text(L("home.live_now")).font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
-                    }
-                }
-            }
-            EPGNowNext(channel: ch, compact: true)
-        }
-        .padding(.horizontal, S8KSpace.xl).padding(.vertical, 10)
-        .background(Color.s8kBlack)
-        .overlay(GoldDivider(), alignment: .bottom)
-    }
-
-    @ViewBuilder
-    private var tabContent: some View {
-        switch tab {
-        case .all:
-            if vm.folders.isEmpty {
-                ChannelList(channels: vm.channels) { preview($0) }
-            } else {
-                LazyVStack(spacing: 0) {
-                    ForEach(vm.folders) { cat in
-                        CategoryRow(category: cat, count: vm.list(in: cat).count,
-                                    locked: parental.isLockedCategory(.live, cat.id),
-                                    gated: parental.isGated(.live, cat.id)) {
-                            ForEach(vm.list(in: cat).prefix(16)) { ch in
-                                ChannelChip(name: ch.name, logoURL: ch.logoURL, isLive: true) {
-                                    preview(ch)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        case .favorites:
-            ChannelList(channels: favorites) { preview($0) }
-        case .newest:
-            ChannelList(channels: vm.channels) { preview($0) }
-        case .history:
-            HistoryGrid(items: liveHistory, empty: L("history.empty")) { h in
-                if let ch = vm.channels.first(where: { $0.id == h.contentID }) { preview(ch) }
-            }
-        }
-    }
-}
-
-// MARK: - Channel list (shared) + per-category screen
-struct ChannelList: View {
-    let channels: [Channel]
-    let onTap: (Channel) -> Void
-    /// How many rows are handed to `ForEach` right now. A `LazyVStack` defers building
-    /// the VIEWS, but `ForEach` still walks the WHOLE collection to build its identity
-    /// map on every invalidation — and `Array(channels.enumerated())` additionally
-    /// materialises one tuple per channel each time. On a 56k-channel line, toggling a
-    /// single favourite paid for 56k tuples. The window makes first paint O(120) at any
-    /// catalogue size and grows as the user actually scrolls.
-    @State private var shown = S8KListWindow.initial
-    /// Observed ONCE for the whole list — see ChannelRow.
-    @StateObject private var favs = FavoritesService.shared
-
-    private var visible: ArraySlice<Channel> { channels.prefix(shown) }
-
-    var body: some View {
-        Group {
-            if channels.isEmpty {
-                EmptyState(icon: "antenna.radiowaves.left.and.right.slash",
-                           title: L("live.empty.title"), subtitle: L("live.empty.sub"))
-            } else {
-                LazyVStack(spacing: 0) {
-                    ForEach(Array(visible.enumerated()), id: \.element.id) { idx, ch in
-                        ChannelRow(channel: ch, index: idx + 1,
-                                   isFav: favs.channels.contains(ch.id),
-                                   onFav: { favs.toggleChannel(ch.id) }) { onTap(ch) }
-                        if idx < visible.count - 1 {
-                            Divider().background(Color.s8kBorder).padding(.leading, 74)
-                        }
-                    }
-                    // Sentinel: appearing means the user reached the end of the window.
-                    if shown < channels.count {
-                        Color.clear.frame(height: 1)
-                            .onAppear { shown = min(shown + S8KListWindow.step, channels.count) }
-                    }
-                }
-                .onAppear { S8KImageCache.shared.prefetch(channels.prefix(40).compactMap { $0.logoURL }, maxPixel: 240) }
-            }
-        }
-        // Reset when the LIST ITSELF changes (category switch, search, reorder).
-        // Keyed on the HEAD ITEM, not count: toggling one favourite changes the count
-        // but not the list the user is scrolling, and a reset there would collapse the
-        // content height and throw the scroll position. Lives on the Group so it
-        // survives the empty branch (a modifier inside `else` is destroyed on 5000 -> 0
-        // and never fires).
-        .onChange(of: channels.first?.id) { _, _ in shown = S8KListWindow.initial }
-    }
-}
-
-/// One place for the windowing constants, so every list grows the same way.
-enum S8KListWindow {
-    /// Enough to fill any screen in the matrix plus a comfortable scroll buffer.
-    static let initial = 120
-    /// Roughly a screenful and a half per extension — big enough that the sentinel
-    /// never fires twice in one flick, small enough that it stays cheap.
-    static let step = 180
-}
-
-struct ChannelRow: View {
-    let channel: Channel
-    let index: Int
-    /// Passed IN, not observed here. Every row used to hold its own `@StateObject`
-    /// on the FavoritesService singleton, so a long channel list allocated one
-    /// state box and one Combine subscription per visible row and churned them on
-    /// every scroll — for a value the parent already knows. The parent observes
-    /// once and hands each row a plain Bool.
-    let isFav: Bool
-    let onFav: () -> Void
-    let onTap: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Button(action: onTap) {
-                HStack(spacing: 12) {
-                    Text("\(index)")
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .foregroundColor(.s8kTextDisabled).frame(width: 22)
-
-                    S8KImage(url: channel.logoURL, placeholder: "antenna.radiowaves.left.and.right", maxPixel: 240)
-                        .frame(width: 46, height: 46).background(Color.s8kElevated)
-                        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
-
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text(channel.name).font(S8KFont.subhead).foregroundColor(.s8kTextPrimary)
-                            .lineLimit(1).frame(maxWidth: .infinity, alignment: .trailing)
-                        if !channel.groupTitle.isEmpty {
-                            Text(channel.groupTitle).font(S8KFont.caption2)
-                                .foregroundColor(.s8kTextTertiary).lineLimit(1)
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-                        }
-                    }
-                }
-            }
-            .buttonStyle(S8KButtonStyle())
-
-            // Favorite toggle
-            Button(action: onFav) {
-                Image(systemName: isFav ? "heart.fill" : "heart")
-                    .font(.system(size: 15))
-                    .foregroundColor(isFav ? .s8kRed : .s8kTextDisabled)
-                    .frame(width: 30, height: 30)
-                    // 6, not 8: the row's HStack spacing is 12, so 6 + 6 makes the two
-                    // rings touch without overlapping. At 8 the play button — the later
-                    // sibling, drawn in front — would have taken 3pt of the heart.
-                    .s8kMinTouch(6)
-            }
-            .buttonStyle(S8KButtonStyle())
-            .accessibilityLabel(isFav ? L("detail.fav_added") : L("detail.fav_add"))
-
-            Button(action: onTap) {
-                RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
-                    .fill(S8KGradient.goldFlat).frame(width: 32, height: 32)
-                    .overlay(Image(systemName: "play.fill").font(.system(size: 12, weight: .bold))
-                        .foregroundColor(S8KBrand.accentInk))
-                    .shadow(color: .s8kGoldMid.opacity(0.3), radius: 4)
-                    .s8kMinTouch(6)   // matches the heart; 12pt spacing, no overlap
-            }
-            .buttonStyle(S8KButtonStyle())
-            .accessibilityLabel(L("common.play"))
-        }
-        .padding(.horizontal, S8KSpace.xl).padding(.vertical, 10)
-    }
-}
-
-// MARK: - Inline live player (iPad right pane). Recreated per channel via .id().
-// iPad inline live preview. Thin wrapper that picks the engine (hardware
-// AVPlayer for HLS, VLC otherwise — honoring the user's "Select Player"
-// preference) and transparently retries on the other engine if one fails,
-// mirroring the fullscreen PlayerView. (Full controls/zapping/PiP live in the
-// expanded fullscreen player.)
-struct InlineLivePlayer: View {
-    let channel: Channel
-    var isExpanded: Bool = false     // fullscreen is presented over this preview → pause it
-    var onExpand: () -> Void
-    @State private var engine: PlayerEngineKind
-    @State private var triedFallback = false
-
-    init(channel: Channel, isExpanded: Bool = false, onExpand: @escaping () -> Void) {
-        self.channel = channel
-        self.isExpanded = isExpanded
-        self.onExpand = onExpand
-        _engine = State(initialValue: PlayerEngineSelector.initialKind(for: .live(channel)))
-    }
-
-    var body: some View {
-        InlineLiveEngineView(channel: channel, engine: engine, canFallback: !triedFallback,
-                             isExpanded: isExpanded,
-                             onExpand: onExpand,
-                             onEngineFailed: {
-                                 guard !triedFallback else { return }
-                                 triedFallback = true
-                                 engine = engine.other      // swap → .id rebuilds with a fresh attempt
-                             })
-            .id(engine)
-    }
-}
-
-private struct InlineLiveEngineView: View {
-    let channel: Channel
-    let engine: PlayerEngineKind
-    let canFallback: Bool
-    let isExpanded: Bool
-    var onExpand: () -> Void
-    var onEngineFailed: () -> Void
-    @StateObject private var vm: BasePlayerVM
-    @State private var didReport = false
-
-    init(channel: Channel, engine: PlayerEngineKind, canFallback: Bool, isExpanded: Bool,
-         onExpand: @escaping () -> Void, onEngineFailed: @escaping () -> Void) {
-        self.channel = channel
-        self.engine = engine
-        self.canFallback = canFallback
-        self.isExpanded = isExpanded
-        self.onExpand = onExpand
-        self.onEngineFailed = onEngineFailed
-        _vm = StateObject(wrappedValue: PlayerEngineSelector.make(item: .live(channel), kind: engine))
-    }
-
-    var body: some View {
-        ZStack {
-            Color.black
-            PlayerSurfaceView(vm: vm)
-            if vm.isLoading || vm.buffering {
-                ProgressView().progressViewStyle(.circular).tint(.s8kGoldHigh).scaleEffect(1.2)
-            }
-            // Error + retry — only once both engines have failed (a first failure
-            // silently fails over via onEngineFailed below).
-            if let err = vm.errorMsg, !canFallback {
-                Color.black.opacity(0.85)
-                VStack(spacing: 10) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 26)).foregroundColor(.s8kTextDisabled)
-                    Text(err).font(S8KFont.caption1).foregroundColor(.s8kTextSecondary)
-                        .multilineTextAlignment(.center).padding(.horizontal, 20)
-                    Button(action: { vm.errorMsg = nil; vm.setup() }) {
-                        Label(L("common.retry"), systemImage: "arrow.clockwise")
-                            .font(S8KFont.caption1.weight(.semibold)).foregroundColor(.s8kGoldMid)
-                            // ~14pt of text → 44pt tall. It is the only control on the
-                            // error overlay, and the only thing within 15pt of it is the
-                            // error message itself, which takes no touches.
-                            .s8kMinTouch(h: 14, v: 15)
-                    }
-                }
-            }
-            VStack {
-                HStack {
-                    Button(action: onExpand) {
-                        Image(systemName: "arrow.up.left.and.arrow.down.right")
-                            .font(.system(size: 14, weight: .semibold)).foregroundColor(.white)
-                            .frame(width: 34, height: 34)
-                            .background(Color.black.opacity(0.45)).clipShape(Circle())
-                            // 34 → 44pt, after the clip. It sits in a 10pt inset corner
-                            // over the video surface, which carries no gesture of its own.
-                            .s8kMinTouch(5)
-                    }
-                    .buttonStyle(S8KButtonStyle())
-                    .accessibilityLabel(L("live.fullscreen"))
-                    Spacer()
-                }
-                Spacer()
-            }
-            .padding(10)
-        }
-        .onChange(of: vm.errorMsg) { _, msg in
-            if msg != nil, canFallback, !didReport { didReport = true; onEngineFailed() }
-        }
-        .onAppear { vm.setup() }
-        .onDisappear { vm.cleanup() }
-        // When the fullscreen player is presented OVER this inline preview, SwiftUI
-        // does NOT fire .onDisappear here (the cover sits on top, the preview stays
-        // "appeared"), so without this the preview keeps decoding + playing audio
-        // underneath → doubled audio/video (the reported iPad bug). Pause while
-        // expanded; resume on return. Only ONE engine plays at a time.
-        .onChange(of: isExpanded) { _, expanded in
-            if expanded { vm.pause() } else { vm.play() }
-        }
-    }
-}
-
-// MARK: - EPG now/next strip (Xtream program guide)
-// Shows the currently-airing program + a live progress bar (+ "Next: …" unless
-// compact). Fetches on appear, refreshes the progress every 30s, and renders
-// nothing when the provider has no EPG — so it's safe to drop in anywhere.
-struct EPGNowNext: View {
-    let channel: Channel
-    var compact: Bool = false
-    @State private var programs: [EPGProgram] = []
-    @State private var now = Date()
-    // Built once per view (not re-created on every body pass).
-    private let ticker = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
-
-    private var current: EPGProgram? { programs.first { $0.startTime <= now && now < $0.endTime } }
-    private var upNext:  EPGProgram? { programs.first { $0.startTime > now } }
-
-    var body: some View {
-        Group {
-            if let c = current {
-                VStack(alignment: .trailing, spacing: compact ? 4 : 6) {
-                    HStack(spacing: 8) {
-                        Text(c.title).font(S8KFont.caption1.weight(.semibold))
-                            .foregroundColor(.s8kTextPrimary).lineLimit(1)
-                        Spacer(minLength: 8)
-                        Text(timeRange(c)).font(S8KFont.caption2)
-                            .foregroundColor(.s8kTextTertiary).monospacedDigit()
-                    }
-                    S8KProgressBar(fraction: progress(c), track: Color.white.opacity(0.10))
-                    if !compact, let n = upNext {
-                        Text("\(L("epg.next")): \(n.title)").font(S8KFont.caption2)
-                            .foregroundColor(.s8kTextTertiary).lineLimit(1)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                    }
-                }
-            }
-        }
-        .task(id: channel.id) {
-            programs = await ContentService.epg(for: channel)
-            now = Date()
-        }
-        .onReceive(ticker) { _ in now = Date() }
-    }
-
-    private func progress(_ p: EPGProgram) -> Double {
-        let total = p.endTime.timeIntervalSince(p.startTime)
-        guard total > 0 else { return 0 }
-        return min(1, max(0, now.timeIntervalSince(p.startTime) / total))
-    }
-    private static let hhmm: DateFormatter = {
-        // POSIX: a fixed dateFormat still renders its DIGITS through the locale, so
-        // without this an Arabic device shows ١٤:٣٠ in the EPG.
-        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "HH:mm"; return f
-    }()
-    private func timeRange(_ p: EPGProgram) -> String {
-        "\(Self.hhmm.string(from: p.startTime)) – \(Self.hhmm.string(from: p.endTime))"
-    }
-}
-
-struct ChannelListScreen: View {
-    @Environment(\.s8kMetrics) private var metrics
-    let title: String
-    let channels: [Channel]
-    let onTap: (Channel) -> Void
-    @State private var search = ""
-    @Environment(\.dismiss) var dismiss
-
-    private var shown: [Channel] {
-        s8kFolderSearch(channels, search) { $0.name }
-    }
-    var body: some View {
-        ZStack {
-            Color.s8kBlack.ignoresSafeArea()
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    ContentTitleBar(title: title, subtitle: "\(channels.count) \(L("unit.channel"))", onBack: { dismiss() })
-                    SearchField(text: $search, placeholder: "\(L("common.search_in")) \(title)…")
-                        .padding(.horizontal, S8KSpace.xl).padding(.bottom, S8KSpace.lg)
-                    ChannelList(channels: shown) { onTap($0) }
-                    Color.clear.frame(height: metrics.bottomClearance)
-                }
-            }
-        }
-        .navigationBarHidden(true)
-    }
-}
-
-// MARK: ═══════════════════════════════════════
-// MOVIES
-// ═══════════════════════════════════════════
 @MainActor
 final class MoviesVM: ObservableObject {
     static let shared = MoviesVM()
     @Published var categories: [Category] = [.all]
     @Published var movies:     [Movie]    = []
-    @Published var filtered:   [Movie]    = []
-    @Published var selected:   String     = "all"
     @Published var search:     String     = ""
     @Published var isLoading:  Bool       = true
     @Published var error:      AppError?  = nil
-    @Published var sortBy:     Sort       = .newest
     // Editorial feed (Home-style, movies-only) — built once after load.
     @Published var heroItems:  [HomeVM.HeroItem] = []   // swipeable hero: newest movies
     @Published var topRanked:  [Movie]    = []          // Top-10 by rating
@@ -875,21 +198,13 @@ final class MoviesVM: ObservableObject {
     private var lastQuery: String? = nil
     private var lastResults: [Movie] = []
     private func rebuildSearchIndex() {
-        foldedNames = movies.map { S8KSearch.fold($0.name) }
+        foldedNames = movies.map { CatalogText.fold($0.name) }
         lastQuery = nil; lastResults = []
     }
     fileprivate func searchMatches() -> [Movie] {
-        let q = S8KSearch.fold(search)
-        // STALENESS IS CHECKED BEFORE THE MEMO, and the order is the whole point.
-        //
-        // The index is no longer built on the first-paint path, so it can be empty when
-        // the user types. Consulting the memo first meant a result computed against an
-        // EMPTY catalogue — during a reset, before load() lands — was returned again
-        // for the same query after the real catalogue arrived. `rebuildSearchIndex`
-        // runs off a plain `Task` and mutates nothing published, so no re-render ever
-        // came to correct it: the tab sat on "no results" for a query that matches,
-        // until the user typed another character. Rebuilding first also clears the
-        // memo, which is exactly what that case needs.
+        let q = CatalogText.fold(search)
+        // Count check FIRST, memo second — the order is load-bearing; see the note
+        // above these models.
         if foldedNames.count != movies.count { rebuildSearchIndex() }
         if lastQuery == q { return lastResults }
         let r: [Movie] = q.isEmpty ? [] : zip(foldedNames, movies).compactMap { $0.0.contains(q) ? $0.1 : nil }
@@ -923,8 +238,6 @@ final class MoviesVM: ObservableObject {
         S8KImageCache.shared.prefetch(heroItems.compactMap { $0.backdropURL }, maxPixel: 1200)
     }
 
-    enum Sort: String, CaseIterable { case newest = "الأحدث"; case rating = "التقييم"; case az = "أ-ي" }
-
     func load(force: Bool = false) async {
         if loaded && !force { return }
         isLoading = true; error = nil
@@ -933,101 +246,155 @@ final class MoviesVM: ObservableObject {
             async let movs = ContentService.movies()
             let (c, m) = try await (cats, movs)
             categories = [.all] + c; movies = m
-            rebuildGroups(); applyFilter(); rebuildEditorial(); loaded = true
+            rebuildGroups(); rebuildEditorial(); loaded = true
             // Off the first-paint path, in its own main-actor hop. Folding every title
             // is the most expensive per-row work here and the grid never reads it —
             // only the search box does, and `searchMatches` builds it on demand if the
             // user beats us to it. Doing it in THIS hop would hold the very frame that
             // `isLoading = false` below is meant to release.
             Task { @MainActor [weak self] in self?.rebuildSearchIndex() }
-        // A load cancelled by a tab remount (playlist switch / refresh) still resumes and
-        // would write its URLError(.cancelled) into `error` — AFTER the fresh load had
-        // already cleared it. The view checks `error` before content, so the tab would
-        // sit on the error page over perfectly good data. A cancelled task must be silent.
+        // Silent on cancellation — see the note above these models.
         } catch let e as AppError { guard !Task.isCancelled else { return }; error = e }
           catch { guard !Task.isCancelled else { return }; self.error = .network(error) }
         isLoading = false
     }
 
-    func applyFilter() {
-        var r = movies
-        if selected != "all" { r = r.filter { $0.categoryID == selected } }
-        if !search.isEmpty {
-            let q = S8KSearch.fold(search)
-            r = r.filter { S8KSearch.fold($0.name).contains(q) }
-        }
-        switch sortBy {
-        case .rating:  r = r.sorted { $0.ratingDouble > $1.ratingDouble }
-        case .az:      r = r.sorted { $0.name < $1.name }
-        case .newest: break
-        }
-        filtered = r
-    }
     func reset() {
         loaded = false; movies = []; categories = [.all]; isLoading = true; error = nil
         grouped = [:]; folderList = []; heroItems = []; topRanked = []; rebuildSearchIndex()
     }
+
+    /// Categories that actually contain movies (folders), in the user's own order.
+    var folders: [Category] { Store.shared.orderedCategories(folderList, "movies") }
+    func list(in cat: Category) -> [Movie] {
+        cat.id == "all" ? movies : (grouped[cat.id] ?? [])
+    }
+    var searchResults: [Movie] { searchMatches() }
 }
 
-// MARK: ═══════════════════════════════════════
-// SHARED: title bar · search field · folder card
-// ═══════════════════════════════════════════
-struct ContentTitleBar: View {
+// MARK: Series
+
+@MainActor
+final class SeriesVM: ObservableObject {
+    static let shared = SeriesVM()
+    @Published var categories: [Category] = [.all]
+    @Published var series:     [Series]   = []
+    @Published var search:     String     = ""
+    @Published var isLoading:  Bool       = true
+    @Published var error:      AppError?  = nil
+    // Editorial feed (Home-style, series-only) — built once after load.
+    @Published var heroItems:  [HomeVM.HeroItem] = []   // swipeable hero: newest series
+    @Published var topRanked:  [Series]   = []          // Top-10 by rating
+    private var loaded = false
+
+    // Precomputed once after load: series grouped by categoryID + non-empty folders.
+    private(set) var grouped: [String: [Series]] = [:]
+    private(set) var folderList: [Category] = []
+    private func rebuildGroups() {
+        grouped = Dictionary(grouping: series, by: { $0.categoryID })
+        folderList = categories.filter { $0.id != "all" && !(grouped[$0.id]?.isEmpty ?? true) }
+    }
+
+    // Folded search index + one-entry memo — see LiveTVVM.
+    private var foldedNames: [String] = []
+    private var lastQuery: String? = nil
+    private var lastResults: [Series] = []
+    private func rebuildSearchIndex() {
+        foldedNames = series.map { CatalogText.fold($0.name) }
+        lastQuery = nil; lastResults = []
+    }
+    fileprivate func searchMatches() -> [Series] {
+        let q = CatalogText.fold(search)
+        // Count check FIRST, memo second — the order is load-bearing; see the note
+        // above these models.
+        if foldedNames.count != series.count { rebuildSearchIndex() }
+        if lastQuery == q { return lastResults }
+        let r: [Series] = q.isEmpty ? [] : zip(foldedNames, series).compactMap { $0.0.contains(q) ? $0.1 : nil }
+        lastQuery = q; lastResults = r
+        return r
+    }
+
+    // Build the editorial rows (Top-10 by rating + a newest-series hero). `Series`
+    // carries its rating as a String and has no `ratingDouble` of its own, so the
+    // key comes from the shared `s8kRating` parser.
+    private func rebuildEditorial() {
+        // Indices, not elements — see the note in MoviesVM.rebuildEditorial.
+        let rate = series.map { s8kRating($0.rating) }
+        let byRate: [Int] = series.indices.sorted { rate[$0] > rate[$1] }
+        topRanked = Array(s8kUniqueByID(byRate.prefix(40).map { series[$0] }, { $0.id }).prefix(10))
+
+        let ids = series.map { Int($0.id) ?? 0 }
+        let byID: [Int] = series.indices.sorted { ids[$0] > ids[$1] }
+        let newest = s8kUniqueByID(byID.prefix(24).map { series[$0] }, { $0.id })
+        heroItems = newest.prefix(6).map { HomeVM.HeroItem(kind: .series($0)) }
+        S8KImageCache.shared.prefetch(heroItems.compactMap { $0.backdropURL }, maxPixel: 1200)
+    }
+
+    func load(force: Bool = false) async {
+        if loaded && !force { return }
+        isLoading = true; error = nil
+        do {
+            async let cats = ContentService.seriesCategories()
+            async let sers = ContentService.series()
+            let (c, s) = try await (cats, sers)
+            categories = [.all] + c; series = s
+            rebuildGroups(); rebuildEditorial(); loaded = true
+            // See MoviesVM.load — the index is off the first-paint path.
+            Task { @MainActor [weak self] in self?.rebuildSearchIndex() }
+        // Silent on cancellation — see the note above these models.
+        } catch let e as AppError { guard !Task.isCancelled else { return }; error = e }
+          catch { guard !Task.isCancelled else { return }; self.error = .network(error) }
+        isLoading = false
+    }
+
+    func reset() {
+        loaded = false; series = []; categories = [.all]; isLoading = true; error = nil
+        grouped = [:]; folderList = []; heroItems = []; topRanked = []; rebuildSearchIndex()
+    }
+
+    /// Categories that actually contain series (folders), in the user's own order.
+    var folders: [Category] { Store.shared.orderedCategories(folderList, "series") }
+    func list(in cat: Category) -> [Series] {
+        cat.id == "all" ? series : (grouped[cat.id] ?? [])
+    }
+    var searchResults: [Series] { searchMatches() }
+}
+
+// MARK: - 3 · Controls the browse pages share
+
+// MARK: What a folder screen opens with
+// A heavy title over a short accent rule, the item count beneath it, and one way
+// back. It once carried an optional trailing icon and an optional reorder pill as
+// well; no caller ever supplied either, so both branches were dead and both are
+// gone. `onBack` stays optional because the top padding reads it.
+struct FolderScreenHeader: View {
     let title: String
-    var subtitle: String? = nil
+    var subtitle: String
     var onBack: (() -> Void)? = nil
-    var trailingIcon: String? = nil
-    var onTrailing: (() -> Void)? = nil
-    var reorderAction: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 12) {
             if let onBack {
-                squareButton("chevron.right", action: onBack)
+                backButton(action: onBack)
             }
-            // Editorial: an oversized black-weight title with a short lime underline.
             VStack(alignment: .trailing, spacing: 6) {
                 Text(title).font(S8KFont.title1.weight(.black)).foregroundColor(.s8kTextPrimary).lineLimit(1)
                 RoundedRectangle(cornerRadius: 1.5)
                     .fill(S8KGradient.goldFlat)
                     .frame(width: 30, height: 3)
                     .shadow(color: .s8kGoldHigh.opacity(0.5), radius: 4)
-                if let subtitle {
-                    Text(subtitle).font(S8KFont.caption1).foregroundColor(.s8kTextTertiary)
-                }
+                Text(subtitle).font(S8KFont.caption1).foregroundColor(.s8kTextTertiary)
             }
             Spacer()
-            if let reorderAction {
-                Button(action: reorderAction) {
-                    HStack(spacing: 5) {
-                        Image(systemName: "arrow.up.arrow.down").font(.system(size: 12, weight: .bold))
-                        Text(L("reorder.button")).font(S8KFont.caption1.weight(.semibold))
-                    }
-                    .foregroundColor(.s8kGoldMid)
-                    .padding(.horizontal, 12).frame(height: 38)
-                    .background(Color.s8kSurface)
-                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
-                        .strokeBorder(Color.s8kBorder, lineWidth: 1))
-                    // 38 → 44pt tall. Vertical only: the icon button beside it is 12pt
-                    // away and grows sideways by 3, so widening this one too would put
-                    // the two hit areas on top of each other.
-                    .s8kMinTouchV(3)
-                }
-                .buttonStyle(S8KButtonStyle())
-            }
-            if let trailingIcon, let onTrailing {
-                squareButton(trailingIcon, action: onTrailing)
-            }
         }
         .padding(.horizontal, S8KSpace.xl)
         .padding(.top, onBack == nil ? 60 : 24).padding(.bottom, S8KSpace.lg)
     }
 
-    // Editorial: crisp rounded-square icon button (was a circle).
-    private func squareButton(_ icon: String, a11y: String = "", action: @escaping () -> Void) -> some View {
+    // A rounded square, not a circle.
+    private func backButton(action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: icon)
+            Image(systemName: "chevron.right")
                 .font(.system(size: 15, weight: .bold)).foregroundColor(.s8kGoldMid)
                 .frame(width: 38, height: 38)
                 .background(Color.s8kSurface)
@@ -1036,469 +403,14 @@ struct ContentTitleBar: View {
                     .strokeBorder(Color.s8kBorder, lineWidth: 1))
                 // 38 → 44pt, drawn identically. Inside the label and after the clip —
                 // clipShape clips hit testing too. This is the back button on every
-                // category screen, where the swipe-to-pop gesture is also disabled.
+                // folder screen, where the swipe-to-pop gesture is also disabled.
                 .s8kMinTouch(3)
         }
         .buttonStyle(S8KButtonStyle())
-        .accessibilityLabel(a11y.isEmpty ? icon : a11y)
-    }
-}
-
-// MARK: - Category reorder (tap-to-number)
-// Arrange your lists like a pro: the ones you choose sit in a draggable "Your
-// order" list (top = first) — drag to reorder, swipe to remove; every other list
-// sits below with a + to add it. Only the user's explicit arrangement is saved,
-// so a new user keeps the provider's default order (Store.orderedCategories).
-// Persists per playlist across relaunch / logout.
-// MARK: - Unified reorder page (owner #7)
-// One place — reached from Settings — to organize ALL sections: a segmented
-// Movies / Series / Live picker over the shared embedded reorder view. Each
-// section auto-saves and carries the region quick-sort presets.
-struct UnifiedReorderView: View {
-    @Environment(\.dismiss) private var dismiss
-    @StateObject private var movies = MoviesVM.shared
-    @StateObject private var series = SeriesVM.shared
-    @StateObject private var live   = LiveTVVM.shared
-    @State private var section: Sect = .movies
-
-    enum Sect: String, CaseIterable, Identifiable {
-        case movies, series, live
-        var id: String { rawValue }
-        var title: String {
-            switch self {
-            case .movies: return L("title.movies")
-            case .series: return L("title.series")
-            case .live:   return L("title.live")
-            }
-        }
-    }
-
-    private var cats: [Category] {
-        switch section {
-        case .movies: return movies.folders
-        case .series: return series.folders
-        case .live:   return live.folders
-        }
-    }
-    private func notifyVM() {
-        switch section {
-        case .movies: movies.objectWillChange.send()
-        case .series: series.objectWillChange.send()
-        case .live:   live.objectWillChange.send()
-        }
-    }
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.s8kBlack.ignoresSafeArea()
-                VStack(spacing: 0) {
-                    Picker("", selection: $section) {
-                        ForEach(Sect.allCases) { Text($0.title).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    .padding(.horizontal, S8KSpace.xl)
-                    .padding(.top, S8KSpace.md).padding(.bottom, S8KSpace.sm)
-
-                    CategoryReorderView(title: "", categories: cats, section: section.rawValue,
-                                        onSaved: { notifyVM() }, embedded: true)
-                        .id(section)   // fresh state per section → loads that section's saved order
-                }
-            }
-            .navigationTitle(L("reorder.manage"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(L("common.close")) { dismiss() }
-                        .foregroundColor(.s8kGoldMid).fontWeight(.bold)
-                }
-            }
-            .task { await movies.load(); await series.load(); await live.load() }
-        }
-    }
-}
-
-struct CategoryReorderView: View {
-    let title: String
-    let categories: [Category]     // current display order
-    let section: String            // "live" | "movies" | "series"
-    var onSaved: () -> Void = {}   // parent notifies its VM so folders refresh instantly
-    var embedded: Bool = false     // inside the unified reorder page: no nav chrome, auto-save
-    @Environment(\.dismiss) private var dismiss
-    @State private var picked: [String] = []
-    @State private var searchText = ""
-    @State private var didLoad = false
-    private let haptic = UISelectionFeedbackGenerator()
-
-    // The chosen lists, in the saved order.
-    private var pickedCats: [Category] { picked.compactMap { id in categories.first { $0.id == id } } }
-    // Everything not yet chosen (search-filtered).
-    private var poolCats: [Category] {
-        let rest = categories.filter { !picked.contains($0.id) }
-        return s8kFolderSearch(rest, searchText) { $0.name }
-    }
-    // The arranged ("your order") list grows with its content, but never takes more
-    // than ~42% of the available height — so the "available" pool ALWAYS keeps the
-    // majority (≥~58%) and never collapses, on any device / orientation / screen
-    // size. Beyond the cap the arranged list scrolls internally. When only a few
-    // items are chosen it shrinks to their content, giving the pool even more room.
-    private func arrangedHeight(_ available: CGFloat) -> CGFloat {
-        let content = CGFloat(max(pickedCats.count, 1)) * 52 + 6
-        // The first layout pass of a sheet can report height 0, which would collapse the
-        // drag list to nothing (and it never comes back until the view is rebuilt).
-        // Substitute a sensible height ONLY for that degenerate pass — clamping every
-        // real height to ≥500 would hand the list 64% of a short landscape window.
-        let usable: CGFloat = available > 1 ? available : 500
-        // Short (landscape) heights spend more on fixed chrome, so hand the pool an
-        // even bigger share there; tall layouts allow the arranged list up to ~42%.
-        let fraction: CGFloat = usable < 500 ? 0.32 : 0.42
-        return min(content, usable * fraction)
-    }
-
-    var body: some View {
-        if embedded {
-            // Inside the unified reorder page: no nav chrome; changes auto-save so
-            // switching section tabs never loses the arrangement.
-            reorderBody
-                .onChange(of: picked) { _, p in Store.shared.setCategoryOrder(p, section); onSaved() }
-        } else {
-            NavigationStack {
-                reorderBody
-                    .navigationTitle(title)
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button(L("common.cancel")) { dismiss() }.foregroundColor(.s8kTextSecondary)
-                        }
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button(L("common.save")) {
-                                Store.shared.setCategoryOrder(picked, section)
-                                onSaved(); dismiss()
-                            }
-                            .foregroundColor(.s8kGoldMid).fontWeight(.bold)
-                        }
-                    }
-            }
-        }
-    }
-
-    // Region quick-sort presets: one tap floats "your region" to the top; the user
-    // can still drag to fine-tune. Offline keyword classification (RegionClassifier).
-    private var presetBar: some View {
-        HStack(spacing: 8) {
-            Text(L("reorder.quick")).font(S8KFont.caption1.weight(.bold)).foregroundColor(.s8kTextSecondary)
-            Spacer()
-            ForEach(ContentRegion.allCases) { r in
-                Button {
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        picked = RegionClassifier.presetOrder(categories, primary: r)
-                    }
-                    haptic.selectionChanged()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: r.icon).font(.system(size: 11, weight: .bold))
-                        Text(r.title).font(S8KFont.caption2.weight(.bold))
-                    }
-                    .foregroundColor(.s8kGoldMid)
-                    .padding(.horizontal, 10).padding(.vertical, 7)
-                    .background(Color.s8kGoldMid.opacity(0.10)).clipShape(Capsule())
-                    .overlay(Capsule().strokeBorder(Color.s8kBorderGold, lineWidth: 1))
-                }
-                .buttonStyle(S8KButtonStyle())
-            }
-        }
-        .padding(.horizontal, S8KSpace.xl).padding(.top, S8KSpace.sm).padding(.bottom, 2)
-    }
-
-    private var reorderBody: some View {
-        ZStack {
-            Color.s8kBlack.ignoresSafeArea()
-            GeometryReader { geo in
-                VStack(spacing: 0) {
-                    presetBar
-                    // ── Your order — drag to reorder, swipe to remove ──
-                    sectionHeader(L("reorder.your_order"), count: pickedCats.isEmpty ? nil : pickedCats.count)
-                    Text(L("reorder.drag_hint"))
-                        .font(S8KFont.caption1).foregroundColor(.s8kTextTertiary)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                        .padding(.horizontal, S8KSpace.xl).padding(.bottom, 4)
-
-                    if pickedCats.isEmpty {
-                        Text(L("reorder.empty_arranged"))
-                            .font(S8KFont.subhead).foregroundColor(.s8kTextTertiary)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.vertical, 22)
-                    } else {
-                        List {
-                            ForEach(pickedCats) { cat in
-                                arrangedRow(cat, number: (picked.firstIndex(of: cat.id) ?? 0) + 1)
-                                    .listRowBackground(Color.clear)
-                                    .listRowSeparatorTint(Color.s8kBorder)
-                                    .listRowInsets(EdgeInsets(top: 0, leading: S8KSpace.lg,
-                                                              bottom: 0, trailing: S8KSpace.lg))
-                            }
-                            .onMove { from, to in
-                                // Manual reorder (standard SwiftUI onMove semantics) — the
-                                // move(fromOffsets:toOffsets:) helper failed to resolve under
-                                // the Xcode 26.4 toolchain, so do it with plain array ops.
-                                let moving = from.sorted().map { picked[$0] }
-                                for i in from.sorted(by: >) { picked.remove(at: i) }
-                                let dest = to - from.filter { $0 < to }.count
-                                picked.insert(contentsOf: moving, at: min(max(dest, 0), picked.count))
-                                haptic.selectionChanged()
-                            }
-                            .onDelete { offsets in
-                                let ids = offsets.map { pickedCats[$0].id }
-                                picked.removeAll { ids.contains($0) }; haptic.selectionChanged()
-                            }
-                        }
-                        .listStyle(.plain)
-                        .scrollContentBackground(.hidden)
-                        .environment(\.editMode, .constant(.active))
-                        .frame(height: arrangedHeight(geo.size.height))
-                    }
-
-                    Divider().background(Color.s8kBorder).padding(.vertical, S8KSpace.sm)
-
-                    // ── Available lists — tap + to add to your order ──
-                    sectionHeader(L("reorder.available"), count: nil)
-                    SearchField(text: $searchText, placeholder: L("reorder.search"))
-                        .padding(.horizontal, S8KSpace.xl).padding(.bottom, 4)
-                    ScrollView(showsIndicators: false) {
-                        LazyVStack(spacing: 0) {
-                            ForEach(poolCats) { cat in
-                                poolRow(cat)
-                                Divider().background(Color.s8kBorder).padding(.leading, 64)
-                            }
-                            if poolCats.isEmpty {
-                                Text(L("empty.no_results"))
-                                    .font(S8KFont.subhead).foregroundColor(.s8kTextTertiary)
-                                    .frame(maxWidth: .infinity).padding(.top, 30)
-                            }
-                            Color.clear.frame(height: 40)
-                        }
-                        .animation(.easeInOut(duration: 0.22), value: picked)
-                    }
-                }
-                .frame(width: geo.size.width, height: geo.size.height)
-                }
-            }
-            .onAppear {
-                guard !didLoad else { return }
-                didLoad = true
-                // Pre-fill ONLY the user's previously-saved arrangement (still-existing
-                // categories): empty for a new user, their own order for a returning one.
-                picked = Store.shared.categoryOrder(section).filter { id in categories.contains { $0.id == id } }
-            }
-    }
-
-    private func sectionHeader(_ text: String, count: Int?) -> some View {
-        HStack(spacing: 8) {
-            Text(text).font(S8KFont.caption1.weight(.bold)).foregroundColor(.s8kTextSecondary)
-            if let c = count {
-                Text("\(c)").font(S8KFont.caption1.weight(.heavy)).foregroundColor(.black)
-                    .padding(.horizontal, 7).padding(.vertical, 1)
-                    .background(S8KGradient.goldFlat).clipShape(Capsule())
-            }
-            Spacer()
-        }
-        .padding(.horizontal, S8KSpace.xl).padding(.top, S8KSpace.sm).padding(.bottom, 4)
-    }
-
-    // A row in the draggable "Your order" list: number badge + name. The drag
-    // handle and delete control are supplied by the List (edit mode).
-    private func arrangedRow(_ cat: Category, number: Int) -> some View {
-        HStack(spacing: 12) {
-            Text("\(number)")
-                .font(S8KFont.subhead.weight(.heavy)).foregroundColor(.black)
-                .frame(width: 26, height: 26)
-                .background(S8KGradient.goldFlat).clipShape(Circle())
-            Text(cat.name).font(S8KFont.subhead).foregroundColor(.s8kTextPrimary)
-                .lineLimit(1).frame(maxWidth: .infinity, alignment: .trailing)
-        }
-        .padding(.vertical, 8)
-        .contentShape(Rectangle())
-    }
-
-    // A row in the available pool: tap the + to append it to the arranged order.
-    private func poolRow(_ cat: Category) -> some View {
-        Button(action: {
-            withAnimation(.easeInOut(duration: 0.22)) { picked.append(cat.id) }
-            haptic.selectionChanged()
-        }) {
-            HStack(spacing: 12) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 22)).foregroundColor(.s8kGoldMid)
-                Text(cat.name).font(S8KFont.subhead).foregroundColor(.s8kTextPrimary)
-                    .lineLimit(1).frame(maxWidth: .infinity, alignment: .trailing)
-            }
-            .padding(.horizontal, S8KSpace.xl).padding(.vertical, 12)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(S8KButtonStyle())
-    }
-}
-
-// MARK: - Content top tabs (الكل / المفضلة / الأجدد / السجل)
-enum ContentTab: String, CaseIterable, Identifiable {
-    case all = "الكل", favorites = "المفضلة", newest = "الأجدد", history = "السجل"
-    var id: String { rawValue }
-    var title: String {
-        switch self {
-        case .all: return L("ctab.all")
-        case .favorites: return L("ctab.favorites")
-        case .newest: return L("ctab.newest")
-        case .history: return L("ctab.history")
-        }
-    }
-    var icon: String {
-        switch self {
-        case .all: return "square.grid.2x2"
-        case .favorites: return "heart.fill"
-        case .newest: return "sparkles"
-        case .history: return "clock.arrow.circlepath"
-        }
-    }
-}
-
-// BLANK TV — Editorial: underline segmented control (no filled capsules). The
-// active segment is marked by a lime underline; text brightens. Modern + clean.
-struct ContentTabBar: View {
-    @StateObject private var loc = LocalizationManager.shared
-    @Binding var selected: ContentTab
-    var allCount: Int = 0     // total items in the section, shown on the "All" tab
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 24) {
-                ForEach(ContentTab.allCases) { t in
-                    let on = selected == t
-                    Button(action: { withAnimation(.spring(response: 0.3)) { selected = t } }) {
-                        VStack(spacing: 7) {
-                            HStack(spacing: 6) {
-                                Image(systemName: t.icon).font(.system(size: 11, weight: .bold))
-                                Text(t.title).font(S8KFont.subhead.weight(.bold))
-                                if t == .all && allCount > 0 {
-                                    Text("\(allCount)")
-                                        .font(S8KFont.caption2.weight(.black))
-                                        .foregroundColor(on ? .s8kGoldHigh : .s8kTextTertiary)
-                                }
-                            }
-                            .foregroundColor(on ? .s8kTextPrimary : .s8kTextTertiary)
-
-                            Capsule()
-                                .fill(S8KGradient.goldFlat)
-                                .frame(height: 3)
-                                .opacity(on ? 1 : 0)
-                        }
-                        .fixedSize()
-                    }
-                    .buttonStyle(S8KButtonStyle())
-                }
-            }
-            .padding(.horizontal, S8KSpace.xl)
-        }
-        .padding(.bottom, S8KSpace.md)
-    }
-}
-
-// MARK: - Horizontal category row (section + posters, tap header to open)
-struct CategoryRow<Cell: View>: View {
-    let category: Category
-    var count: Int = 0
-    var locked: Bool = false   // in the parental lock list → show a lock badge
-    var gated:  Bool = false   // locked AND not unlocked this session → hide the
-                               // content previews and require a PIN to enter
-    @ViewBuilder let cells: () -> Cell
-
-    var body: some View {
-        VStack(spacing: 11) {
-            NavigationLink(value: category) {
-                HStack(spacing: 8) {
-                    RoundedRectangle(cornerRadius: 2).fill(S8KGradient.goldFlat)
-                        .frame(width: 3, height: 18)
-                    Text(category.name).font(S8KFont.title3).foregroundColor(.s8kTextPrimary).lineLimit(1)
-                    if locked {
-                        Image(systemName: "lock.fill").font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.s8kGoldMid)
-                    }
-                    if count > 0 {
-                        Text("\(count)")
-                            .font(S8KFont.caption1.weight(.bold))
-                            .foregroundColor(.s8kGoldMid)
-                            .padding(.horizontal, 7).padding(.vertical, 2)
-                            .background(Color.s8kGoldMid.opacity(0.12)).clipShape(Capsule())
-                    }
-                    Spacer()
-                    HStack(spacing: 3) {
-                        Text(gated ? L("gate.enter_pin") : L("common.all")).font(S8KFont.caption1.weight(.semibold))
-                        Image(systemName: gated ? "lock.fill" : "chevron.left").font(.system(size: 10, weight: .bold))
-                    }
-                    .foregroundColor(.s8kGoldMid)
-                }
-                .padding(.horizontal, S8KSpace.xl)
-                // The row has a Spacer in the middle, and a Spacer draws nothing — so
-                // without this the whole centre of every category header was dead and
-                // only the title text and the trailing chevron were tappable. This is
-                // the main entry point to every category on four different pages.
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(S8KButtonStyle())
-
-            // Hide the preview thumbnails for a gated folder so locked content
-            // is never exposed; tapping the row opens the PIN gate instead.
-            if !gated {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 12) { cells() }
-                        .padding(.horizontal, S8KSpace.xl)
-                }
-            }
-        }
-        .padding(.bottom, S8KSpace.xxl)
-    }
-}
-
-// MARK: - Category picker sheet (searchable)
-struct CategoryPickerSheet: View {
-    let title: String
-    let categories: [Category]
-    let count: (Category) -> Int
-    let onPick: (Category) -> Void
-    @State private var search = ""
-    @Environment(\.dismiss) var dismiss
-
-    private var shown: [Category] {
-        search.isEmpty ? categories
-                       : s8kFolderSearch(categories, search) { $0.name }
-    }
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.s8kBlack.ignoresSafeArea()
-                VStack(spacing: 0) {
-                    SearchField(text: $search, placeholder: L("search.cat"))
-                        .padding(.horizontal, S8KSpace.xl).padding(.top, 16).padding(.bottom, S8KSpace.md)
-                    ScrollView(showsIndicators: false) {
-                        LazyVStack(spacing: 10) {
-                            ForEach(shown) { cat in
-                                Button(action: { onPick(cat); dismiss() }) {
-                                    FolderCard(name: cat.name, count: count(cat))
-                                }
-                                .buttonStyle(S8KButtonStyle())
-                            }
-                            if shown.isEmpty {
-                                EmptyState(icon: "folder.badge.questionmark",
-                                           title: L("cats.empty.title"), subtitle: L("cats.empty.sub")).padding(.top, 40)
-                            }
-                        }
-                        .padding(.horizontal, S8KSpace.xl).padding(.bottom, 40)
-                    }
-                }
-            }
-            .navigationTitle(title).navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .topBarLeading) {
-                Button(L("common.close")) { dismiss() }.foregroundColor(.s8kGoldMid) } }
-        }
-        .presentationDetents([.large])
+        // Unchanged from what shipped: it announces the symbol name. Wrong, and
+        // deliberately left wrong here — correcting it is a change to what the user
+        // hears, which is not what this pass is for. Logged as a follow-up.
+        .accessibilityLabel("chevron.right")
     }
 }
 
@@ -1512,8 +424,9 @@ struct SearchField: View {
             TextField("", text: $text,
                       prompt: Text(placeholder).foregroundColor(Color.s8kTextDisabled))
                 .font(S8KFont.callout).foregroundColor(.s8kTextPrimary)
-                // RTL only when the app language is RTL (Arabic) — otherwise Latin
-                // search text would right-align with reversed cursor behavior.
+                // Scoped to the field, and decided by the ACTIVE LANGUAGE rather than
+                // set once: typed Latin under a right-to-left direction right-aligns
+                // and moves the caret the wrong way as you type.
                 .environment(\.layoutDirection, LocalizationManager.current.isRTL ? .rightToLeft : .leftToRight)
             if !text.isEmpty {
                 Button(action: { text = "" }) {
@@ -1535,7 +448,7 @@ struct SearchField: View {
     }
 }
 
-struct FolderCard: View {
+struct FolderTile: View {
     let name: String
     let count: Int
     var icon: String = "folder.fill"
@@ -1563,8 +476,53 @@ struct FolderCard: View {
     }
 }
 
-// MARK: - iPad category sidebar (master pane for split layouts)
-struct CategorySidebar: View {
+// MARK: Jump straight to a folder
+struct FolderPickerSheet: View {
+    let title: String
+    let categories: [Category]
+    let count: (Category) -> Int
+    let onPick: (Category) -> Void
+    @State private var search = ""
+    @Environment(\.dismiss) var dismiss
+
+    private var shown: [Category] {
+        search.isEmpty ? categories
+                       : CatalogText.narrow(categories, matching: search, by: { $0.name })
+    }
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.s8kBlack.ignoresSafeArea()
+                VStack(spacing: 0) {
+                    SearchField(text: $search, placeholder: L("search.cat"))
+                        .padding(.horizontal, S8KSpace.xl).padding(.top, 16).padding(.bottom, S8KSpace.md)
+                    ScrollView(showsIndicators: false) {
+                        LazyVStack(spacing: 10) {
+                            ForEach(shown) { cat in
+                                Button(action: { onPick(cat); dismiss() }) {
+                                    FolderTile(name: cat.name, count: count(cat))
+                                }
+                                .buttonStyle(S8KButtonStyle())
+                            }
+                            if shown.isEmpty {
+                                EmptyState(icon: "folder.badge.questionmark",
+                                           title: L("cats.empty.title"), subtitle: L("cats.empty.sub")).padding(.top, 40)
+                            }
+                        }
+                        .padding(.horizontal, S8KSpace.xl).padding(.bottom, 40)
+                    }
+                }
+            }
+            .navigationTitle(title).navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .topBarLeading) {
+                Button(L("common.close")) { dismiss() }.foregroundColor(.s8kGoldMid) } }
+        }
+        .presentationDetents([.large])
+    }
+}
+
+// MARK: The folder list that anchors the iPad split
+struct FolderSidebar: View {
     @Environment(\.s8kMetrics) private var metrics
     let title: String
     let folders: [Category]
@@ -1641,14 +599,1031 @@ struct CategorySidebar: View {
     }
 }
 
-extension MoviesVM {
-    /// Categories that actually contain movies (folders).
-    var folders: [Category] { Store.shared.orderedCategories(folderList, "movies") }
-    func list(in cat: Category) -> [Movie] {
-        cat.id == "all" ? movies : (grouped[cat.id] ?? [])
+// MARK: The four ways to narrow a browse page
+enum BrowseFilter: String, CaseIterable, Identifiable {
+    case all = "الكل", favorites = "المفضلة", newest = "الأجدد", history = "السجل"
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .all: return L("ctab.all")
+        case .favorites: return L("ctab.favorites")
+        case .newest: return L("ctab.newest")
+        case .history: return L("ctab.history")
+        }
     }
-    var searchResults: [Movie] { searchMatches() }
+    var icon: String {
+        switch self {
+        case .all: return "square.grid.2x2"
+        case .favorites: return "heart.fill"
+        case .newest: return "sparkles"
+        case .history: return "clock.arrow.circlepath"
+        }
+    }
 }
+
+// MARK: The row of working controls every browse page carries
+// Folders on one side, reorder on the other, the filter menu between them. All
+// three browse pages held their own byte-identical copy of this; only the folder
+// button's wording and the top padding ever differed, so both are parameters.
+//
+// It is a NORMAL ROW OF THE FEED wherever it is used, never an overlay laid over
+// the scroll view — see the note in `MoviesView.browser`. Each page keeps a
+// one-expression `toolRow` wrapper so its own call sites, and therefore its own
+// layout, are untouched.
+private struct BrowseToolRow: View {
+    let foldersLabel: String
+    @Binding var filter: BrowseFilter
+    var topPad: CGFloat = 14
+    var onFolders: () -> Void
+    var onReorder: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            circleButton("line.3.horizontal.decrease.circle", foldersLabel, onFolders)
+            filterMenu
+            Spacer(minLength: 0)
+            circleButton("arrow.up.arrow.down", L("reorder.button"), onReorder)
+        }
+        .padding(.horizontal, S8KSpace.lg)
+        .padding(.top, topPad)
+        .padding(.bottom, 4)
+    }
+
+    private var filterMenu: some View {
+        Menu {
+            Picker("", selection: $filter) {
+                ForEach(BrowseFilter.allCases) { t in Label(t.title, systemImage: t.icon).tag(t) }
+            }
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: filter.icon).font(.system(size: 13, weight: .bold))
+                Text(filter.title).font(S8KFont.subhead.weight(.bold))
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
+            }
+            .foregroundColor(filter == .all ? .s8kTextSecondary : .s8kBlack)
+            .padding(.horizontal, 14).frame(height: 42)
+            .background(Capsule(style: .continuous)
+                .fill(filter == .all ? AnyShapeStyle(Color.white.opacity(0.07))
+                                     : AnyShapeStyle(Color.s8kGoldHigh)))
+            .overlay(Capsule(style: .continuous)
+                .strokeBorder(Color.white.opacity(filter == .all ? 0.12 : 0), lineWidth: 1)
+                .allowsHitTesting(false))
+            .contentShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(S8KButtonStyle())
+    }
+
+    private func circleButton(_ icon: String, _ label: String,
+                              _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .bold)).foregroundColor(.s8kGoldHigh)
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(Color.white.opacity(0.07)))
+                .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                    .allowsHitTesting(false))
+                .contentShape(Circle())
+        }
+        .buttonStyle(S8KButtonStyle())
+        .accessibilityLabel(label)
+    }
+}
+
+// MARK: One folder's shelf — a header that opens it, and a strip of tiles
+struct CategoryShelf<Cell: View>: View {
+    let category: Category
+    var count: Int = 0
+    var locked: Bool = false   // in the parental lock list → show a lock badge
+    var gated:  Bool = false   // locked AND not unlocked this session → hide the
+                               // content previews and require a PIN to enter
+    @ViewBuilder let cells: () -> Cell
+
+    var body: some View {
+        VStack(spacing: 11) {
+            NavigationLink(value: category) {
+                HStack(spacing: 8) {
+                    RoundedRectangle(cornerRadius: 2).fill(S8KGradient.goldFlat)
+                        .frame(width: 3, height: 18)
+                    Text(category.name).font(S8KFont.title3).foregroundColor(.s8kTextPrimary).lineLimit(1)
+                    if locked {
+                        Image(systemName: "lock.fill").font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.s8kGoldMid)
+                    }
+                    if count > 0 {
+                        Text("\(count)")
+                            .font(S8KFont.caption1.weight(.bold))
+                            .foregroundColor(.s8kGoldMid)
+                            .padding(.horizontal, 7).padding(.vertical, 2)
+                            .background(Color.s8kGoldMid.opacity(0.12)).clipShape(Capsule())
+                    }
+                    Spacer()
+                    HStack(spacing: 3) {
+                        Text(gated ? L("gate.enter_pin") : L("common.all")).font(S8KFont.caption1.weight(.semibold))
+                        Image(systemName: gated ? "lock.fill" : "chevron.left").font(.system(size: 10, weight: .bold))
+                    }
+                    .foregroundColor(.s8kGoldMid)
+                }
+                .padding(.horizontal, S8KSpace.xl)
+                // The row has a Spacer in the middle, and a Spacer draws nothing — so
+                // without this the whole centre of every category header was dead and
+                // only the title text and the trailing chevron were tappable. This is
+                // the main entry point to every category on four different pages.
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(S8KButtonStyle())
+
+            // Hide the preview thumbnails for a gated folder so locked content
+            // is never exposed; tapping the row opens the PIN gate instead.
+            if !gated {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 12) { cells() }
+                        .padding(.horizontal, S8KSpace.xl)
+                }
+            }
+        }
+        .padding(.bottom, S8KSpace.xxl)
+    }
+}
+
+// MARK: One screen for one folder
+// Movies, series and channels each had their own copy of this screen, differing in
+// three places: the noun under the title, what fills the body, and what a tap does.
+// Those three are arguments now. `narrow` runs over the folder's own items, so the
+// field filters what is on screen rather than re-querying the catalogue.
+private struct FolderScreen<Item, Rows: View>: View {
+    @Environment(\.s8kMetrics) private var metrics
+    @Environment(\.dismiss) private var dismiss
+    let title: String
+    let unit: String
+    let items: [Item]
+    let name: (Item) -> String
+    @ViewBuilder let rows: ([Item]) -> Rows
+    @State private var query = ""
+
+    var body: some View {
+        ZStack {
+            Color.s8kBlack.ignoresSafeArea()
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    FolderScreenHeader(title: title, subtitle: "\(items.count) \(unit)",
+                                       onBack: { dismiss() })
+                    SearchField(text: $query,
+                                placeholder: "\(L("common.search_in")) \(title)…")
+                        .padding(.horizontal, S8KSpace.xl).padding(.bottom, S8KSpace.lg)
+                    rows(CatalogText.narrow(items, matching: query, by: name))
+                    Color.clear.frame(height: metrics.bottomClearance)
+                }
+            }
+        }
+        .navigationBarHidden(true)
+    }
+}
+
+// MARK: - 4 · Poster walls
+
+struct MovieTile: View {
+    let movie: Movie
+    let onTap: () -> Void
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .trailing, spacing: 6) {
+                ZStack(alignment: .bottomLeading) {
+                    // Fixed-size box drives layout; the poster fills it as a
+                    // clipped overlay. Prevents a non-2:3 poster from leaking its
+                    // width and overlapping neighbours in the grid.
+                    // 2:3, NOT a fixed 150pt: on an iPad the adaptive column is ~172pt
+                    // wide, so a 150pt-tall cell rendered a LANDSCAPE band of a portrait
+                    // poster (233×150 on an iPad mini). It also made the loaded grid a
+                    // different shape from the skeleton, which already uses 2:3.
+                    Color.clear
+                        .frame(maxWidth: .infinity)
+                        .aspectRatio(2.0 / 3.0, contentMode: .fit)
+                        .overlay { S8KImage(url: movie.posterURL, placeholder: "film") }
+                        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
+                    if let y = movie.year {
+                        Text(y).font(S8KFont.caption3.weight(.bold)).foregroundColor(S8KBrand.accentInk)
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(S8KGradient.goldFlat)
+                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous)).padding(5)
+                    }
+                }
+                Text(movie.name).font(S8KFont.caption2.weight(.bold))
+                    .foregroundColor(.s8kTextPrimary).lineLimit(1)
+                if let r = movie.rating, let rv = Double(r), rv > 0 {
+                    HStack(spacing: 3) {
+                        Image(systemName: "star.fill").font(.system(size: 8)).foregroundColor(.s8kGoldHigh)
+                        Text(String(format: "%.1f", rv)).font(S8KFont.caption3).foregroundColor(.s8kGoldHigh)
+                    }
+                }
+            }
+        }
+        .buttonStyle(S8KButtonStyle())
+    }
+}
+
+// MARK: The movie wall
+struct MovieWall: View {
+    let movies: [Movie]
+    var empty: String = L("grid.empty")
+    let onSelect: (Movie) -> Void
+    @Environment(\.horizontalSizeClass) private var hSize
+    // Larger, more immersive posters (fewer per row) — a bolder catalog than the
+    // reference's dense postage-stamp grid.
+    private var cols: [GridItem] { [GridItem(.adaptive(minimum: hSize == .regular ? 168 : 116), spacing: 14)] }
+    /// See CatalogWindow — ForEach walks the whole collection on every invalidation
+    /// even inside a LazyVGrid, so a 30k-title catalogue paid for 30k identities on
+    /// every favourite toggle and every keystroke.
+    @State private var shown = CatalogWindow.firstBatch
+
+    var body: some View {
+        Group {
+            if movies.isEmpty {
+                EmptyState(icon: "film.slash", title: empty, subtitle: L("grid.empty.sub"))
+            } else {
+                LazyVGrid(columns: cols, spacing: 18) {
+                    ForEach(movies.prefix(shown)) { m in MovieTile(movie: m) { onSelect(m) } }
+                    // Sentinel: reaching it means the user scrolled past the window.
+                    if shown < movies.count {
+                        Color.clear.frame(height: 1)
+                            .onAppear { shown = min(shown + CatalogWindow.growth, movies.count) }
+                    }
+                }
+                .padding(.horizontal, S8KSpace.lg)
+                // Warm the first screenful of posters so the grid paints instantly.
+                .onAppear { S8KImageCache.shared.prefetch(movies.prefix(30).compactMap { $0.posterURL }, maxPixel: 800) }
+            }
+        }
+        // Keyed on the head item, not count — see ChannelLineup for why.
+        .onChange(of: movies.first?.id) { _, _ in shown = CatalogWindow.firstBatch }
+    }
+}
+
+struct SeriesTile: View {
+    let series: Series
+    let onTap: () -> Void
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .trailing, spacing: 6) {
+                // 2:3 for the same reason as MovieTile — a fixed height turned a
+                // portrait cover into a landscape band on every iPad column width.
+                Color.clear
+                    .frame(maxWidth: .infinity)
+                    .aspectRatio(2.0 / 3.0, contentMode: .fit)
+                    .overlay { S8KImage(url: series.coverURL, placeholder: "tv") }
+                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
+                Text(series.name).font(S8KFont.caption2.weight(.bold))
+                    .foregroundColor(.s8kTextPrimary).lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                if let y = series.year {
+                    Text(y).font(S8KFont.caption3).foregroundColor(.s8kTextTertiary)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+            }
+        }
+        .buttonStyle(S8KButtonStyle())
+    }
+}
+
+struct SeriesWall: View {
+    let series: [Series]
+    var empty: String = L("grid.empty")
+    let onSelect: (Series) -> Void
+    @Environment(\.horizontalSizeClass) private var hSize
+    private var cols: [GridItem] { [GridItem(.adaptive(minimum: hSize == .regular ? 168 : 116), spacing: 14)] }
+    /// See CatalogWindow.
+    @State private var shown = CatalogWindow.firstBatch
+
+    var body: some View {
+        Group {
+            if series.isEmpty {
+                EmptyState(icon: "tv.slash", title: empty, subtitle: L("grid.empty.sub"))
+            } else {
+                grid
+            }
+        }
+        // Keyed on the head item, not count — see ChannelLineup for why.
+        .onChange(of: series.first?.id) { _, _ in shown = CatalogWindow.firstBatch }
+    }
+
+    private var grid: some View {
+        LazyVGrid(columns: cols, spacing: 16) {
+            ForEach(series.prefix(shown)) { s in
+                Button(action: { onSelect(s) }) {
+                    VStack(alignment: .trailing, spacing: 6) {
+                        // 2:3 like MovieTile — and via a Color.clear box, which
+                        // also stops a non-2:3 cover leaking its width and overlapping
+                        // its neighbours. Left at a fixed 150 this grid rendered a
+                        // landscape band beside a correctly-proportioned Movies grid.
+                        Color.clear
+                            .frame(maxWidth: .infinity)
+                            .aspectRatio(2.0 / 3.0, contentMode: .fit)
+                            .overlay { S8KImage(url: s.coverURL, placeholder: "tv") }
+                            .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm))
+                            .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm)
+                                .strokeBorder(Color.s8kBorder, lineWidth: 1))
+                        Text(s.name).font(S8KFont.caption2.weight(.semibold))
+                            .foregroundColor(.s8kTextPrimary).lineLimit(1)
+                        if let y = s.year {
+                            Text(y).font(S8KFont.caption3).foregroundColor(.s8kTextTertiary)
+                        }
+                    }
+                }
+                .buttonStyle(S8KButtonStyle())
+            }
+            if shown < series.count {
+                Color.clear.frame(height: 1)
+                    .onAppear { shown = min(shown + CatalogWindow.growth, series.count) }
+            }
+        }
+        .padding(.horizontal, S8KSpace.lg)
+        .onAppear { S8KImageCache.shared.prefetch(series.prefix(30).compactMap { $0.coverURL }, maxPixel: 800) }
+    }
+}
+
+// MARK: Where you left off
+struct WatchHistoryTiles: View {
+    let items: [WatchHistory]
+    var empty: String = L("history.empty.generic")
+    let onTap: (WatchHistory) -> Void
+    @Environment(\.horizontalSizeClass) private var hSize
+    private var cols: [GridItem] { [GridItem(.adaptive(minimum: hSize == .regular ? 168 : 116), spacing: 14)] }
+
+    var body: some View {
+        if items.isEmpty {
+            EmptyState(icon: "clock.badge.xmark", title: empty, subtitle: L("history.empty.sub"))
+        } else {
+            LazyVGrid(columns: cols, spacing: 16) {
+                ForEach(items) { h in
+                    Button(action: { onTap(h) }) {
+                        VStack(alignment: .trailing, spacing: 6) {
+                            ZStack(alignment: .bottom) {
+                                S8KImage(url: h.posterURL, placeholder: "play.rectangle")
+                                    .frame(height: 150)
+                                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm))
+                                    .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm)
+                                        .strokeBorder(Color.s8kBorder, lineWidth: 1))
+                                S8KProgressBar(fraction: h.progress, track: Color.white.opacity(0.15))
+                            }
+                            .frame(height: 150)
+                            Text(h.contentName).font(S8KFont.caption2.weight(.semibold))
+                                .foregroundColor(.s8kTextPrimary).lineLimit(1)
+                        }
+                    }
+                    .buttonStyle(S8KButtonStyle())
+                }
+            }
+            .padding(.horizontal, S8KSpace.lg)
+        }
+    }
+}
+
+// MARK: - 5 · Live surfaces
+
+struct LineupRow: View {
+    let channel: Channel
+    let index: Int
+    /// Passed IN, not observed here. Every row used to hold its own `@StateObject`
+    /// on the FavoritesService singleton, so a long channel list allocated one
+    /// state box and one Combine subscription per visible row and churned them on
+    /// every scroll — for a value the parent already knows. The parent observes
+    /// once and hands each row a plain Bool.
+    let isFav: Bool
+    let onFav: () -> Void
+    let onTap: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button(action: onTap) {
+                HStack(spacing: 12) {
+                    Text("\(index)")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundColor(.s8kTextDisabled).frame(width: 22)
+
+                    S8KImage(url: channel.logoURL, placeholder: "antenna.radiowaves.left.and.right", maxPixel: 240)
+                        .frame(width: 46, height: 46).background(Color.s8kElevated)
+                        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
+
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text(channel.name).font(S8KFont.subhead).foregroundColor(.s8kTextPrimary)
+                            .lineLimit(1).frame(maxWidth: .infinity, alignment: .trailing)
+                        if !channel.groupTitle.isEmpty {
+                            Text(channel.groupTitle).font(S8KFont.caption2)
+                                .foregroundColor(.s8kTextTertiary).lineLimit(1)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                    }
+                }
+            }
+            .buttonStyle(S8KButtonStyle())
+
+            // Favorite toggle
+            Button(action: onFav) {
+                Image(systemName: isFav ? "heart.fill" : "heart")
+                    .font(.system(size: 15))
+                    .foregroundColor(isFav ? .s8kRed : .s8kTextDisabled)
+                    .frame(width: 30, height: 30)
+                    // 6, not 8: the row's HStack spacing is 12, so 6 + 6 makes the two
+                    // rings touch without overlapping. At 8 the play button — the later
+                    // sibling, drawn in front — would have taken 3pt of the heart.
+                    .s8kMinTouch(6)
+            }
+            .buttonStyle(S8KButtonStyle())
+            .accessibilityLabel(isFav ? L("detail.fav_added") : L("detail.fav_add"))
+
+            Button(action: onTap) {
+                RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
+                    .fill(S8KGradient.goldFlat).frame(width: 32, height: 32)
+                    .overlay(Image(systemName: "play.fill").font(.system(size: 12, weight: .bold))
+                        .foregroundColor(S8KBrand.accentInk))
+                    .shadow(color: .s8kGoldMid.opacity(0.3), radius: 4)
+                    .s8kMinTouch(6)   // matches the heart; 12pt spacing, no overlap
+            }
+            .buttonStyle(S8KButtonStyle())
+            .accessibilityLabel(L("common.play"))
+        }
+        .padding(.horizontal, S8KSpace.xl).padding(.vertical, 10)
+    }
+}
+
+// MARK: The channel lineup
+struct ChannelLineup: View {
+    let channels: [Channel]
+    let onTap: (Channel) -> Void
+    /// How many rows are handed to `ForEach` right now. A `LazyVStack` defers building
+    /// the VIEWS, but `ForEach` still walks the WHOLE collection to build its identity
+    /// map on every invalidation — and `Array(channels.enumerated())` additionally
+    /// materialises one tuple per channel each time. On a 56k-channel line, toggling a
+    /// single favourite paid for 56k tuples. The window makes first paint O(120) at any
+    /// catalogue size and grows as the user actually scrolls.
+    @State private var shown = CatalogWindow.firstBatch
+    /// Observed ONCE for the whole list — see LineupRow.
+    @StateObject private var favs = FavoritesService.shared
+
+    private var visible: ArraySlice<Channel> { channels.prefix(shown) }
+
+    var body: some View {
+        Group {
+            if channels.isEmpty {
+                EmptyState(icon: "antenna.radiowaves.left.and.right.slash",
+                           title: L("live.empty.title"), subtitle: L("live.empty.sub"))
+            } else {
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(visible.enumerated()), id: \.element.id) { idx, ch in
+                        LineupRow(channel: ch, index: idx + 1,
+                                   isFav: favs.channels.contains(ch.id),
+                                   onFav: { favs.toggleChannel(ch.id) }) { onTap(ch) }
+                        if idx < visible.count - 1 {
+                            Divider().background(Color.s8kBorder).padding(.leading, 74)
+                        }
+                    }
+                    // Sentinel: appearing means the user reached the end of the window.
+                    if shown < channels.count {
+                        Color.clear.frame(height: 1)
+                            .onAppear { shown = min(shown + CatalogWindow.growth, channels.count) }
+                    }
+                }
+                .onAppear { S8KImageCache.shared.prefetch(channels.prefix(40).compactMap { $0.logoURL }, maxPixel: 240) }
+            }
+        }
+        // Reset when the LIST ITSELF changes (category switch, search, reorder).
+        // Keyed on the HEAD ITEM, not count: toggling one favourite changes the count
+        // but not the list the user is scrolling, and a reset there would collapse the
+        // content height and throw the scroll position. Lives on the Group so it
+        // survives the empty branch (a modifier inside `else` is destroyed on 5000 -> 0
+        // and never fires).
+        .onChange(of: channels.first?.id) { _, _ in shown = CatalogWindow.firstBatch }
+    }
+}
+
+// MARK: The small always-on preview
+// Two structs, not one. THIS one only decides which engine to try — the hardware
+// path for HLS, the software one otherwise, subject to whatever the user picked in
+// settings — and, if that attempt reports a failure, hands the job to the other
+// engine exactly once. The swap works because the inner view is keyed by engine, so
+// changing the key tears the failed attempt down and stands a fresh one up. Merge
+// the two and there is nothing left to key. The preview carries a single control:
+// go fullscreen. Everything else — zapping, gestures, picture-in-picture — belongs
+// to the full player and is deliberately absent here.
+struct LivePreviewTile: View {
+    let channel: Channel
+    var isExpanded: Bool = false     // fullscreen is presented over this preview → pause it
+    var onExpand: () -> Void
+    @State private var engine: PlayerEngineKind
+    @State private var triedFallback = false
+
+    init(channel: Channel, isExpanded: Bool = false, onExpand: @escaping () -> Void) {
+        self.channel = channel
+        self.isExpanded = isExpanded
+        self.onExpand = onExpand
+        _engine = State(initialValue: PlayerEngineSelector.initialKind(for: .live(channel)))
+    }
+
+    var body: some View {
+        LivePreviewEngine(channel: channel, engine: engine, canFallback: !triedFallback,
+                             isExpanded: isExpanded,
+                             onExpand: onExpand,
+                             onEngineFailed: {
+                                 guard !triedFallback else { return }
+                                 triedFallback = true
+                                 engine = engine.other      // swap → .id rebuilds with a fresh attempt
+                             })
+            .id(engine)
+    }
+}
+
+private struct LivePreviewEngine: View {
+    let channel: Channel
+    let engine: PlayerEngineKind
+    let canFallback: Bool
+    let isExpanded: Bool
+    var onExpand: () -> Void
+    var onEngineFailed: () -> Void
+    @StateObject private var vm: BasePlayerVM
+    @State private var didReport = false
+
+    init(channel: Channel, engine: PlayerEngineKind, canFallback: Bool, isExpanded: Bool,
+         onExpand: @escaping () -> Void, onEngineFailed: @escaping () -> Void) {
+        self.channel = channel
+        self.engine = engine
+        self.canFallback = canFallback
+        self.isExpanded = isExpanded
+        self.onExpand = onExpand
+        self.onEngineFailed = onEngineFailed
+        _vm = StateObject(wrappedValue: PlayerEngineSelector.make(item: .live(channel), kind: engine))
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black
+            PlayerSurfaceView(vm: vm)
+            if vm.isLoading || vm.buffering {
+                ProgressView().progressViewStyle(.circular).tint(.s8kGoldHigh).scaleEffect(1.2)
+            }
+            // Error + retry — only once both engines have failed (a first failure
+            // silently fails over via onEngineFailed below).
+            if let err = vm.errorMsg, !canFallback {
+                Color.black.opacity(0.85)
+                VStack(spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.system(size: 26)).foregroundColor(.s8kTextDisabled)
+                    Text(err).font(S8KFont.caption1).foregroundColor(.s8kTextSecondary)
+                        .multilineTextAlignment(.center).padding(.horizontal, 20)
+                    Button(action: { vm.errorMsg = nil; vm.setup() }) {
+                        Label(L("common.retry"), systemImage: "arrow.clockwise")
+                            .font(S8KFont.caption1.weight(.semibold)).foregroundColor(.s8kGoldMid)
+                            // ~14pt of text → 44pt tall. It is the only control on the
+                            // error overlay, and the only thing within 15pt of it is the
+                            // error message itself, which takes no touches.
+                            .s8kMinTouch(h: 14, v: 15)
+                    }
+                }
+            }
+            VStack {
+                HStack {
+                    Button(action: onExpand) {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: 14, weight: .semibold)).foregroundColor(.white)
+                            .frame(width: 34, height: 34)
+                            .background(Color.black.opacity(0.45)).clipShape(Circle())
+                            // 34 → 44pt, after the clip. It sits in a 10pt inset corner
+                            // over the video surface, which carries no gesture of its own.
+                            .s8kMinTouch(5)
+                    }
+                    .buttonStyle(S8KButtonStyle())
+                    .accessibilityLabel(L("live.fullscreen"))
+                    Spacer()
+                }
+                Spacer()
+            }
+            .padding(10)
+        }
+        .onChange(of: vm.errorMsg) { _, msg in
+            if msg != nil, canFallback, !didReport { didReport = true; onEngineFailed() }
+        }
+        .onAppear { vm.setup() }
+        .onDisappear { vm.cleanup() }
+        // A cover presented on top of this preview does NOT disappear it — the preview
+        // is still "appeared" underneath, so `.onDisappear` above never runs and it
+        // keeps decoding and keeps its audio going. That is the doubled-sound report
+        // from iPad. Stopping it has to be explicit: pause when the cover goes up,
+        // resume when it comes down, so exactly one engine is ever producing sound.
+        .onChange(of: isExpanded) { _, expanded in
+            if expanded { vm.pause() } else { vm.play() }
+        }
+    }
+}
+
+// MARK: What is on right now
+// A one-line guide strip: what is airing, how far through it is, and — outside the
+// compact form — what follows. Many providers ship no guide data at all, and for
+// those this draws literally nothing, which is what makes it safe to place anywhere
+// a channel is on screen without first asking whether a guide exists.
+struct EPGNowNext: View {
+    let channel: Channel
+    var compact: Bool = false
+    @State private var programs: [EPGProgram] = []
+    @State private var now = Date()
+    // A stored property, so the publisher survives a body pass instead of being
+    // built again on each one.
+    private let ticker = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
+
+    private var current: EPGProgram? { programs.first { $0.startTime <= now && now < $0.endTime } }
+    private var upNext:  EPGProgram? { programs.first { $0.startTime > now } }
+
+    var body: some View {
+        Group {
+            if let c = current {
+                VStack(alignment: .trailing, spacing: compact ? 4 : 6) {
+                    HStack(spacing: 8) {
+                        Text(c.title).font(S8KFont.caption1.weight(.semibold))
+                            .foregroundColor(.s8kTextPrimary).lineLimit(1)
+                        Spacer(minLength: 8)
+                        Text(timeRange(c)).font(S8KFont.caption2)
+                            .foregroundColor(.s8kTextTertiary).monospacedDigit()
+                    }
+                    S8KProgressBar(fraction: progress(c), track: Color.white.opacity(0.10))
+                    if !compact, let n = upNext {
+                        Text("\(L("epg.next")): \(n.title)").font(S8KFont.caption2)
+                            .foregroundColor(.s8kTextTertiary).lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                }
+            }
+        }
+        .task(id: channel.id) {
+            programs = await ContentService.epg(for: channel)
+            now = Date()
+        }
+        .onReceive(ticker) { _ in now = Date() }
+    }
+
+    private func progress(_ p: EPGProgram) -> Double {
+        let total = p.endTime.timeIntervalSince(p.startTime)
+        guard total > 0 else { return 0 }
+        return min(1, max(0, now.timeIntervalSince(p.startTime) / total))
+    }
+    private static let hhmm: DateFormatter = {
+        // POSIX: a fixed dateFormat still renders its DIGITS through the locale, so
+        // without this an Arabic device shows ١٤:٣٠ in the EPG.
+        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "HH:mm"; return f
+    }()
+    private func timeRange(_ p: EPGProgram) -> String {
+        "\(Self.hhmm.string(from: p.startTime)) – \(Self.hhmm.string(from: p.endTime))"
+    }
+}
+
+// MARK: - 6 · The three browse pages
+
+// MARK: Live TV
+
+struct LiveTVView: View {
+    @StateObject private var loc  = LocalizationManager.shared
+    @StateObject private var vm   = LiveTVVM.shared
+    @StateObject private var favs = FavoritesService.shared
+    @StateObject private var hist = HistoryService.shared
+    @StateObject private var parental = ParentalService.shared
+    @ObservedObject private var router = AppRouter.shared   // global in-place search
+    @Environment(\.horizontalSizeClass) private var hSize
+    /// Canonical layout metrics — injected once by S8KMetricsRoot (BlankTVApp).
+    @Environment(\.s8kMetrics) private var metrics
+    @State private var playerItem: ContentItem? = nil
+    @State private var showCategories = false
+    @State private var showReorder = false
+    @State private var tab: BrowseFilter = .all
+    @State private var path = NavigationPath()
+    @State private var padCat: Category? = nil
+    @State private var padChannel: Channel? = nil
+    @State private var padShown = CatalogWindow.firstBatch
+    @State private var currentChannel: Channel? = nil   // iPhone sticky mini-player selection
+
+    private var favorites: [Channel] { vm.channels.filter { favs.channels.contains($0.id) } }
+    private var liveHistory: [WatchHistory] { hist.items.filter { $0.contentType == .live } }
+    // The channel shown in the iPhone sticky mini-player — the tapped one, else
+    // the first channel (so the page auto-previews on open).
+    private var previewing: Channel? { currentChannel ?? vm.channels.first }
+    private func preview(_ ch: Channel) { currentChannel = ch }
+    private var isPad: Bool { hSize == .regular && UIDevice.current.userInterfaceIdiom == .pad }
+    // Use the 3-pane split only when there's genuinely room (full-screen iPad).
+    // In Split View / Slide Over the size class is still .regular but the width
+    // is narrow, so fall back to the phone layout to avoid overflowing panes.
+    private func useSplit(_ width: CGFloat) -> Bool { isPad && width >= 720 }
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            GeometryReader { geo in
+                ZStack {
+                    Color.s8kBlack.ignoresSafeArea()
+                    if vm.isLoading {
+                        S8KListSkeleton()
+                    } else if let e = vm.error {
+                        // force: a plain load() early-returns when `loaded` is already
+                        // true, so Retry would do nothing and the tab would be stuck on
+                        // the error page (reachable when a load is cancelled mid-flight
+                        // by a tab remount).
+                        ErrorView(message: e.errorDescription ?? L("loading.error")) { Task { await vm.load(force: true) } }
+                    } else if useSplit(geo.size.width) { padBrowser(geo.size.width) }
+                    else { browser(geo.safeAreaInsets.top) }
+                }
+            }
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: Category.self) { cat in
+                ParentalGate(kind: .live, categoryID: cat.id) {
+                    FolderScreen(title: cat.name, unit: L("unit.channel"),
+                                 items: vm.list(in: cat), name: { $0.name }) { shown in
+                        ChannelLineup(channels: shown) { playerItem = .live($0) }
+                    }
+                }
+            }
+        }
+        .task { await vm.load() }
+        // Global in-place search (owner #6) — corner-menu search field drives it.
+        .onChange(of: router.searchText) { _, q in vm.search = q }
+        .onChange(of: router.searchActive) { _, a in if !a { vm.search = "" } }
+        .fullScreenCover(item: $playerItem) { PlayerView(item: $0, channels: vm.channels) }
+        .sheet(isPresented: $showCategories) {
+            FolderPickerSheet(title: L("cats.channels"), categories: vm.folders,
+                                count: { vm.list(in: $0).count }) { path.append($0) }
+        }
+        .sheet(isPresented: $showReorder) {
+            CategoryOrderEditor(title: L("reorder.title"), categories: vm.folders, section: "live") { vm.objectWillChange.send() }
+        }
+    }
+
+    // MARK: Three panes, for a full-size iPad only
+    private func padBrowser(_ width: CGFloat) -> some View {
+        // Proportional pane widths so the player pane never gets squeezed on
+        // portrait / smaller iPads (fixed 230+320 left only ~194–284pt for it).
+        let sidebarW  = min(230, max(175, width * 0.20))
+        let channelsW = min(320, max(240, width * 0.27))
+        return HStack(spacing: 0) {
+            FolderSidebar(title: L("title.live"), folders: vm.folders,
+                            selected: $padCat, count: { vm.list(in: $0).count },
+                            allCount: vm.channels.count, favoritesCount: favorites.count,
+                            onReorder: { showReorder = true })
+                .frame(width: sidebarW)
+            Divider().background(Color.s8kBorder)
+            padChannelsPane.frame(width: channelsW)
+            Divider().background(Color.s8kBorder)
+            padPlayerPane.frame(maxWidth: .infinity)
+        }
+        // Clear channel preview AND any leftover search query when switching
+        // sidebar sections — a stale query would filter the new category to
+        // "no results" (matches the Movies/Series iPad behavior).
+        .onChange(of: padCat?.id) { _, _ in padChannel = nil; vm.search = ""; padShown = CatalogWindow.firstBatch }
+        // While viewing Favorites, if the previewing channel is un-favorited it
+        // leaves the middle list — clear the player so it doesn't keep showing a
+        // channel that's no longer in view.
+        .onChange(of: favs.channels) { _, _ in
+            if padCat?.id == Category.favorites.id, let ch = padChannel,
+               !favs.channels.contains(ch.id) { padChannel = nil }
+        }
+    }
+
+    @ViewBuilder
+    private var padChannelsPane: some View {
+        if padCat?.id == Category.favorites.id {
+            channelScroll(favorites)            // cross-category favorites (no parental gate)
+        } else if let cat = padCat {
+            ParentalGate(kind: .live, categoryID: cat.id) { channelScroll(vm.list(in: cat)) }
+        } else {
+            channelScroll(vm.channels)
+        }
+    }
+    private func channelScroll(_ chans: [Channel]) -> some View {
+        // When a search query is active, show global results across all channels
+        // (mirrors the Movies/Series iPad panes and the iPhone live browser);
+        // otherwise show the selected category's channels.
+        let list = vm.search.isEmpty ? chans : vm.searchResults
+        return ScrollView(showsIndicators: false) {
+            VStack(spacing: 0) {
+                SearchField(text: $vm.search, placeholder: L("search.live"))
+                    .padding(.horizontal, S8KSpace.lg)
+                    .padding(.top, max(50, metrics.safeTop + S8KSpace.sm)).padding(.bottom, S8KSpace.md)
+                if list.isEmpty {
+                    EmptyState(icon: "antenna.radiowaves.left.and.right.slash",
+                               title: L("live.empty.title"), subtitle: L("live.empty.sub"))
+                        .padding(.top, S8KSpace.xl)
+                } else {
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(list.prefix(padShown).enumerated()), id: \.element.id) { idx, ch in
+                            LineupRow(channel: ch, index: idx + 1,
+                                       isFav: favs.channels.contains(ch.id),
+                                       onFav: { favs.toggleChannel(ch.id) }) { padChannel = ch }
+                                .background(padChannel?.id == ch.id ? Color.s8kGoldMid.opacity(0.12) : .clear)
+                            Divider().background(Color.s8kBorder).padding(.leading, 74)
+                        }
+                        if padShown < list.count {                  // window sentinel — grows only when scrolled to
+                            Color.clear.frame(height: 1)
+                                .onAppear { padShown = min(padShown + CatalogWindow.growth, list.count) }
+                        }
+                    }
+                }
+                Color.clear.frame(height: metrics.bottomClearance)   // clear the floating AppTabBar
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var padPlayerPane: some View {
+        if let ch = padChannel {
+            VStack(spacing: 0) {
+                LivePreviewTile(channel: ch, isExpanded: playerItem != nil) { playerItem = .live(ch) }
+                    .id(ch.id)
+                    .aspectRatio(16.0/9.0, contentMode: .fit)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.black)
+                channelInfoPane(ch)
+                Spacer(minLength: 0)
+            }
+            .padding(.top, max(50, metrics.safeTop + S8KSpace.sm))   // align with the sidebar + channel list panes
+        } else {
+            VStack(spacing: 14) {
+                Image(systemName: "play.tv").font(.system(size: 54)).foregroundColor(.s8kTextDisabled)
+                Text(L("live.pick_channel")).font(S8KFont.callout).foregroundColor(.s8kTextTertiary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private func channelInfoPane(_ ch: Channel) -> some View {
+        VStack(alignment: .trailing, spacing: 10) {
+            HStack(spacing: 12) {
+                Button(action: { favs.toggleChannel(ch.id) }) {
+                    Image(systemName: favs.isChannelFav(ch.id) ? "heart.fill" : "heart")
+                        .foregroundColor(favs.isChannelFav(ch.id) ? .s8kRed : .s8kTextSecondary)
+                        // A bare ~17pt glyph. Vertically it can reach the HIG minimum
+                        // (the pane's own padding is above and a Divider below, neither
+                        // of them tappable); horizontally 6 is half the row's 12pt
+                        // spacing, so it stops where the pill beside it starts.
+                        .s8kMinTouch(h: 6, v: 14)
+                }
+                .buttonStyle(S8KButtonStyle())
+                .accessibilityLabel(favs.isChannelFav(ch.id) ? L("detail.fav_added") : L("detail.fav_add"))
+                Button(action: { playerItem = .live(ch) }) {
+                    Label(L("live.fullscreen"), systemImage: "arrow.up.left.and.arrow.down.right")
+                        .font(S8KFont.caption1.weight(.semibold)).foregroundColor(.black)
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(S8KGradient.goldFlat).clipShape(Capsule())
+                        .s8kMinTouchV(8)     // ~29 → 45pt tall, after the clip
+                }
+                .buttonStyle(S8KButtonStyle())
+                Spacer()
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text(ch.name).font(S8KFont.title3).foregroundColor(.s8kTextPrimary).lineLimit(1)
+                    HStack(spacing: 5) {
+                        Circle().fill(Color.s8kRed).frame(width: 6, height: 6)
+                        Text(L("home.live_now")).font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+            }
+            Divider().background(Color.s8kBorder)
+            // Live program guide (now/next) — renders nothing if the provider has no EPG.
+            EPGNowNext(channel: ch)
+        }
+        .padding(S8KSpace.xl)
+    }
+
+    // iPhone: a sticky mini-player (preview) pinned at the top + a scrolling
+    // channel list under it. Tapping a row swaps the preview channel; tapping the
+    // player expands to fullscreen. Auto-previews the first channel on open.
+    // Same pattern as Movies and Series (owner: make Live match): the page identity
+    // capsule top-leading, then ONE glass row carrying categories · the four filters
+    // (All / Favorites / Newest / History) · reorder. `topInset` is the measured
+    // safe-area top — the old hard-coded `.padding(.top, 56)` was stacked on top of the
+    // real inset, which is why this page started lower than everything else.
+    @ViewBuilder
+    private func browser(_ topInset: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            liveTopBar(topInset)
+            if let ch = previewing {
+                LivePreviewTile(channel: ch, isExpanded: playerItem != nil) { playerItem = .live(ch) }
+                    .id(ch.id)
+                    .aspectRatio(16.0/9.0, contentMode: .fit)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.black)
+                miniInfoBar(ch)
+            }
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    // Search field removed — it now lives in the corner menu (owner #6).
+                    toolRow
+                    if !vm.search.isEmpty {
+                        ChannelLineup(channels: vm.searchResults) { preview($0) }
+                    } else {
+                        tabContent
+                    }
+                    Color.clear.frame(height: metrics.bottomClearance)
+                }
+                .s8kInstantTaps()   // on the CONTENT — the probe walks UP to the UIScrollView
+            }
+            .scrollBounceBehavior(.always)
+        .reportsScrollToTabBar()   // collapse the corner puck on scroll (owner #4)
+        }
+        // Same footing as Movies/Series: the page ZStack is inflated to the full screen
+        // by its `ignoresSafeArea` background, so `topInset` must be measured from the
+        // PHYSICAL top. Without this the capsule sat 30–60pt lower than the other pages.
+        .ignoresSafeArea(edges: .top)
+    }
+
+    private func liveTopBar(_ topInset: CGFloat) -> some View {
+        S8KSectionBar(title: L("title.live"))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, S8KSpace.xl)
+            .padding(.top, max(0, topInset) + 6)
+            .padding(.bottom, 8)
+    }
+
+    // 12, not the shared default of 14 — this page's row sits under a section bar
+    // rather than under a hero, and the two pt is the difference that lined it up.
+    private var toolRow: some View {
+        BrowseToolRow(foldersLabel: L("cats.channels"), filter: $tab, topPad: 12,
+                      onFolders: { showCategories = true },
+                      onReorder: { showReorder = true })
+    }
+
+    // Compact info bar under the mini-player: favorite · fullscreen · name/live ·
+    // now/next EPG (renders nothing if the provider has no guide).
+    private func miniInfoBar(_ ch: Channel) -> some View {
+        VStack(alignment: .trailing, spacing: 8) {
+            HStack(spacing: 12) {
+                Button { favs.toggleChannel(ch.id) } label: {
+                    Image(systemName: favs.isChannelFav(ch.id) ? "heart.fill" : "heart")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(favs.isChannelFav(ch.id) ? .s8kRed : .s8kTextSecondary)
+                        // 16pt glyph. 6 a side is half the row's 12pt spacing, so this
+                        // and the fullscreen circle beside it meet without overlapping;
+                        // 14 vertically lands inside the bar's 10pt padding.
+                        .s8kMinTouch(h: 6, v: 14)
+                }
+                .buttonStyle(S8KButtonStyle())
+                .accessibilityLabel(favs.isChannelFav(ch.id) ? L("detail.fav_added") : L("detail.fav_add"))
+                Button { playerItem = .live(ch) } label: {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 13, weight: .bold)).foregroundColor(S8KBrand.accentInk)
+                        .frame(width: 34, height: 34).background(S8KGradient.goldFlat).clipShape(Circle())
+                        .s8kMinTouch(h: 6, v: 5)   // 34 → 46×44, after the clip
+                }
+                .buttonStyle(S8KButtonStyle())
+                .accessibilityLabel(L("live.fullscreen"))
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(ch.name).font(S8KFont.subhead).foregroundColor(.s8kTextPrimary).lineLimit(1)
+                    HStack(spacing: 5) {
+                        Circle().fill(Color.s8kRed).frame(width: 6, height: 6)
+                        Text(L("home.live_now")).font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
+                    }
+                }
+            }
+            EPGNowNext(channel: ch, compact: true)
+        }
+        .padding(.horizontal, S8KSpace.xl).padding(.vertical, 10)
+        .background(Color.s8kBlack)
+        .overlay(GoldDivider(), alignment: .bottom)
+    }
+
+    @ViewBuilder
+    private var tabContent: some View {
+        switch tab {
+        case .all:
+            if vm.folders.isEmpty {
+                ChannelLineup(channels: vm.channels) { preview($0) }
+            } else {
+                LazyVStack(spacing: 0) {
+                    ForEach(vm.folders) { cat in
+                        CategoryShelf(category: cat, count: vm.list(in: cat).count,
+                                    locked: parental.isLockedCategory(.live, cat.id),
+                                    gated: parental.isGated(.live, cat.id)) {
+                            ForEach(vm.list(in: cat).prefix(16)) { ch in
+                                ChannelChip(name: ch.name, logoURL: ch.logoURL, isLive: true) {
+                                    preview(ch)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        case .favorites:
+            ChannelLineup(channels: favorites) { preview($0) }
+        case .newest:
+            ChannelLineup(channels: vm.channels) { preview($0) }
+        case .history:
+            WatchHistoryTiles(items: liveHistory, empty: L("history.empty")) { h in
+                if let ch = vm.channels.first(where: { $0.id == h.contentID }) { preview(ch) }
+            }
+        }
+    }
+}
+
+// MARK: Movies
 
 struct MoviesView: View {
     @StateObject private var loc  = LocalizationManager.shared
@@ -1661,7 +1636,7 @@ struct MoviesView: View {
     /// Canonical layout metrics — injected once by S8KMetricsRoot (BlankTVApp).
     @Environment(\.s8kMetrics) private var metrics
     @State private var selected: Movie? = nil
-    @State private var tab: ContentTab = .all
+    @State private var tab: BrowseFilter = .all
     @State private var showCategories = false
     @State private var showReorder = false
     @State private var path = NavigationPath()
@@ -1717,7 +1692,10 @@ struct MoviesView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Category.self) { cat in
                 ParentalGate(kind: .movie, categoryID: cat.id) {
-                    MoviePosterScreen(title: cat.name, movies: vm.list(in: cat)) { selected = $0 }
+                    FolderScreen(title: cat.name, unit: L("unit.movie"),
+                                 items: vm.list(in: cat), name: { $0.name }) { shown in
+                        MovieWall(movies: shown) { selected = $0 }
+                    }
                 }
             }
         }
@@ -1728,19 +1706,19 @@ struct MoviesView: View {
         .onChange(of: router.searchActive) { _, a in if !a { vm.search = "" } }
         .fullScreenCover(item: $selected) { MovieDetailView(movie: $0) }
         .sheet(isPresented: $showCategories) {
-            CategoryPickerSheet(title: L("cats.movies"), categories: vm.folders,
+            FolderPickerSheet(title: L("cats.movies"), categories: vm.folders,
                                 count: { vm.list(in: $0).count }) { path.append($0) }
         }
         .sheet(isPresented: $showReorder) {
-            CategoryReorderView(title: L("reorder.title"), categories: vm.folders, section: "movies") { vm.objectWillChange.send() }
+            CategoryOrderEditor(title: L("reorder.title"), categories: vm.folders, section: "movies") { vm.objectWillChange.send() }
         }
     }
 
-    // MARK: iPad split (sidebar + wide poster grid)
+    // MARK: Sidebar and wall, for a full-size iPad only
     private func padBrowser(_ width: CGFloat) -> some View {
         let sidebarW = min(300, max(230, width * 0.26))   // proportional so the grid isn't cramped in portrait
         return HStack(spacing: 0) {
-            CategorySidebar(title: L("title.movies"), folders: vm.folders,
+            FolderSidebar(title: L("title.movies"), folders: vm.folders,
                             selected: $padCat, count: { vm.list(in: $0).count },
                             allCount: vm.movies.count, favoritesCount: favorites.count,
                             onReorder: { showReorder = true })
@@ -1767,7 +1745,7 @@ struct MoviesView: View {
             VStack(spacing: S8KSpace.lg) {
                 SearchField(text: $vm.search, placeholder: L("search.movies"))
                     .padding(.horizontal, S8KSpace.lg).padding(.top, max(50, metrics.safeTop + S8KSpace.sm))
-                PosterGrid(movies: vm.search.isEmpty ? items : vm.searchResults,
+                MovieWall(movies: vm.search.isEmpty ? items : vm.searchResults,
                            empty: empty) { selected = $0 }
                 Color.clear.frame(height: metrics.bottomClearance)   // clear the floating AppTabBar (iPad grid)
             }
@@ -1790,9 +1768,9 @@ struct MoviesView: View {
                     // No hero in search results → reserve the space the pinned bar needs,
                     // and keep the controls reachable (they used to live in a fixed bar
                     // that stayed visible during a search).
-                    Color.clear.frame(height: topInset + 62)
-                    toolRow
-                    PosterGrid(movies: vm.searchResults, empty: L("empty.no_results")) { selected = $0 }
+                    filteredPage(topInset) {
+                        MovieWall(movies: vm.searchResults, empty: L("empty.no_results")) { selected = $0 }
+                    }
                 } else {
                     tabContent(topInset)
                 }
@@ -1825,87 +1803,19 @@ struct MoviesView: View {
     // categories (which Movies had LOST — the sheet existed but nothing could open it),
     // the four filters, and reorder.
     private var toolRow: some View {
-        HStack(spacing: 10) {
-            toolButton("line.3.horizontal.decrease.circle", L("cats.movies")) { showCategories = true }
-            Menu {
-                Picker("", selection: $tab) {
-                    ForEach(ContentTab.allCases) { t in Label(t.title, systemImage: t.icon).tag(t) }
-                }
-            } label: {
-                HStack(spacing: 7) {
-                    Image(systemName: tab.icon).font(.system(size: 13, weight: .bold))
-                    Text(tab.title).font(S8KFont.subhead.weight(.bold))
-                        .lineLimit(1).minimumScaleFactor(0.8)
-                    Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
-                }
-                .foregroundColor(tab == .all ? .s8kTextSecondary : .s8kBlack)
-                .padding(.horizontal, 14).frame(height: 42)
-                .background(Capsule(style: .continuous)
-                    .fill(tab == .all ? AnyShapeStyle(Color.white.opacity(0.07))
-                                      : AnyShapeStyle(Color.s8kGoldHigh)))
-                .overlay(Capsule(style: .continuous)
-                    .strokeBorder(Color.white.opacity(tab == .all ? 0.12 : 0), lineWidth: 1)
-                    .allowsHitTesting(false))
-                .contentShape(Capsule(style: .continuous))
-            }
-            .buttonStyle(S8KButtonStyle())
-            Spacer(minLength: 0)
-            toolButton("arrow.up.arrow.down", L("reorder.button")) { showReorder = true }
-        }
-        .padding(.horizontal, S8KSpace.lg)
-        .padding(.top, 14)
-        .padding(.bottom, 4)
+        BrowseToolRow(foldersLabel: L("cats.movies"), filter: $tab,
+                      onFolders: { showCategories = true },
+                      onReorder: { showReorder = true })
     }
 
-    private func toolButton(_ icon: String, _ label: String, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 16, weight: .bold)).foregroundColor(.s8kGoldHigh)
-                .frame(width: 44, height: 44)
-                .background(Circle().fill(Color.white.opacity(0.07)))
-                .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
-                    .allowsHitTesting(false))
-                .contentShape(Circle())
-        }
-        .buttonStyle(S8KButtonStyle())
-        .accessibilityLabel(label)
-    }
-
-    // Featured spotlight banner at the top of the Movies browse (2026 VOD pattern:
-    // a hero banner above the category rails). Uses the first movie as featured.
-    @ViewBuilder
-    private var featuredBanner: some View {
-        if let m = vm.movies.first {
-            ZStack(alignment: .bottom) {
-                Color.clear
-                    .frame(maxWidth: .infinity).frame(height: 200)
-                    .overlay { S8KImage(url: m.backdropURL ?? m.posterURL, placeholder: "film") }
-                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous))
-                LinearGradient(colors: [Color.s8kBlack, .clear], startPoint: .bottom, endPoint: .center)
-                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous))
-                    .allowsHitTesting(false)
-                VStack(alignment: .trailing, spacing: 8) {
-                    Text(m.name).font(.system(size: 20, weight: .black)).foregroundColor(.s8kTextPrimary)
-                        .lineLimit(1).frame(maxWidth: .infinity, alignment: .trailing)
-                    RoundedRectangle(cornerRadius: 1.5).fill(S8KGradient.goldFlat).frame(width: 34, height: 3)
-                    Button(action: { selected = m }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "play.fill").font(.system(size: 11, weight: .bold))
-                            Text(L("common.play")).font(S8KFont.caption1.weight(.bold))
-                        }
-                        .foregroundColor(S8KBrand.accentInk)
-                        .padding(.horizontal, 18).padding(.vertical, 9)
-                        .background(S8KGradient.goldFlat)
-                        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
-                    }
-                    .buttonStyle(S8KButtonStyle())
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                }
-                .padding(S8KSpace.lg)
-            }
-            .frame(height: 200)
-            .padding(.horizontal, S8KSpace.xl)
-            .padding(.bottom, S8KSpace.lg)
+    // Favourites, newest and history are one page three times over: the strip that
+    // reserves room under the pinned capsule, the working row, then a single wall.
+    private func filteredPage<Wall: View>(_ topInset: CGFloat,
+                                          @ViewBuilder wall: () -> Wall) -> some View {
+        VStack(spacing: 0) {
+            Color.clear.frame(height: topInset + 62)
+            toolRow
+            wall()
         }
     }
 
@@ -1935,36 +1845,30 @@ struct MoviesView: View {
                     }
                 }
                 if vm.folders.isEmpty {
-                    PosterGrid(movies: vm.movies, empty: L("movies.empty")) { selected = $0 }
+                    MovieWall(movies: vm.movies, empty: L("movies.empty")) { selected = $0 }
                 } else {
                     ForEach(vm.folders) { cat in
-                        CategoryRow(category: cat, count: vm.list(in: cat).count,
+                        CategoryShelf(category: cat, count: vm.list(in: cat).count,
                                     locked: parental.isLockedCategory(.movie, cat.id),
                                     gated: parental.isGated(.movie, cat.id)) {
                             ForEach(vm.list(in: cat).prefix(14)) { m in
-                                MoviePosterCell(movie: m) { selected = m }.frame(width: 104)
+                                MovieTile(movie: m) { selected = m }.frame(width: 104)
                             }
                         }
                     }
                 }
             }
         case .favorites:
-            VStack(spacing: 0) {
-                Color.clear.frame(height: topInset + 62)
-                toolRow
-                PosterGrid(movies: favorites, empty: L("movies.empty.fav")) { selected = $0 }
+            filteredPage(topInset) {
+                MovieWall(movies: favorites, empty: L("movies.empty.fav")) { selected = $0 }
             }
         case .newest:
-            VStack(spacing: 0) {
-                Color.clear.frame(height: topInset + 62)
-                toolRow
-                PosterGrid(movies: vm.movies, empty: L("movies.empty")) { selected = $0 }
+            filteredPage(topInset) {
+                MovieWall(movies: vm.movies, empty: L("movies.empty")) { selected = $0 }
             }
         case .history:
-            VStack(spacing: 0) {
-                Color.clear.frame(height: topInset + 62)
-                toolRow
-                HistoryGrid(items: movieHistory, empty: L("history.empty")) { h in
+            filteredPage(topInset) {
+                WatchHistoryTiles(items: movieHistory, empty: L("history.empty")) { h in
                     if let m = vm.movies.first(where: { $0.id == h.contentID }) { selected = m }
                 }
             }
@@ -1972,260 +1876,7 @@ struct MoviesView: View {
     }
 }
 
-// MARK: - Watch-history grid (shared)
-struct HistoryGrid: View {
-    let items: [WatchHistory]
-    var empty: String = L("history.empty.generic")
-    let onTap: (WatchHistory) -> Void
-    @Environment(\.horizontalSizeClass) private var hSize
-    private var cols: [GridItem] { [GridItem(.adaptive(minimum: hSize == .regular ? 168 : 116), spacing: 14)] }
-
-    var body: some View {
-        if items.isEmpty {
-            EmptyState(icon: "clock.badge.xmark", title: empty, subtitle: L("history.empty.sub"))
-        } else {
-            LazyVGrid(columns: cols, spacing: 16) {
-                ForEach(items) { h in
-                    Button(action: { onTap(h) }) {
-                        VStack(alignment: .trailing, spacing: 6) {
-                            ZStack(alignment: .bottom) {
-                                S8KImage(url: h.posterURL, placeholder: "play.rectangle")
-                                    .frame(height: 150)
-                                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm))
-                                    .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm)
-                                        .strokeBorder(Color.s8kBorder, lineWidth: 1))
-                                S8KProgressBar(fraction: h.progress, track: Color.white.opacity(0.15))
-                            }
-                            .frame(height: 150)
-                            Text(h.contentName).font(S8KFont.caption2.weight(.semibold))
-                                .foregroundColor(.s8kTextPrimary).lineLimit(1)
-                        }
-                    }
-                    .buttonStyle(S8KButtonStyle())
-                }
-            }
-            .padding(.horizontal, S8KSpace.lg)
-        }
-    }
-}
-
-// MARK: - Movie poster grid + per-category screen
-struct PosterGrid: View {
-    let movies: [Movie]
-    var empty: String = L("grid.empty")
-    let onSelect: (Movie) -> Void
-    @Environment(\.horizontalSizeClass) private var hSize
-    // Larger, more immersive posters (fewer per row) — a bolder catalog than the
-    // reference's dense postage-stamp grid.
-    private var cols: [GridItem] { [GridItem(.adaptive(minimum: hSize == .regular ? 168 : 116), spacing: 14)] }
-    /// See S8KListWindow — ForEach walks the whole collection on every invalidation
-    /// even inside a LazyVGrid, so a 30k-title catalogue paid for 30k identities on
-    /// every favourite toggle and every keystroke.
-    @State private var shown = S8KListWindow.initial
-
-    var body: some View {
-        Group {
-            if movies.isEmpty {
-                EmptyState(icon: "film.slash", title: empty, subtitle: L("grid.empty.sub"))
-            } else {
-                LazyVGrid(columns: cols, spacing: 18) {
-                    ForEach(movies.prefix(shown)) { m in MoviePosterCell(movie: m) { onSelect(m) } }
-                    // Sentinel: reaching it means the user scrolled past the window.
-                    if shown < movies.count {
-                        Color.clear.frame(height: 1)
-                            .onAppear { shown = min(shown + S8KListWindow.step, movies.count) }
-                    }
-                }
-                .padding(.horizontal, S8KSpace.lg)
-                // Warm the first screenful of posters so the grid paints instantly.
-                .onAppear { S8KImageCache.shared.prefetch(movies.prefix(30).compactMap { $0.posterURL }, maxPixel: 800) }
-            }
-        }
-        // Keyed on the head item, not count — see ChannelList for why.
-        .onChange(of: movies.first?.id) { _, _ in shown = S8KListWindow.initial }
-    }
-}
-
-struct MoviePosterCell: View {
-    let movie: Movie
-    let onTap: () -> Void
-    var body: some View {
-        Button(action: onTap) {
-            VStack(alignment: .trailing, spacing: 6) {
-                ZStack(alignment: .bottomLeading) {
-                    // Fixed-size box drives layout; the poster fills it as a
-                    // clipped overlay. Prevents a non-2:3 poster from leaking its
-                    // width and overlapping neighbours in the grid.
-                    // 2:3, NOT a fixed 150pt: on an iPad the adaptive column is ~172pt
-                    // wide, so a 150pt-tall cell rendered a LANDSCAPE band of a portrait
-                    // poster (233×150 on an iPad mini). It also made the loaded grid a
-                    // different shape from the skeleton, which already uses 2:3.
-                    Color.clear
-                        .frame(maxWidth: .infinity)
-                        .aspectRatio(2.0 / 3.0, contentMode: .fit)
-                        .overlay { S8KImage(url: movie.posterURL, placeholder: "film") }
-                        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
-                    if let y = movie.year {
-                        Text(y).font(S8KFont.caption3.weight(.bold)).foregroundColor(S8KBrand.accentInk)
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(S8KGradient.goldFlat)
-                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous)).padding(5)
-                    }
-                }
-                Text(movie.name).font(S8KFont.caption2.weight(.bold))
-                    .foregroundColor(.s8kTextPrimary).lineLimit(1)
-                if let r = movie.rating, let rv = Double(r), rv > 0 {
-                    HStack(spacing: 3) {
-                        Image(systemName: "star.fill").font(.system(size: 8)).foregroundColor(.s8kGoldHigh)
-                        Text(String(format: "%.1f", rv)).font(S8KFont.caption3).foregroundColor(.s8kGoldHigh)
-                    }
-                }
-            }
-        }
-        .buttonStyle(S8KButtonStyle())
-    }
-}
-
-struct MoviePosterScreen: View {
-    @Environment(\.s8kMetrics) private var metrics
-    let title: String
-    let movies: [Movie]
-    let onSelect: (Movie) -> Void
-    @State private var search = ""
-    @Environment(\.dismiss) var dismiss
-
-    private var shown: [Movie] {
-        s8kFolderSearch(movies, search) { $0.name }
-    }
-    var body: some View {
-        ZStack {
-            Color.s8kBlack.ignoresSafeArea()
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    ContentTitleBar(title: title, subtitle: "\(movies.count) \(L("unit.movie"))", onBack: { dismiss() })
-                    SearchField(text: $search, placeholder: "\(L("common.search_in")) \(title)…")
-                        .padding(.horizontal, S8KSpace.xl).padding(.bottom, S8KSpace.lg)
-                    PosterGrid(movies: shown) { onSelect($0) }
-                    Color.clear.frame(height: metrics.bottomClearance)
-                }
-            }
-        }
-        .navigationBarHidden(true)
-    }
-}
-
-// MARK: ═══════════════════════════════════════
-// SERIES
-// ═══════════════════════════════════════════
-@MainActor
-final class SeriesVM: ObservableObject {
-    static let shared = SeriesVM()
-    @Published var categories: [Category] = [.all]
-    @Published var series:     [Series]   = []
-    @Published var filtered:   [Series]   = []
-    @Published var selected:   String     = "all"
-    @Published var search:     String     = ""
-    @Published var isLoading:  Bool       = true
-    @Published var error:      AppError?  = nil
-    // Editorial feed (Home-style, series-only) — built once after load.
-    @Published var heroItems:  [HomeVM.HeroItem] = []   // swipeable hero: newest series
-    @Published var topRanked:  [Series]   = []          // Top-10 by rating
-    private var loaded = false
-
-    // Precomputed once after load: series grouped by categoryID + non-empty folders.
-    private(set) var grouped: [String: [Series]] = [:]
-    private(set) var folderList: [Category] = []
-    private func rebuildGroups() {
-        grouped = Dictionary(grouping: series, by: { $0.categoryID })
-        folderList = categories.filter { $0.id != "all" && !(grouped[$0.id]?.isEmpty ?? true) }
-    }
-
-    // Folded search index + one-entry memo — see LiveTVVM.
-    private var foldedNames: [String] = []
-    private var lastQuery: String? = nil
-    private var lastResults: [Series] = []
-    private func rebuildSearchIndex() {
-        foldedNames = series.map { S8KSearch.fold($0.name) }
-        lastQuery = nil; lastResults = []
-    }
-    fileprivate func searchMatches() -> [Series] {
-        let q = S8KSearch.fold(search)
-        // STALENESS IS CHECKED BEFORE THE MEMO, and the order is the whole point.
-        //
-        // The index is no longer built on the first-paint path, so it can be empty when
-        // the user types. Consulting the memo first meant a result computed against an
-        // EMPTY catalogue — during a reset, before load() lands — was returned again
-        // for the same query after the real catalogue arrived. `rebuildSearchIndex`
-        // runs off a plain `Task` and mutates nothing published, so no re-render ever
-        // came to correct it: the tab sat on "no results" for a query that matches,
-        // until the user typed another character. Rebuilding first also clears the
-        // memo, which is exactly what that case needs.
-        if foldedNames.count != series.count { rebuildSearchIndex() }
-        if lastQuery == q { return lastResults }
-        let r: [Series] = q.isEmpty ? [] : zip(foldedNames, series).compactMap { $0.0.contains(q) ? $0.1 : nil }
-        lastQuery = q; lastResults = r
-        return r
-    }
-
-    // Build the editorial rows (Top-10 by rating + a newest-series hero). Series
-    // has no `ratingDouble` helper, so parse the String rating inline (as Home does).
-    private func rebuildEditorial() {
-        // Indices, not elements — see the note in MoviesVM.rebuildEditorial.
-        let rate = series.map { s8kRating($0.rating) }
-        let byRate: [Int] = series.indices.sorted { rate[$0] > rate[$1] }
-        topRanked = Array(s8kUniqueByID(byRate.prefix(40).map { series[$0] }, { $0.id }).prefix(10))
-
-        let ids = series.map { Int($0.id) ?? 0 }
-        let byID: [Int] = series.indices.sorted { ids[$0] > ids[$1] }
-        let newest = s8kUniqueByID(byID.prefix(24).map { series[$0] }, { $0.id })
-        heroItems = newest.prefix(6).map { HomeVM.HeroItem(kind: .series($0)) }
-        S8KImageCache.shared.prefetch(heroItems.compactMap { $0.backdropURL }, maxPixel: 1200)
-    }
-
-    func load(force: Bool = false) async {
-        if loaded && !force { return }
-        isLoading = true; error = nil
-        do {
-            async let cats = ContentService.seriesCategories()
-            async let sers = ContentService.series()
-            let (c, s) = try await (cats, sers)
-            categories = [.all] + c; series = s
-            rebuildGroups(); applyFilter(); rebuildEditorial(); loaded = true
-            // See MoviesVM.load — the index is off the first-paint path.
-            Task { @MainActor [weak self] in self?.rebuildSearchIndex() }
-        // A load cancelled by a tab remount (playlist switch / refresh) still resumes and
-        // would write its URLError(.cancelled) into `error` — AFTER the fresh load had
-        // already cleared it. The view checks `error` before content, so the tab would
-        // sit on the error page over perfectly good data. A cancelled task must be silent.
-        } catch let e as AppError { guard !Task.isCancelled else { return }; error = e }
-          catch { guard !Task.isCancelled else { return }; self.error = .network(error) }
-        isLoading = false
-    }
-
-    func applyFilter() {
-        var r = series
-        if selected != "all" { r = r.filter { $0.categoryID == selected } }
-        if !search.isEmpty {
-            let q = S8KSearch.fold(search)
-            r = r.filter { S8KSearch.fold($0.name).contains(q) }
-        }
-        filtered = r
-    }
-    func reset() {
-        loaded = false; series = []; categories = [.all]; isLoading = true; error = nil
-        grouped = [:]; folderList = []; heroItems = []; topRanked = []; rebuildSearchIndex()
-    }
-}
-
-extension SeriesVM {
-    var folders: [Category] { Store.shared.orderedCategories(folderList, "series") }
-    func list(in cat: Category) -> [Series] {
-        cat.id == "all" ? series : (grouped[cat.id] ?? [])
-    }
-    var searchResults: [Series] { searchMatches() }
-}
+// MARK: Series
 
 struct SeriesListView: View {
     @StateObject private var loc  = LocalizationManager.shared
@@ -2238,7 +1889,7 @@ struct SeriesListView: View {
     /// Canonical layout metrics — injected once by S8KMetricsRoot (BlankTVApp).
     @Environment(\.s8kMetrics) private var metrics
     @State private var selected: Series? = nil
-    @State private var tab: ContentTab = .all
+    @State private var tab: BrowseFilter = .all
     @State private var showCategories = false
     @State private var showReorder = false
     @State private var path = NavigationPath()
@@ -2289,7 +1940,10 @@ struct SeriesListView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Category.self) { cat in
                 ParentalGate(kind: .series, categoryID: cat.id) {
-                    SeriesPosterScreen(title: cat.name, series: vm.list(in: cat)) { selected = $0 }
+                    FolderScreen(title: cat.name, unit: L("unit.series"),
+                                 items: vm.list(in: cat), name: { $0.name }) { shown in
+                        SeriesWall(series: shown) { selected = $0 }
+                    }
                 }
             }
         }
@@ -2299,19 +1953,19 @@ struct SeriesListView: View {
         .onChange(of: router.searchActive) { _, a in if !a { vm.search = "" } }
         .fullScreenCover(item: $selected) { SeriesDetailView(series: $0) }
         .sheet(isPresented: $showCategories) {
-            CategoryPickerSheet(title: L("cats.series"), categories: vm.folders,
+            FolderPickerSheet(title: L("cats.series"), categories: vm.folders,
                                 count: { vm.list(in: $0).count }) { path.append($0) }
         }
         .sheet(isPresented: $showReorder) {
-            CategoryReorderView(title: L("reorder.title"), categories: vm.folders, section: "series") { vm.objectWillChange.send() }
+            CategoryOrderEditor(title: L("reorder.title"), categories: vm.folders, section: "series") { vm.objectWillChange.send() }
         }
     }
 
-    // MARK: iPad split (sidebar + wide poster grid)
+    // MARK: Sidebar and wall, for a full-size iPad only
     private func padBrowser(_ width: CGFloat) -> some View {
         let sidebarW = min(300, max(230, width * 0.26))   // proportional so the grid isn't cramped in portrait
         return HStack(spacing: 0) {
-            CategorySidebar(title: L("title.series"), folders: vm.folders,
+            FolderSidebar(title: L("title.series"), folders: vm.folders,
                             selected: $padCat, count: { vm.list(in: $0).count },
                             allCount: vm.series.count, favoritesCount: favorites.count,
                             onReorder: { showReorder = true })
@@ -2337,7 +1991,7 @@ struct SeriesListView: View {
             VStack(spacing: S8KSpace.lg) {
                 SearchField(text: $vm.search, placeholder: L("search.series"))
                     .padding(.horizontal, S8KSpace.lg).padding(.top, max(50, metrics.safeTop + S8KSpace.sm))
-                SeriesGrid(series: vm.search.isEmpty ? items : vm.searchResults,
+                SeriesWall(series: vm.search.isEmpty ? items : vm.searchResults,
                            empty: empty) { selected = $0 }
                 Color.clear.frame(height: metrics.bottomClearance)   // clear the floating AppTabBar (iPad grid)
             }
@@ -2346,16 +2000,16 @@ struct SeriesListView: View {
 
     // Mirrors Movies exactly (see the notes there): full-bleed stretchy hero under the
     // status bar, a pinned frosted identity capsule, and one glass row of controls.
-    // The old `ContentTitleBar` — whose buttons were SCROLL CHILDREN, the pattern this
-    // codebase documents as making buttons go dead — is gone.
+    // The oversized title bar this page used to open with is gone — its buttons were
+    // SCROLL CHILDREN, the arrangement this codebase records as making a button dead.
     @ViewBuilder
     private func browser(_ topInset: CGFloat) -> some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
                 if !vm.search.isEmpty {
-                    Color.clear.frame(height: topInset + 62)
-                    toolRow
-                    SeriesGrid(series: vm.searchResults, empty: L("empty.no_results")) { selected = $0 }
+                    filteredPage(topInset) {
+                        SeriesWall(series: vm.searchResults, empty: L("empty.no_results")) { selected = $0 }
+                    }
                 } else {
                     tabContent(topInset)
                 }
@@ -2377,86 +2031,18 @@ struct SeriesListView: View {
     }
 
     private var toolRow: some View {
-        HStack(spacing: 10) {
-            toolButton("line.3.horizontal.decrease.circle", L("cats.series")) { showCategories = true }
-            Menu {
-                Picker("", selection: $tab) {
-                    ForEach(ContentTab.allCases) { t in Label(t.title, systemImage: t.icon).tag(t) }
-                }
-            } label: {
-                HStack(spacing: 7) {
-                    Image(systemName: tab.icon).font(.system(size: 13, weight: .bold))
-                    Text(tab.title).font(S8KFont.subhead.weight(.bold))
-                        .lineLimit(1).minimumScaleFactor(0.8)
-                    Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
-                }
-                .foregroundColor(tab == .all ? .s8kTextSecondary : .s8kBlack)
-                .padding(.horizontal, 14).frame(height: 42)
-                .background(Capsule(style: .continuous)
-                    .fill(tab == .all ? AnyShapeStyle(Color.white.opacity(0.07))
-                                      : AnyShapeStyle(Color.s8kGoldHigh)))
-                .overlay(Capsule(style: .continuous)
-                    .strokeBorder(Color.white.opacity(tab == .all ? 0.12 : 0), lineWidth: 1)
-                    .allowsHitTesting(false))
-                .contentShape(Capsule(style: .continuous))
-            }
-            .buttonStyle(S8KButtonStyle())
-            Spacer(minLength: 0)
-            toolButton("arrow.up.arrow.down", L("reorder.button")) { showReorder = true }
-        }
-        .padding(.horizontal, S8KSpace.lg)
-        .padding(.top, 14)
-        .padding(.bottom, 4)
+        BrowseToolRow(foldersLabel: L("cats.series"), filter: $tab,
+                      onFolders: { showCategories = true },
+                      onReorder: { showReorder = true })
     }
 
-    private func toolButton(_ icon: String, _ label: String, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 16, weight: .bold)).foregroundColor(.s8kGoldHigh)
-                .frame(width: 44, height: 44)
-                .background(Circle().fill(Color.white.opacity(0.07)))
-                .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
-                    .allowsHitTesting(false))
-                .contentShape(Circle())
-        }
-        .buttonStyle(S8KButtonStyle())
-        .accessibilityLabel(label)
-    }
-
-    // Featured spotlight banner atop the Series browse (mirrors Movies).
-    @ViewBuilder
-    private var featuredBanner: some View {
-        if let s = vm.series.first {
-            ZStack(alignment: .bottom) {
-                Color.clear
-                    .frame(maxWidth: .infinity).frame(height: 200)
-                    .overlay { S8KImage(url: s.backdropURL ?? s.coverURL, placeholder: "tv") }
-                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous))
-                LinearGradient(colors: [Color.s8kBlack, .clear], startPoint: .bottom, endPoint: .center)
-                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous))
-                    .allowsHitTesting(false)
-                VStack(alignment: .trailing, spacing: 8) {
-                    Text(s.name).font(.system(size: 20, weight: .black)).foregroundColor(.s8kTextPrimary)
-                        .lineLimit(1).frame(maxWidth: .infinity, alignment: .trailing)
-                    RoundedRectangle(cornerRadius: 1.5).fill(S8KGradient.goldFlat).frame(width: 34, height: 3)
-                    Button(action: { selected = s }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "play.fill").font(.system(size: 11, weight: .bold))
-                            Text(L("common.details")).font(S8KFont.caption1.weight(.bold))
-                        }
-                        .foregroundColor(S8KBrand.accentInk)
-                        .padding(.horizontal, 18).padding(.vertical, 9)
-                        .background(S8KGradient.goldFlat)
-                        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
-                    }
-                    .buttonStyle(S8KButtonStyle())
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                }
-                .padding(S8KSpace.lg)
-            }
-            .frame(height: 200)
-            .padding(.horizontal, S8KSpace.xl)
-            .padding(.bottom, S8KSpace.lg)
+    // Same three-part page as Movies — see the note there.
+    private func filteredPage<Wall: View>(_ topInset: CGFloat,
+                                          @ViewBuilder wall: () -> Wall) -> some View {
+        VStack(spacing: 0) {
+            Color.clear.frame(height: topInset + 62)
+            toolRow
+            wall()
         }
     }
 
@@ -2484,36 +2070,30 @@ struct SeriesListView: View {
                     }
                 }
                 if vm.folders.isEmpty {
-                    SeriesGrid(series: vm.series, empty: L("series.empty")) { selected = $0 }
+                    SeriesWall(series: vm.series, empty: L("series.empty")) { selected = $0 }
                 } else {
                     ForEach(vm.folders) { cat in
-                        CategoryRow(category: cat, count: vm.list(in: cat).count,
+                        CategoryShelf(category: cat, count: vm.list(in: cat).count,
                                     locked: parental.isLockedCategory(.series, cat.id),
                                     gated: parental.isGated(.series, cat.id)) {
                             ForEach(vm.list(in: cat).prefix(14)) { s in
-                                SeriesPosterCell(series: s) { selected = s }.frame(width: 104)
+                                SeriesTile(series: s) { selected = s }.frame(width: 104)
                             }
                         }
                     }
                 }
             }
         case .favorites:
-            VStack(spacing: 0) {
-                Color.clear.frame(height: topInset + 62)
-                toolRow
-                SeriesGrid(series: favorites, empty: L("series.empty.fav")) { selected = $0 }
+            filteredPage(topInset) {
+                SeriesWall(series: favorites, empty: L("series.empty.fav")) { selected = $0 }
             }
         case .newest:
-            VStack(spacing: 0) {
-                Color.clear.frame(height: topInset + 62)
-                toolRow
-                SeriesGrid(series: vm.series, empty: L("series.empty")) { selected = $0 }
+            filteredPage(topInset) {
+                SeriesWall(series: vm.series, empty: L("series.empty")) { selected = $0 }
             }
         case .history:
-            VStack(spacing: 0) {
-                Color.clear.frame(height: topInset + 62)
-                toolRow
-                HistoryGrid(items: seriesHistory, empty: L("history.empty")) { h in
+            filteredPage(topInset) {
+                WatchHistoryTiles(items: seriesHistory, empty: L("history.empty")) { h in
                     if let s = vm.series.first(where: { h.contentName.hasPrefix($0.name) }) { selected = s }
                 }
             }
@@ -2521,121 +2101,320 @@ struct SeriesListView: View {
     }
 }
 
-struct SeriesPosterCell: View {
-    let series: Series
-    let onTap: () -> Void
+// MARK: - 7 · Putting the folders in your own order
+
+// MARK: The folder-order editor
+// Two stacks. The top one is the order the user built: numbered badges, drag to
+// move, swipe to drop. Everything still unchosen waits underneath behind a +.
+// Nothing is written until the user actually arranges something — leave it
+// untouched and the provider's own order stands (Store.orderedCategories), so a
+// first run behaves as though this editor did not exist. What does get written is
+// scoped to the playlist and outlives a relaunch or a logout.
+struct CategoryOrderEditor: View {
+    let title: String
+    let categories: [Category]     // current display order
+    let section: String            // "live" | "movies" | "series"
+    var onSaved: () -> Void = {}   // parent notifies its VM so folders refresh instantly
+    var embedded: Bool = false     // inside the unified reorder page: no nav chrome, auto-save
+    @Environment(\.dismiss) private var dismiss
+    @State private var arranged: [String] = []
+    @State private var searchText = ""
+    @State private var didLoad = false
+    private let haptic = UISelectionFeedbackGenerator()
+
+    // The chosen lists, in the saved order.
+    private var arrangedCats: [Category] { arranged.compactMap { id in categories.first { $0.id == id } } }
+    // Everything not yet chosen (search-filtered).
+    private var unarranged: [Category] {
+        let rest = categories.filter { !arranged.contains($0.id) }
+        return CatalogText.narrow(rest, matching: searchText, by: { $0.name })
+    }
+    // How tall the arranged stack is allowed to get. It sizes to its own rows, but a
+    // ceiling stops it eating the window: past the cap it scrolls inside itself
+    // instead of growing. The point of the ceiling is the OTHER stack — the pool of
+    // lists still to be added has to stay usable at every screen size and in both
+    // orientations, so it is guaranteed the larger share and can never be squeezed
+    // to a sliver. With only a handful arranged the stack is shorter than its cap
+    // anyway and the pool simply gets more.
+    private func arrangedHeight(_ available: CGFloat) -> CGFloat {
+        let content = CGFloat(max(arrangedCats.count, 1)) * 52 + 6
+        // The first layout pass of a sheet can report height 0, which would collapse the
+        // drag list to nothing (and it never comes back until the view is rebuilt).
+        // Substitute a sensible height ONLY for that degenerate pass — clamping every
+        // real height to ≥500 would hand the list 64% of a short landscape window.
+        let usable: CGFloat = available > 1 ? available : 500
+        // Short (landscape) heights spend more on fixed chrome, so hand the pool an
+        // even bigger share there; tall layouts allow the arranged list up to ~42%.
+        let fraction: CGFloat = usable < 500 ? 0.32 : 0.42
+        return min(content, usable * fraction)
+    }
+
     var body: some View {
-        Button(action: onTap) {
-            VStack(alignment: .trailing, spacing: 6) {
-                // 2:3 for the same reason as MoviePosterCell — a fixed height turned a
-                // portrait cover into a landscape band on every iPad column width.
-                Color.clear
-                    .frame(maxWidth: .infinity)
-                    .aspectRatio(2.0 / 3.0, contentMode: .fit)
-                    .overlay { S8KImage(url: series.coverURL, placeholder: "tv") }
-                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
-                Text(series.name).font(S8KFont.caption2.weight(.bold))
-                    .foregroundColor(.s8kTextPrimary).lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                if let y = series.year {
-                    Text(y).font(S8KFont.caption3).foregroundColor(.s8kTextTertiary)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+        if embedded {
+            // Inside the unified reorder page: no nav chrome; changes auto-save so
+            // switching section tabs never loses the arrangement.
+            reorderBody
+                .onChange(of: arranged) { _, p in Store.shared.setCategoryOrder(p, section); onSaved() }
+        } else {
+            NavigationStack {
+                reorderBody
+                    .navigationTitle(title)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button(L("common.cancel")) { dismiss() }.foregroundColor(.s8kTextSecondary)
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(L("common.save")) {
+                                Store.shared.setCategoryOrder(arranged, section)
+                                onSaved(); dismiss()
+                            }
+                            .foregroundColor(.s8kGoldMid).fontWeight(.bold)
+                        }
+                    }
+            }
+        }
+    }
+
+    private var reorderBody: some View {
+        ZStack {
+            Color.s8kBlack.ignoresSafeArea()
+            GeometryReader { geo in
+                VStack(spacing: 0) {
+                    regionPresets
+                    arrangedSection(geo.size.height)
+                    Divider().background(Color.s8kBorder).padding(.vertical, S8KSpace.sm)
+                    unarrangedSection
+                }
+                .frame(width: geo.size.width, height: geo.size.height)
+            }
+        }
+        // Attached to the ZStack, NOT to the GeometryReader. The saved order has to be
+        // read once, when the editor appears — hanging this off the reader would tie it
+        // to a measurement pass instead.
+        .onAppear {
+            guard !didLoad else { return }
+            didLoad = true
+            // Pre-fill ONLY the user's previously-saved arrangement (still-existing
+            // categories): empty for a new user, their own order for a returning one.
+            arranged = Store.shared.categoryOrder(section).filter { id in categories.contains { $0.id == id } }
+        }
+    }
+
+    // One tap floats a whole region to the top; dragging afterwards still works.
+    // Classification is offline keyword matching (RegionClassifier) — no lookup.
+    private var regionPresets: some View {
+        HStack(spacing: 8) {
+            Text(L("reorder.quick")).font(S8KFont.caption1.weight(.bold)).foregroundColor(.s8kTextSecondary)
+            Spacer()
+            ForEach(ContentRegion.allCases) { r in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        arranged = RegionClassifier.presetOrder(categories, primary: r)
+                    }
+                    haptic.selectionChanged()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: r.icon).font(.system(size: 11, weight: .bold))
+                        Text(r.title).font(S8KFont.caption2.weight(.bold))
+                    }
+                    .foregroundColor(.s8kGoldMid)
+                    .padding(.horizontal, 10).padding(.vertical, 7)
+                    .background(Color.s8kGoldMid.opacity(0.10)).clipShape(Capsule())
+                    .overlay(Capsule().strokeBorder(Color.s8kBorderGold, lineWidth: 1))
+                }
+                .buttonStyle(S8KButtonStyle())
+            }
+        }
+        .padding(.horizontal, S8KSpace.xl).padding(.top, S8KSpace.sm).padding(.bottom, 2)
+    }
+
+    // The upper stack: the user's own order. Drag to move, swipe to remove. Takes the
+    // window height rather than reading it, so the height rule stays in one place.
+    @ViewBuilder
+    private func arrangedSection(_ availableHeight: CGFloat) -> some View {
+        bandLabel(L("reorder.your_order"), count: arrangedCats.isEmpty ? nil : arrangedCats.count)
+        Text(L("reorder.drag_hint"))
+            .font(S8KFont.caption1).foregroundColor(.s8kTextTertiary)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.horizontal, S8KSpace.xl).padding(.bottom, 4)
+
+        if arrangedCats.isEmpty {
+            Text(L("reorder.empty_arranged"))
+                .font(S8KFont.subhead).foregroundColor(.s8kTextTertiary)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.vertical, 22)
+        } else {
+            List {
+                ForEach(arrangedCats) { cat in
+                    arrangedCatRow(cat, number: (arranged.firstIndex(of: cat.id) ?? 0) + 1)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparatorTint(Color.s8kBorder)
+                        .listRowInsets(EdgeInsets(top: 0, leading: S8KSpace.lg,
+                                                  bottom: 0, trailing: S8KSpace.lg))
+                }
+                .onMove { from, to in
+                    // Manual reorder (standard SwiftUI onMove semantics) — the
+                    // move(fromOffsets:toOffsets:) helper failed to resolve under
+                    // the Xcode 26.4 toolchain, so do it with plain array ops.
+                    let moving = from.sorted().map { arranged[$0] }
+                    for i in from.sorted(by: >) { arranged.remove(at: i) }
+                    let dest = to - from.filter { $0 < to }.count
+                    arranged.insert(contentsOf: moving, at: min(max(dest, 0), arranged.count))
+                    haptic.selectionChanged()
+                }
+                .onDelete { offsets in
+                    let ids = offsets.map { arrangedCats[$0].id }
+                    arranged.removeAll { ids.contains($0) }; haptic.selectionChanged()
                 }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .environment(\.editMode, .constant(.active))
+            .frame(height: arrangedHeight(availableHeight))
+        }
+    }
+
+    // The lower stack: everything not chosen yet, searchable, each with a + .
+    @ViewBuilder
+    private var unarrangedSection: some View {
+        bandLabel(L("reorder.available"), count: nil)
+        SearchField(text: $searchText, placeholder: L("reorder.search"))
+            .padding(.horizontal, S8KSpace.xl).padding(.bottom, 4)
+        ScrollView(showsIndicators: false) {
+            LazyVStack(spacing: 0) {
+                ForEach(unarranged) { cat in
+                    addableRow(cat)
+                    Divider().background(Color.s8kBorder).padding(.leading, 64)
+                }
+                if unarranged.isEmpty {
+                    Text(L("empty.no_results"))
+                        .font(S8KFont.subhead).foregroundColor(.s8kTextTertiary)
+                        .frame(maxWidth: .infinity).padding(.top, 30)
+                }
+                Color.clear.frame(height: 40)
+            }
+            .animation(.easeInOut(duration: 0.22), value: arranged)
+        }
+    }
+
+    private func bandLabel(_ text: String, count: Int?) -> some View {
+        HStack(spacing: 8) {
+            Text(text).font(S8KFont.caption1.weight(.bold)).foregroundColor(.s8kTextSecondary)
+            if let c = count {
+                Text("\(c)").font(S8KFont.caption1.weight(.heavy)).foregroundColor(.black)
+                    .padding(.horizontal, 7).padding(.vertical, 1)
+                    .background(S8KGradient.goldFlat).clipShape(Capsule())
+            }
+            Spacer()
+        }
+        .padding(.horizontal, S8KSpace.xl).padding(.top, S8KSpace.sm).padding(.bottom, 4)
+    }
+
+    // A row of the upper stack: position badge + name. The drag handle and the delete
+    // control are the List's own, supplied by edit mode.
+    private func arrangedCatRow(_ cat: Category, number: Int) -> some View {
+        HStack(spacing: 12) {
+            Text("\(number)")
+                .font(S8KFont.subhead.weight(.heavy)).foregroundColor(.black)
+                .frame(width: 26, height: 26)
+                .background(S8KGradient.goldFlat).clipShape(Circle())
+            Text(cat.name).font(S8KFont.subhead).foregroundColor(.s8kTextPrimary)
+                .lineLimit(1).frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+    }
+
+    // A row of the lower stack: the whole row is the + — tapping it appends.
+    private func addableRow(_ cat: Category) -> some View {
+        Button(action: {
+            withAnimation(.easeInOut(duration: 0.22)) { arranged.append(cat.id) }
+            haptic.selectionChanged()
+        }) {
+            HStack(spacing: 12) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 22)).foregroundColor(.s8kGoldMid)
+                Text(cat.name).font(S8KFont.subhead).foregroundColor(.s8kTextPrimary)
+                    .lineLimit(1).frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .padding(.horizontal, S8KSpace.xl).padding(.vertical, 12)
+            .contentShape(Rectangle())
         }
         .buttonStyle(S8KButtonStyle())
     }
 }
 
-struct SeriesGrid: View {
-    let series: [Series]
-    var empty: String = L("grid.empty")
-    let onSelect: (Series) -> Void
-    @Environment(\.horizontalSizeClass) private var hSize
-    private var cols: [GridItem] { [GridItem(.adaptive(minimum: hSize == .regular ? 168 : 116), spacing: 14)] }
-    /// See S8KListWindow.
-    @State private var shown = S8KListWindow.initial
+// MARK: The Settings entry point (owner #7)
+// One place — reached from Settings — to organize ALL sections: a segmented
+// Movies / Series / Live picker over the shared embedded reorder view. Each
+// section auto-saves and carries the region quick-sort presets.
+struct UnifiedReorderView: View {
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var movies = MoviesVM.shared
+    @StateObject private var series = SeriesVM.shared
+    @StateObject private var live   = LiveTVVM.shared
+    @State private var section: Sect = .movies
 
-    var body: some View {
-        Group {
-            if series.isEmpty {
-                EmptyState(icon: "tv.slash", title: empty, subtitle: L("grid.empty.sub"))
-            } else {
-                grid
+    enum Sect: String, CaseIterable, Identifiable {
+        case movies, series, live
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .movies: return L("title.movies")
+            case .series: return L("title.series")
+            case .live:   return L("title.live")
             }
         }
-        // Keyed on the head item, not count — see ChannelList for why.
-        .onChange(of: series.first?.id) { _, _ in shown = S8KListWindow.initial }
     }
 
-    private var grid: some View {
-        LazyVGrid(columns: cols, spacing: 16) {
-            ForEach(series.prefix(shown)) { s in
-                Button(action: { onSelect(s) }) {
-                    VStack(alignment: .trailing, spacing: 6) {
-                        // 2:3 like MoviePosterCell — and via a Color.clear box, which
-                        // also stops a non-2:3 cover leaking its width and overlapping
-                        // its neighbours. Left at a fixed 150 this grid rendered a
-                        // landscape band beside a correctly-proportioned Movies grid.
-                        Color.clear
-                            .frame(maxWidth: .infinity)
-                            .aspectRatio(2.0 / 3.0, contentMode: .fit)
-                            .overlay { S8KImage(url: s.coverURL, placeholder: "tv") }
-                            .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm))
-                            .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm)
-                                .strokeBorder(Color.s8kBorder, lineWidth: 1))
-                        Text(s.name).font(S8KFont.caption2.weight(.semibold))
-                            .foregroundColor(.s8kTextPrimary).lineLimit(1)
-                        if let y = s.year {
-                            Text(y).font(S8KFont.caption3).foregroundColor(.s8kTextTertiary)
-                        }
-                    }
-                }
-                .buttonStyle(S8KButtonStyle())
-            }
-            if shown < series.count {
-                Color.clear.frame(height: 1)
-                    .onAppear { shown = min(shown + S8KListWindow.step, series.count) }
-            }
+    private var cats: [Category] {
+        switch section {
+        case .movies: return movies.folders
+        case .series: return series.folders
+        case .live:   return live.folders
         }
-        .padding(.horizontal, S8KSpace.lg)
-        .onAppear { S8KImageCache.shared.prefetch(series.prefix(30).compactMap { $0.coverURL }, maxPixel: 800) }
     }
-}
-
-struct SeriesPosterScreen: View {
-    @Environment(\.s8kMetrics) private var metrics
-    let title: String
-    let series: [Series]
-    let onSelect: (Series) -> Void
-    @State private var search = ""
-    @Environment(\.dismiss) var dismiss
-
-    private var shown: [Series] {
-        s8kFolderSearch(series, search) { $0.name }
+    private func notifyVM() {
+        switch section {
+        case .movies: movies.objectWillChange.send()
+        case .series: series.objectWillChange.send()
+        case .live:   live.objectWillChange.send()
+        }
     }
+
     var body: some View {
-        ZStack {
-            Color.s8kBlack.ignoresSafeArea()
-            ScrollView(showsIndicators: false) {
+        NavigationStack {
+            ZStack {
+                Color.s8kBlack.ignoresSafeArea()
                 VStack(spacing: 0) {
-                    ContentTitleBar(title: title, subtitle: "\(series.count) \(L("unit.series"))", onBack: { dismiss() })
-                    SearchField(text: $search, placeholder: "\(L("common.search_in")) \(title)…")
-                        .padding(.horizontal, S8KSpace.xl).padding(.bottom, S8KSpace.lg)
-                    SeriesGrid(series: shown) { onSelect($0) }
-                    Color.clear.frame(height: metrics.bottomClearance)
+                    Picker("", selection: $section) {
+                        ForEach(Sect.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, S8KSpace.xl)
+                    .padding(.top, S8KSpace.md).padding(.bottom, S8KSpace.sm)
+
+                    CategoryOrderEditor(title: "", categories: cats, section: section.rawValue,
+                                        onSaved: { notifyVM() }, embedded: true)
+                        .id(section)   // fresh state per section → loads that section's saved order
                 }
             }
+            .navigationTitle(L("reorder.manage"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(L("common.close")) { dismiss() }
+                        .foregroundColor(.s8kGoldMid).fontWeight(.bold)
+                }
+            }
+            .task { await movies.load(); await series.load(); await live.load() }
         }
-        .navigationBarHidden(true)
     }
 }
 
-// MARK: ═══════════════════════════════════════
-// MOVIE DETAIL
-// ═══════════════════════════════════════════
+// MARK: - 8 · Detail covers
+
 struct MovieDetailView: View {
     let movie: Movie
     @StateObject private var favs = FavoritesService.shared
@@ -2865,11 +2644,8 @@ struct MovieDetailView: View {
 // rather than leaving it unused is deliberate: an unused view is an invitation to
 // reintroduce the borrowed motif.
 
-// MARK: ═══════════════════════════════════════
-// SERIES DETAIL
-// ═══════════════════════════════════════════
 @MainActor
-final class SeriesDetailVM: ObservableObject {
+final class SeriesDetailModel: ObservableObject {
     @Published var seasons:  [Season]  = []
     @Published var selected: Season?   = nil
     @Published var isLoading: Bool     = true
@@ -2886,10 +2662,7 @@ final class SeriesDetailVM: ObservableObject {
             seasons  = try await ContentService.seasons(of: series)
             selected = seasons.first
             details  = await ContentService.seriesDetails(of: series)
-        // A load cancelled by a tab remount (playlist switch / refresh) still resumes and
-        // would write its URLError(.cancelled) into `error` — AFTER the fresh load had
-        // already cleared it. The view checks `error` before content, so the tab would
-        // sit on the error page over perfectly good data. A cancelled task must be silent.
+        // Silent on cancellation — same rule as the section models.
         } catch let e as AppError { guard !Task.isCancelled else { return }; error = e }
           catch { guard !Task.isCancelled else { return }; self.error = .network(error) }
         isLoading = false
@@ -2898,7 +2671,7 @@ final class SeriesDetailVM: ObservableObject {
 
 struct SeriesDetailView: View {
     let series: Series
-    @StateObject private var vm   = SeriesDetailVM()
+    @StateObject private var vm   = SeriesDetailModel()
     @StateObject private var favs = FavoritesService.shared
     @StateObject private var hist = HistoryService.shared
     @Environment(\.dismiss) var dismiss
@@ -3229,9 +3002,8 @@ struct SeriesDetailView: View {
     }
 }
 
-// MARK: ═══════════════════════════════════════
-// SEARCH VIEW
-// ═══════════════════════════════════════════
+// MARK: - 9 · Search
+
 @MainActor
 final class SearchVM: ObservableObject {
     @Published var query:   String         = ""
@@ -3409,6 +3181,18 @@ final class SearchVM: ObservableObject {
     func clearRecent() { recent = []; UserDefaults.standard.removeObject(forKey: "s8k.search.recent") }
 }
 
+extension View {
+    /// Cap a block's width, then keep the capped block centred in whatever it was
+    /// given. The second frame is what does the centring — the first one alone would
+    /// leave the block hugging one edge.
+    ///
+    /// Deliberately `fileprivate`: it is a local shorthand for a pair of modifiers on
+    /// this one screen, not a second width API standing beside `S8KMetrics`.
+    fileprivate func s8kCapWidth(_ w: CGFloat) -> some View {
+        frame(maxWidth: w).frame(maxWidth: .infinity)
+    }
+}
+
 struct SearchView: View {
     @Environment(\.s8kMetrics) private var metrics
     var onClose: (() -> Void)? = nil
@@ -3434,12 +3218,12 @@ struct SearchView: View {
             ZStack {
                 Color.s8kBlack.ignoresSafeArea()
                 VStack(spacing: 0) {
-                    header
+                    queryBar
                     GoldDivider()
-                    resultsArea
+                    resultsPane
                 }
-                // Pin the header (search field) to the TOP — never let the block
-                // center vertically when the results area is short/empty.
+                // Hold the query bar against the TOP. Without the alignment the block
+                // centres itself vertically the moment the results below it are short.
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
             .navigationBarHidden(true)
@@ -3452,33 +3236,36 @@ struct SearchView: View {
         .onAppear { vm.setScope(AppRouter.shared.searchScope) }
     }
 
-    // MARK: Header (title + close, search field, scope chips)
-    private var header: some View {
+    // MARK: What sits above the divider
+    private var queryBar: some View {
         VStack(spacing: 14) {
-            HStack {
-                Text(L("search.title")).font(S8KFont.title1).foregroundColor(.s8kTextPrimary)
-                Spacer()
-                Button {
-                    if let onClose { onClose() } else { dismiss() }
-                } label: {
-                    // Written with an explicit label so the expansion can live INSIDE it:
-                    // on the outside it would only widen the layout cell and leave the
-                    // gesture on the ~44×17 text. 14 down stops exactly at the search
-                    // field below; a Spacer and the 20pt page margin flank it sideways.
-                    Text(L("common.close")).s8kMinTouch(h: 12, v: 14)
-                }.foregroundColor(.s8kGoldMid).font(S8KFont.subhead)
-            }
-            searchField
-            scopeChips
+            titleRow
+            queryField
+            sectionSelector
         }
-        .frame(maxWidth: contentMaxWidth)
-        .frame(maxWidth: .infinity)                 // center the capped block
+        .s8kCapWidth(contentMaxWidth)
         .padding(.horizontal, S8KSpace.xl)
         .padding(.top, 20)
         .padding(.bottom, S8KSpace.lg)
     }
 
-    private var searchField: some View {
+    private var titleRow: some View {
+        HStack {
+            Text(L("search.title")).font(S8KFont.title1).foregroundColor(.s8kTextPrimary)
+            Spacer()
+            Button {
+                if let onClose { onClose() } else { dismiss() }
+            } label: {
+                // Written with an explicit label so the expansion can live INSIDE it:
+                // on the outside it would only widen the layout cell and leave the
+                // gesture on the ~44×17 text. 14 down stops exactly at the search
+                // field below; a Spacer and the 20pt page margin flank it sideways.
+                Text(L("common.close")).s8kMinTouch(h: 12, v: 14)
+            }.foregroundColor(.s8kGoldMid).font(S8KFont.subhead)
+        }
+    }
+
+    private var queryField: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 15))
@@ -3487,7 +3274,7 @@ struct SearchView: View {
             TextField("", text: $vm.query,
                      prompt: Text(vm.scope.prompt).foregroundColor(Color.s8kTextDisabled))
                 .font(S8KFont.body).foregroundColor(.s8kTextPrimary)
-                // RTL only when the app language is RTL (Arabic).
+                // Field-scoped and language-driven — same reasoning as SearchField.
                 .environment(\.layoutDirection, LocalizationManager.current.isRTL ? .rightToLeft : .leftToRight)
                 .focused($focused)
                 .submitLabel(.search)
@@ -3514,7 +3301,7 @@ struct SearchView: View {
     }
 
     // Segmented section selector (Movies / Series / Live) — active = gold.
-    private var scopeChips: some View {
+    private var sectionSelector: some View {
         HStack(spacing: 8) {
             ForEach(SearchVM.SearchScope.allCases) { sc in
                 let active = vm.scope == sc
@@ -3541,11 +3328,27 @@ struct SearchView: View {
         .animation(.easeInOut(duration: 0.18), value: vm.scope)
     }
 
-    // MARK: Results area (states)
-    @ViewBuilder private var resultsArea: some View {
-        if vm.query.isEmpty {
-            startOrRecent
-        } else if vm.failed {
+    // MARK: What the query is currently showing
+    // Five states, and only ever one of them. Naming them makes the precedence
+    // explicit and checkable — the old chain of else-ifs had exactly this order, and
+    // getting the order wrong is invisible: put `failed` ahead of `prompt` and
+    // clearing the field shows an error page; put `noMatches` ahead of `working` and
+    // the spinner is replaced by "nothing found" while the search is still running.
+    private enum ResultsPhase { case prompt, failed, working, noMatches, matches }
+
+    private var phase: ResultsPhase {
+        if vm.query.isEmpty                 { return .prompt    }
+        if vm.failed                        { return .failed    }
+        if vm.loading && vm.results.isEmpty { return .working   }
+        if vm.results.isEmpty               { return .noMatches }
+        return .matches
+    }
+
+    @ViewBuilder private var resultsPane: some View {
+        switch phase {
+        case .prompt:
+            recentTerms
+        case .failed:
             VStack {
                 EmptyState(icon: "wifi.exclamationmark",
                            title: L("search.failed.title"), subtitle: L("search.failed.sub"))
@@ -3554,21 +3357,21 @@ struct SearchView: View {
                         .font(S8KFont.subhead).foregroundColor(.s8kGoldMid)
                 }.buttonStyle(S8KButtonStyle())
             }
-        } else if vm.loading && vm.results.isEmpty {
+        case .working:
             VStack(spacing: 12) {
                 Spacer()
                 ProgressView().progressViewStyle(.circular).tint(.s8kGoldMid).scaleEffect(1.2)
                 Spacer()
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if vm.results.isEmpty {
+        case .noMatches:
             EmptyState(icon: vm.scope.icon, title: L("search.empty.title"), subtitle: L("search.empty.sub"))
-        } else {
-            resultsScroll
+        case .matches:
+            matchesScroll
         }
     }
 
     // No query yet → recent searches (if any) or a friendly hint.
-    @ViewBuilder private var startOrRecent: some View {
+    @ViewBuilder private var recentTerms: some View {
         if vm.recent.isEmpty {
             EmptyState(icon: "magnifyingglass", title: L("search.start.title"), subtitle: L("search.start.sub"))
         } else {
@@ -3580,7 +3383,7 @@ struct SearchView: View {
                         Spacer()
                         Text(L("search.recent")).font(S8KFont.subhead).foregroundColor(.s8kTextPrimary)
                     }
-                    FlexWrap(items: vm.recent) { term in
+                    ChipWrap(items: vm.recent) { term in
                         Button(action: { vm.query = term; vm.search() }) {
                             HStack(spacing: 5) {
                                 Image(systemName: "clock").font(.system(size: 11))
@@ -3594,30 +3397,33 @@ struct SearchView: View {
                         .buttonStyle(S8KButtonStyle())
                     }
                 }
-                .frame(maxWidth: contentMaxWidth).frame(maxWidth: .infinity)
+                .s8kCapWidth(contentMaxWidth)
                 .padding(.horizontal, S8KSpace.xl).padding(.vertical, 12)
             }
         }
     }
 
-    // Live → list rows (logos suit rows); Movies/Series → poster grid.
-    private var resultsScroll: some View {
+    // Channels read better as rows (a logo and a name); everything else as posters.
+    // NOTE: the two branches are capped with DIFFERENT widths — the row list with
+    // this view's own `contentMaxWidth`, the grid with the metric. That is what
+    // shipped; it is preserved here rather than quietly unified, and logged.
+    private var matchesScroll: some View {
         ScrollView(showsIndicators: false) {
             Group {
                 if vm.scope == .live {
                     LazyVStack(spacing: 0) {
                         ForEach(vm.results) { r in
-                            liveRow(r)
+                            matchRow(r)
                             GoldDivider().padding(.leading, 72)
                         }
                     }
-                    .frame(maxWidth: contentMaxWidth).frame(maxWidth: .infinity)
+                    .s8kCapWidth(contentMaxWidth)
                 } else {
                     LazyVGrid(columns: gridColumns, spacing: 16) {
-                        ForEach(vm.results) { posterCell($0) }
+                        ForEach(vm.results) { matchTile($0) }
                     }
                     .padding(.horizontal, S8KSpace.xl)
-                    .frame(maxWidth: metrics.contentMaxWidth).frame(maxWidth: .infinity)
+                    .s8kCapWidth(metrics.contentMaxWidth)
                 }
                 Color.clear.frame(height: 100)
             }
@@ -3625,8 +3431,8 @@ struct SearchView: View {
         }
     }
 
-    private func posterCell(_ r: SearchVM.SearchResult) -> some View {
-        Button(action: { open(r) }) {
+    private func matchTile(_ r: SearchVM.SearchResult) -> some View {
+        Button(action: { present(r) }) {
             VStack(spacing: 7) {
                 RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
                     .fill(Color.s8kElevated)
@@ -3642,8 +3448,8 @@ struct SearchView: View {
         .buttonStyle(S8KButtonStyle())
     }
 
-    private func liveRow(_ r: SearchVM.SearchResult) -> some View {
-        Button(action: { open(r) }) {
+    private func matchRow(_ r: SearchVM.SearchResult) -> some View {
+        Button(action: { present(r) }) {
             HStack(spacing: 12) {
                 S8KImage(url: r.imageURL, placeholder: r.type.icon)
                     .frame(width: 50, height: 50)
@@ -3662,7 +3468,7 @@ struct SearchView: View {
         .buttonStyle(S8KButtonStyle())
     }
 
-    private func open(_ r: SearchVM.SearchResult) {
+    private func present(_ r: SearchVM.SearchResult) {
         switch r.type {
         case .channel(let ch): playerItem = .live(ch)
         case .movie(let m):    showMovie  = m
@@ -3671,22 +3477,25 @@ struct SearchView: View {
     }
 }
 
-// MARK: - Flex Wrap Layout
-// Wrapping chips via the SwiftUI Layout protocol — correctly constrained to the
-// available width (the old GeometryReader/alignmentGuide version mis-measured
-// and pushed the whole detail page beyond the screen edges).
-struct FlexWrap<Item: Hashable, Content: View>: View {
+// MARK: - 10 · Chip wrapping
+
+// MARK: Chips that wrap
+// A real Layout, because the width has to be a CONSTRAINT and not a guess. The
+// version this replaced measured itself from a GeometryReader and aligned by hand;
+// it read a width it had not been given, laid rows out against it, and the result
+// ran off both edges of the page it was on.
+struct ChipWrap<Item: Hashable, Content: View>: View {
     let items: [Item]
     @ViewBuilder let content: (Item) -> Content
     var body: some View {
-        FlowLayout(spacing: 8) {
+        WrapLayout(spacing: 8) {
             ForEach(items, id: \.self) { content($0) }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
     }
 }
 
-struct FlowLayout: Layout {
+struct WrapLayout: Layout {
     var spacing: CGFloat = 8
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         // `max(…, 1)`: SwiftUI probes layouts with ProposedViewSize.zero. A 0 width
