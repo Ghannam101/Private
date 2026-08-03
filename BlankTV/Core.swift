@@ -261,6 +261,9 @@ enum L10n {
         "download.failed":       [.ar: "فشل التحميل — اضغط لإعادة المحاولة", .en: "Download failed — tap to retry", .fr: "Téléchargement échoué — touchez pour reprendre", .tr: "İndirme başarısız — yeniden denemek için dokunun", .es: "Descarga fallida — toca para reintentar"],
         "downloads.paused":      [.ar: "متوقّف مؤقتاً", .en: "Paused", .fr: "En pause", .tr: "Duraklatıldı", .es: "En pausa"],
         "downloads.queued":      [.ar: "في الانتظار…", .en: "Queued…", .fr: "En attente…", .tr: "Sırada…", .es: "En cola…"],
+        // Distinct from "queued" on purpose: this item was REFUSED and is waiting the
+        // line out. Saying "queued" for both makes a retrying download read as a stuck one.
+        "downloads.retrying":    [.ar: "إعادة المحاولة…", .en: "Retrying…", .fr: "Nouvel essai…", .tr: "Yeniden deneniyor…", .es: "Reintentando…"],
         "downloads.wifi_only":   [.ar: "التحميل على Wi-Fi فقط", .en: "Download on Wi-Fi only", .fr: "Télécharger uniquement en Wi-Fi", .tr: "Sadece Wi-Fi ile indir", .es: "Descargar solo por Wi-Fi"],
         "downloads.notif.title": [.ar: "اكتمل التنزيل", .en: "Download complete", .fr: "Téléchargement terminé", .tr: "İndirme tamamlandı", .es: "Descarga completada"],
         "downloads.notif.denied":[.ar: "الإشعارات معطّلة — فعّلها لتصلك عند اكتمال التحميل", .en: "Notifications are off — enable them to be alerted when downloads finish", .fr: "Notifications coupées — activez-les pour savoir quand un téléchargement finit", .tr: "Bildirimler kapalı — indirme bittiğinde haberdar olmak için açın", .es: "Notificaciones apagadas — actívalas y te avisamos al terminar"],

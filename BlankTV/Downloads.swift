@@ -403,6 +403,13 @@ final class DownloadService: NSObject, ObservableObject {
 
     func resume(_ id: String) {
         guard let it = item(id), it.state == .paused || it.state == .failed else { return }
+        // A tap is a fresh decision, so it gets a fresh budget: the automatic retries
+        // are spent waiting out a busy line, and the user pressing the button minutes
+        // later is a different situation entirely.
+        if let i = items.firstIndex(where: { $0.id == id }) {
+            items[i].attempts = nil
+            items[i].failureReason = nil
+        }
         // Back into the line: a free slot starts it immediately, otherwise it waits its
         // turn. `makeTask` is what notices the saved resume blob.
         transition(id, to: .queued)
@@ -459,23 +466,78 @@ final class DownloadService: NSObject, ObservableObject {
             items[i].failureReason = nil
             if items[i].totalBytes > 0 { items[i].receivedBytes = items[i].totalBytes }
             postCompletionNotice(title: items[i].title)
+            items[i].attempts = nil
+            saveManifest()
+            advanceQueue()
         } else {
             guard items[i].state == .downloading else { return }   // a finished item stays finished
-            items[i].state = .failed
-            items[i].failureReason = why
+            retryOrFail(i, why: why)
         }
-        saveManifest()
-        advanceQueue()
     }
 
     private func markFailed(id: String, why: String? = nil) {
         // Only something still transferring can fail. A late callback for anything else
         // is stale and must not overwrite the state the user is looking at.
         guard let i = items.firstIndex(where: { $0.id == id }), items[i].state == .downloading else { return }
-        items[i].state = .failed
-        items[i].failureReason = why
+        retryOrFail(i, why: why)
+    }
+
+    // MARK: When a refusal is worth waiting out
+
+    /// Failures the provider will very likely stop giving us if we simply wait.
+    ///
+    /// This list is evidence, not theory. The owner tested on his own line and the row
+    /// read **HTTP 509** — Bandwidth Limit Exceeded, which cPanel-derived hosts and
+    /// Xtream panels return when a line is at its simultaneous-connection ceiling. It
+    /// matches what he described exactly: the first attempt fails at once and a retry a
+    /// moment later works, because by then whatever held the line let go. Most often
+    /// that is this app itself — a stream he was watching seconds earlier.
+    ///
+    /// 503 and 429 are the same refusal in more standard words; 408 and a dropped
+    /// connection are transport rather than refusal, and resume data makes them cheap to
+    /// redo. Everything else — 401, 403, 404, an HTML error page, a too-short file — is
+    /// a real answer, and retrying it only spends the user's line to be told again.
+    // fileprivate, not private: the downloads row shows "2/3" beside the reason, and a
+    // `private` static is invisible to another type even in the same file.
+    fileprivate static let maxAttempts = 3
+    private func isWorthRetrying(_ why: String?) -> Bool {
+        guard let w = why else { return false }
+        for code in ["509", "503", "429", "408"] where w.contains(code) { return true }
+        // NSURLErrorNetworkConnectionLost / TimedOut / CannotConnectToHost.
+        for code in ["-1005", "-1001", "-1004"] where w.contains(code) { return true }
+        return false
+    }
+
+    /// Put a transiently-refused item back in the queue after a pause, or fail it for real.
+    ///
+    /// The delay escalates on purpose. A line at its ceiling needs the OTHER connection
+    /// to end, and that is measured in seconds of the user's behaviour, not milliseconds;
+    /// retrying immediately just collects a second 509 and burns an attempt.
+    private func retryOrFail(_ i: Int, why: String?) {
+        let id = items[i].id
+        let used = (items[i].attempts ?? 0) + 1
+        guard isWorthRetrying(why), used < Self.maxAttempts else {
+            items[i].state = .failed
+            items[i].failureReason = why
+            saveManifest()
+            advanceQueue()
+            return
+        }
+        items[i].attempts = used
+        items[i].state = .queued
+        items[i].failureReason = why        // the row keeps saying why while it waits
         saveManifest()
+        // Free the slot FIRST, so anything else queued can run while this one waits
+        // rather than the whole queue idling behind a line that is busy anyway.
         advanceQueue()
+        let delay = Double(used) * 6.0      // 6s, then 12s
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard let self,
+                  let j = self.items.firstIndex(where: { $0.id == id }),
+                  self.items[j].state == .queued else { return }   // removed or resumed meanwhile
+            self.advanceQueue()
+        }
     }
 
     private func saveManifest() { DownloadManifest.write(items) }
@@ -784,8 +846,19 @@ struct DownloadsView: View {
                         .foregroundColor(d.state == .paused ? .s8kGoldMid : .s8kTextTertiary)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 case .queued:
-                    Text(L("downloads.queued")).font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    // An item waiting out a refusal is NOT the same as one waiting its
+                    // turn, and telling the user "queued" for both is how a retrying
+                    // download looks like a stuck one. The reason stays beside it.
+                    HStack(spacing: 6) {
+                        if let n = d.attempts, let why = d.failureReason {
+                            Text("\(why) · \(n)/\(DownloadService.maxAttempts)")
+                                .font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
+                                .lineLimit(1).truncationMode(.middle).monospacedDigit()
+                        }
+                        Text(d.attempts == nil ? L("downloads.queued") : L("downloads.retrying"))
+                            .font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 case .failed:
                     // The reason rides beside the word, unedited. A bare "failed" told
                     // nobody anything — not the user, and not us: this row is the only
