@@ -94,14 +94,33 @@ private enum DownloadFiles {
 ///
 /// Plain, synchronous, non-isolated on purpose: its caller has to finish its work
 /// before returning.
-private func isFinishedVideo(_ response: URLResponse?, tempFile: URL) -> Bool {
+/// What actually arrived, when it is not a video — or nil when it is one.
+///
+/// This RECORDS, it does not INTERPRET. A first draft of this function mapped 403 to
+/// "the line is busy" and 404 to "the link is gone", which is a theory about someone
+/// else's server dressed up as a fact for the user. We do not know what this provider
+/// answers or why; nobody has ever looked, because the old code returned a bare Bool
+/// and every cause collapsed into one wordless "failed" row.
+///
+/// So the string is the evidence — status code, media type, size — in a form the owner
+/// can read off a phone and hand back. Once we know what the server actually says, the
+/// wording can become human. Not before.
+///
+/// Note this is where a REFUSED download lands, not the error callback: URLSession
+/// treats an HTTP error as a successful download of the error body.
+private func videoRejection(_ response: URLResponse?, tempFile: URL) -> String? {
     let http = response as? HTTPURLResponse
     let code = http?.statusCode ?? 200
     let mime = (http?.mimeType ?? "").lowercased()
-    let looksLikeText = mime.contains("html") || mime.contains("json") || mime.contains("text")
     let attrs = try? FileManager.default.attributesOfItem(atPath: tempFile.path)
     let size = (attrs?[.size] as? NSNumber)?.int64Value ?? 0
-    return (200...299).contains(code) && !looksLikeText && size > 64_000
+
+    if !(200...299).contains(code) { return "HTTP \(code)" }
+    if mime.contains("html") || mime.contains("json") || mime.contains("text") {
+        return "\(mime) · \(size) B"
+    }
+    if size <= 64_000 { return "\(size) B" }
+    return nil
 }
 
 // MARK: - How much room is left
@@ -204,6 +223,19 @@ struct SavedDownload: Codable, Identifiable, Hashable {
     /// begin again at zero, and the model's own directURL is not part of what we store.
     /// Optional so a manifest written before this field existed still reads.
     var remoteURL: String? = nil
+    /// Why the last attempt stopped, in the user's language. Nil until something fails.
+    ///
+    /// Before this existed, a failure was a dead end: the row said "failed" and neither
+    /// the user nor we could tell a refused connection from a dead link from a full
+    /// disk. Optional, so a manifest written before this field existed still decodes —
+    /// and it MUST stay optional for that reason. A non-optional with a default does
+    /// NOT survive Swift's synthesised decoder: it throws on the missing key, the
+    /// per-entry lenient decode drops the row, and every saved download silently
+    /// disappears on update.
+    var failureReason: String? = nil
+    /// How many times we have restarted this item after a transient failure. Optional
+    /// for exactly the same decoding reason.
+    var attempts: Int? = nil
     // The models ride along so the item can be played with no network at all; the
     // directURL is swapped for the local file at play time.
     let movie:   Movie?
@@ -420,25 +452,28 @@ final class DownloadService: NSObject, ObservableObject {
         }
     }
 
-    private func settle(id: String, completed: Bool) {
+    private func settle(id: String, completed: Bool, why: String? = nil) {
         guard let i = items.firstIndex(where: { $0.id == id }) else { return }
         if completed {
             items[i].state = .completed
+            items[i].failureReason = nil
             if items[i].totalBytes > 0 { items[i].receivedBytes = items[i].totalBytes }
             postCompletionNotice(title: items[i].title)
         } else {
             guard items[i].state == .downloading else { return }   // a finished item stays finished
             items[i].state = .failed
+            items[i].failureReason = why
         }
         saveManifest()
         advanceQueue()
     }
 
-    private func markFailed(id: String) {
+    private func markFailed(id: String, why: String? = nil) {
         // Only something still transferring can fail. A late callback for anything else
         // is stale and must not overwrite the state the user is looking at.
         guard let i = items.firstIndex(where: { $0.id == id }), items[i].state == .downloading else { return }
         items[i].state = .failed
+        items[i].failureReason = why
         saveManifest()
         advanceQueue()
     }
@@ -542,9 +577,16 @@ extension DownloadService: URLSessionDownloadDelegate {
         // and the move both have to happen right here, synchronously. `&&` short-circuits:
         // nothing is moved unless the response passed.
         let (id, ext) = DownloadTaskTag.idAndExt(of: downloadTask)
-        let landed = isFinishedVideo(downloadTask.response, tempFile: location)
-                  && DownloadFiles.install(location, as: id, ext: ext)
-        Task { @MainActor in self.settle(id: id, completed: landed) }
+        // Evaluate the response BEFORE moving, and keep the reason. `&&` short-circuits,
+        // so nothing is installed unless the response passed.
+        let rejection = videoRejection(downloadTask.response, tempFile: location)
+        var why = rejection
+        var landed = false
+        if rejection == nil {
+            landed = DownloadFiles.install(location, as: id, ext: ext)
+            if !landed { why = "install failed" }   // disk full, or the folder is gone
+        }
+        Task { @MainActor in self.settle(id: id, completed: landed, why: why) }
     }
 
     nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
@@ -570,7 +612,10 @@ extension DownloadService: URLSessionDownloadDelegate {
             }
         }
         if ns.code == NSURLErrorCancelled { return }          // removed by the user, or force-quit
-        Task { @MainActor in self.markFailed(id: id) }
+        // The domain and code, verbatim. Naming them ("no connection", "timed out")
+        // would be a guess about which of ~60 URLError values this actually is.
+        let why = "\(ns.domain) \(ns.code)"
+        Task { @MainActor in self.markFailed(id: id, why: why) }
     }
 
     nonisolated func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
@@ -742,8 +787,19 @@ struct DownloadsView: View {
                     Text(L("downloads.queued")).font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 case .failed:
-                    Text(L("download.failed")).font(S8KFont.caption2).foregroundColor(.s8kOrange)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    // The reason rides beside the word, unedited. A bare "failed" told
+                    // nobody anything — not the user, and not us: this row is the only
+                    // place the evidence can reach a person holding the phone.
+                    HStack(spacing: 6) {
+                        if let why = d.failureReason {
+                            Text(why)
+                                .font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
+                                .lineLimit(1).truncationMode(.middle)
+                                .monospacedDigit()
+                        }
+                        Text(L("download.failed")).font(S8KFont.caption2).foregroundColor(.s8kOrange)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 case .completed:
                     Text(DownloadByteText.string(max(d.receivedBytes, d.totalBytes))).font(S8KFont.caption2)
                         .foregroundColor(.s8kTextTertiary).frame(maxWidth: .infinity, alignment: .trailing)

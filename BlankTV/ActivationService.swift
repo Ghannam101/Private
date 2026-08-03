@@ -88,10 +88,9 @@ final class ActivationService: ObservableObject {
 
     // Reseller branding — LOCAL only now (kept dormant for a future build-time
     // white-label). Server-driven reseller resolution has been removed.
-    @Published var brandName:  String? = Store.shared.brandName
-    @Published var brandColor: String? = Store.shared.brandColor
-    @Published var brandLogo:  String? = Store.shared.brandLogo
-    var isResellerMode: Bool { (Store.shared.resellerCode ?? "").isEmpty == false }
+    // brandName / brandColor / brandLogo were published here so views could re-badge
+    // and re-colour themselves from whatever a server last said. Gone — 4.2.6.
+    // `isResellerMode` went with them: it was declared and never read once.
 
     /// Count of notifications newer than the last time the user opened the bell.
     var unreadCount: Int {
@@ -123,11 +122,15 @@ final class ActivationService: ObservableObject {
     /// White-label, if reintroduced, will be a build-time/local config (owner decision).
     func resolveCode(_ code: String) async -> Bool { false }
 
-    /// Clear reseller mode (revert to the official BLANK TV identity). LOCAL only.
+    /// Wipe the reseller keys on sign-out.
+    ///
+    /// The three @Published brand properties and the runtime re-skin they drove are
+    /// gone (Guideline 4.2.6 — see DesignSystem). What remains is the erasure itself,
+    /// and it still matters: a device that installed a build from before 2026-07-22
+    /// can be carrying those values in UserDefaults, which survive an update. Clearing
+    /// them is the migration.
     func clearReseller() {
         Store.shared.clearReseller()
-        brandName = nil; brandColor = nil; brandLogo = nil
-        AppTheme.shared.applyBrandTheme(hex: nil)
     }
 }
 

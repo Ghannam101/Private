@@ -876,21 +876,18 @@ struct BrandTheme {
     // it shipped inside the binary of the app we argue is a distinct product. Deleted:
     // an unused palette is not worth handing a reviewer a colour-for-colour match.
 
-    /// Build a premium theme from a SINGLE reseller accent color: a neutral dark
-    /// base (looks good with any hue) + an accent ramp derived from the color.
-    static func fromAccent(_ hex: String) -> BrandTheme {
-        let a = Color(hex: hex)
-        return BrandTheme(
-            base:     Color(red: 0.039, green: 0.039, blue: 0.043),
-            surface:  Color(red: 0.055, green: 0.055, blue: 0.063),
-            card:     Color(red: 0.082, green: 0.082, blue: 0.094),
-            elevated: Color(red: 0.110, green: 0.110, blue: 0.125),
-            accentHigh: a,
-            accentMid:  a.adjusted(brightness: 0.80),
-            accentLow:  a.adjusted(brightness: 0.62),
-            accentDeep: a.adjusted(brightness: 0.48)
-        )
-    }
+    // `fromAccent(_ hex:)` stood here: hand it one colour from a server and it built a
+    // whole palette, which `applyBrandTheme` then swapped into the running app.
+    //
+    // Deleted for the same reason as BrandKit — Guideline 4.2.6. An app that recolours
+    // itself from a value fetched at runtime is a template instance saying so in code,
+    // and this one is judged beside a sibling that ships from the same developer
+    // account. It was also unreachable: nothing has written Store.brandColor since
+    // 2026-07-22, so the only palette it could ever build was the default one.
+    //
+    // A reseller build now changes the literals in this file and is compiled. That is
+    // the difference between a product and a switch, and it is the difference Apple
+    // wrote 4.2.6 about.
 }
 
 // MARK: - Color System — brand tokens read from the active BrandTheme
@@ -1018,7 +1015,7 @@ enum S8KRadius {
 @MainActor
 final class AppTheme: ObservableObject {
     static let shared = AppTheme()
-    private init() { restoreBrand(); loadCached() }
+    private init() { loadCached() }
 
     @Published var primaryColor: Color   = .s8kGoldMid
     @Published var accentColor:  Color   = .s8kGoldHigh
@@ -1053,29 +1050,18 @@ final class AppTheme: ObservableObject {
         }
     }
 
-    /// The accent hex currently driving the palette ("" = default BLANK TV).
-    private var appliedBrandHex: String = ""
-
-    /// Re-skin the WHOLE app with a reseller's accent color (nil/empty → default
-    /// BLANK TV palette). IDEMPOTENT — does nothing if the color is unchanged, so
-    /// it is safe to call on every activation check(). Persists via Store.brandColor;
-    /// bumps brandTick so the root rebuilds and every `s8k*` token re-resolves.
-    func applyBrandTheme(hex: String?) {
-        let clean = (hex ?? "").trimmingCharacters(in: .whitespaces).lowercased()
-        guard clean != appliedBrandHex else { return }
-        appliedBrandHex = clean
-        withAnimation(.easeInOut(duration: 0.3)) {
-            BrandTheme.active = clean.isEmpty ? .blankGreen : .fromAccent(clean)
-            brandTick += 1
-        }
-    }
-
-    /// Restore the reseller palette at launch (before the UI builds) from the
-    /// persisted Store.brandColor, so a branded device opens already re-skinned.
-    private func restoreBrand() {
-        let hex = (Store.shared.brandColor ?? "").trimmingCharacters(in: .whitespaces).lowercased()
-        if !hex.isEmpty { BrandTheme.active = .fromAccent(hex); appliedBrandHex = hex }
-    }
+    // `applyBrandTheme(hex:)` and `restoreBrand()` stood here. Together they were the
+    // runtime re-skin: one swapped the whole palette from a server-supplied colour and
+    // bumped `brandTick` so every view rebuilt against it, the other restored that
+    // colour at launch so a "branded device opens already re-skinned".
+    //
+    // Both are gone with `fromAccent`. Guideline 4.2.6 again, and the same proof of
+    // deadness: no code has written `Store.brandColor` since 2026-07-22.
+    //
+    // `brandTick` SURVIVES. It is the root's `.id()` at BlankTVApp.swift:178, and it is
+    // still the mechanism a legitimate theme change would use — removing it would be a
+    // second, unrelated change to the view identity of the whole app, and this commit
+    // is not the place to risk that.
 
     private func loadCached() {
         guard let data = UserDefaults.standard.data(forKey: "s8k.theme.cache"),
@@ -1783,8 +1769,10 @@ struct S8KListSkeleton: View {
 }
 
 // MARK: - Watermark (white-label aware)
-// Uses the reseller's logo + name when a brand is active, otherwise the bundled
-// BLANK TV mark — so a branded device shows the RESELLER's watermark on video.
+// The bundled mark and name. This used to prefer a REMOTE logo and a server-supplied
+// name, which meant the watermark burned into the corner of every frame could be
+// changed by whoever answered the config call — the clearest possible statement that
+// the binary is a template instance. One identity per build now.
 struct S8KWatermark: View {
     var opacity: Double = 0.15
     var alignment: Alignment = .bottomTrailing
@@ -1792,15 +1780,8 @@ struct S8KWatermark: View {
     var body: some View {
         GeometryReader { _ in
             HStack(spacing: 6) {
-                // Reseller logo (remote) when set, else the bundled logo.
-                if let logo = BrandKit.logoURL {
-                    S8KImage(url: logo, placeholder: "play.tv.fill", maxPixel: 120)
-                        .frame(width: 22, height: 22)
-                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                } else {
-                    Image(S8KBrand.logoAsset).resizable().scaledToFit().frame(width: 22, height: 22)
-                }
-                Text(BrandKit.customName ?? S8KBrand.name)
+                Image(S8KBrand.logoAsset).resizable().scaledToFit().frame(width: 22, height: 22)
+                Text(S8KBrand.name)
                     .font(S8KFont.caption1.weight(.black))
                     .tracking(1.5)
                     .foregroundColor(.s8kGoldHigh)
@@ -1825,9 +1806,14 @@ struct S8KWatermark: View {
 /// languages at once — which is exactly what it was.
 enum S8KBrand {
     /// The product name as the user reads it.
-    static let name = "Arena Live"
+    static let name = "Trex TV"
     /// The short form, for the wordmark and other tight places.
-    static let shortName = "Arena"
+    static let shortName = "Trex"
+    /// The second half of the two-part wordmark. It lives here, and not as a literal
+    /// inside S8KWordmark, because a literal there is invisible to brandlint: the old
+    /// one said "Prime", and a rename that edited only `shortName` would have shipped
+    /// the new name welded to the old one across every top bar in the app.
+    static let markSuffix = "TV"
     /// The bundled logo asset. Swapping identity = replacing the file under this name.
     static let logoAsset = "Logo"
     /// Where content reports go (Guideline 4.7.1). A reviewer reads this, so it must
@@ -1888,49 +1874,45 @@ extension Color {
     }
 }
 
-enum BrandKit {
-    /// Reseller brand name, or nil for default BLANK TV.
-    static var customName: String? {
-        let n = (Store.shared.brandName ?? "").trimmingCharacters(in: .whitespaces)
-        return n.isEmpty ? nil : n
-    }
-    static var logoURL: String? {
-        let l = (Store.shared.brandLogo ?? "").trimmingCharacters(in: .whitespaces)
-        return l.isEmpty ? nil : l
-    }
-}
+// `enum BrandKit` stood here. It read a brand NAME and a remote LOGO URL that a server
+// had handed the app, so the product could rename and re-badge itself at runtime.
+//
+// Deleted, and the reason is Guideline 4.2.6: apps built from a commercialised template
+// are rejected unless the client submits them, and a binary that can become any brand
+// from a code typed at first launch is that template, stated in code. A reviewer does
+// not have to compare anything — the app says it about itself. It was also already
+// DEAD: nothing has written brandName, brandColor or brandLogo since 822059d on
+// 2026-07-22, 134 commits ago, so this only ever resolved to nil. Dead code that
+// incriminates you is the worst kind to leave in.
+//
+// Identity is now fixed at compile time, in `S8KBrand`. A reseller build changes those
+// literals and is built — it is not a switch inside a shipped binary.
 
-/// The brand logo: the reseller's remote logo if set, otherwise the bundled one.
+/// The brand logo, bundled. One identity per build, by construction.
 struct BrandLogo: View {
     var size: CGFloat
     var body: some View {
-        if let url = BrandKit.logoURL {
-            S8KImage(url: url, placeholder: "play.tv.fill")
-                .frame(width: size, height: size)
-                .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
-        } else {
-            Image(S8KBrand.logoAsset).resizable().scaledToFit().frame(width: size, height: size)
-        }
+        Image(S8KBrand.logoAsset).resizable().scaledToFit().frame(width: size, height: size)
     }
 }
 
 struct S8KWordmark: View {
     var size: CGFloat = 22
     var body: some View {
-        if let brand = BrandKit.customName {
-            Text(brand)
-                .font(.system(size: size, weight: .heavy, design: .rounded))
-                .tracking(size * 0.05)
-                .foregroundColor(.s8kGoldHigh)   // solid, not a gradient (see below)
-                .lineLimit(1).minimumScaleFactor(0.6)
-                .shadow(color: .black.opacity(0.35), radius: 6, y: 1)
-        } else {
+        // The reseller branch that stood here read a name off a server. Gone with
+        // BrandKit — see the note above it. One identity per build.
+        //
+        // And the second half of this lockup used to be a hard-coded Text("Prime").
+        // brandlint could not see it, so any rename that touched only `shortName`
+        // would have shipped "<NewName> Prime" — the old identity welded to the new
+        // one, in the top bar of every screen. It now reads from S8KBrand like
+        // everything else, which is what the lint rule was written to guarantee.
             HStack(spacing: size * 0.24) {
                 Text(S8KBrand.shortName)
                     .font(.system(size: size, weight: .semibold, design: .rounded))
                     .tracking(size * 0.10)
                     .foregroundColor(.s8kTextPrimary)
-                Text("Prime")
+                Text(S8KBrand.markSuffix)
                     .font(.system(size: size * 1.02, weight: .heavy, design: .rounded))
                     .tracking(size * 0.04)
                     // SOLID accent, not a gradient. A 2-stop sweep across ~40pt of glyphs
@@ -1947,7 +1929,6 @@ struct S8KWordmark: View {
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .shadow(color: .black.opacity(0.35), radius: 6, y: 1)
-        }
     }
 }
 

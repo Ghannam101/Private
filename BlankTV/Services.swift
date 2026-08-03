@@ -347,8 +347,10 @@ final class AuthService: ObservableObject {
         await Task.detached(priority: .utility) { CatalogDB.deleteEverything() }.value
         Store.shared.clearAll()                 // wipes the whole UserDefaults domain
         AppTheme.shared.reset()
-        AppTheme.shared.applyBrandTheme(hex: nil)   // revert to the official BLANK TV palette
-        ActivationService.shared.clearReseller()    // drop the reseller brand/host too
+        // The palette no longer needs reverting: there is nothing that can change it at
+        // runtime any more. `clearReseller` stays, and is now purely a migration — it
+        // erases brand keys left in UserDefaults by a build from before 2026-07-22.
+        ActivationService.shared.clearReseller()
         ConfigService.shared.reset()            // mirror logout's full teardown so no
         ContentCache.reset()                    // previous-user config/content lingers
         ParentalService.shared.resetAll()       // account deletion clears the parental PIN too

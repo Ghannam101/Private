@@ -905,17 +905,25 @@ final class Store {
     }
 
     // MARK: - Reseller code (customer entered a reseller's code → branded + auto-activated)
-    var resellerCode: String? {
-        get { ud.string(forKey: K.resellerCode.rawValue) }
-        set { newValue == nil ? ud.removeObject(forKey: K.resellerCode.rawValue) : ud.set(newValue, forKey: K.resellerCode.rawValue) }
-    }
+    // `resellerCode` was the activation code that put the app into reseller mode. Its
+    // only reader was `isResellerMode`, which nothing read. Accessor gone; the key is
+    // kept for the erase below.
+    //
+    // `resellerHost` STAYS, and the distinction is the whole point of this change: it
+    // pre-fills the SERVER FIELD on the login screen (GatewayView:575,700 and
+    // AuthViews:222,283). That is a login convenience, not branding — no reviewer reads
+    // "remembers your host" as a template engine, and removing it would make a user
+    // with a saved host type it again. Deleting things that merely LOOK related is how
+    // a cleanup becomes a regression.
     var resellerHost: String? {
         get { ud.string(forKey: K.resellerHost.rawValue) }
         set { ud.set(newValue, forKey: K.resellerHost.rawValue) }
     }
-    var brandName:  String? { get { ud.string(forKey: K.brandName.rawValue) }  set { ud.set(newValue, forKey: K.brandName.rawValue) } }
-    var brandColor: String? { get { ud.string(forKey: K.brandColor.rawValue) } set { ud.set(newValue, forKey: K.brandColor.rawValue) } }
-    var brandLogo:  String? { get { ud.string(forKey: K.brandLogo.rawValue) }  set { ud.set(newValue, forKey: K.brandLogo.rawValue) } }
+    // The brandName / brandColor / brandLogo accessors are gone: they were the storage
+    // behind a runtime re-skin, which is what Guideline 4.2.6 is written about. The
+    // KEYS stay in `K` on purpose — `clearReseller()` below still has to erase them
+    // from devices that installed a build before 2026-07-22 and are carrying values
+    // no code can write any more. Deleting the keys would strand that data forever.
     func clearReseller() {
         for k in [K.resellerCode, K.resellerHost, K.brandName, K.brandColor, K.brandLogo] { ud.removeObject(forKey: k.rawValue) }
     }
