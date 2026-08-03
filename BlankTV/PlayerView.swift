@@ -239,6 +239,59 @@ struct PlayerEngineView: View {
         }
     }
 
+    /// The title split for the plate above the scrubber: a small line of context over
+    /// a large line that is the thing itself.
+    ///
+    /// `title` above stays as it is — it feeds the top bar, where one truncating line
+    /// is right. This is the opposite problem: at the bottom the eye is already on the
+    /// scrubber asking "where am I", and the answer to "in WHAT" belongs beside it.
+    private var billing: (context: String?, work: String) {
+        switch currentItem {
+        case .live(let ch):
+            return (nil, ch.name)
+        case .movie(let m):
+            return (nil, m.name)
+        case .episode(let ep, let s):
+            // The series and episode number are the CONTEXT; the episode's own title is
+            // the work. Providers frequently send an empty or placeholder episode title,
+            // so when there is nothing worth reading the series carries the main line
+            // and the number moves up — never a blank line, never "Episode 4" alone.
+            let ctx = "\(s.name) · \(L("episode.number")) \(ep.episodeNumber)"
+            let name = ep.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let usable = !name.isEmpty
+                && name.caseInsensitiveCompare(s.name) != .orderedSame
+                && name.rangeOfCharacter(from: .letters) != nil
+            return usable ? (ctx, name) : (nil, ctx)
+        }
+    }
+
+    /// The billing plate: context, then the work, sitting directly above the scrubber.
+    ///
+    /// Deliberately NON-INTERACTIVE. This sits inside the controls overlay, above the
+    /// gesture zones, and a tap target here would repeat the defect that once killed
+    /// every gesture in this player the moment the controls appeared.
+    private var billingPlate: some View {
+        let b = billing
+        return VStack(alignment: .leading, spacing: 2) {
+            if let ctx = b.context {
+                Text(ctx)
+                    .font(S8KFont.caption2)
+                    .foregroundColor(.s8kTextTertiary)
+                    .lineLimit(1)
+            }
+            Text(b.work)
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                // The scrubber sits over moving video and so does this. Without a shadow
+                // white type shimmers against a bright frame; with one it holds on both.
+                .shadow(color: .black.opacity(0.45), radius: 5, y: 1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .allowsHitTesting(false)
+    }
+
     // MARK: - Episode context (auto-next + skip-intro)
     private var episodeContext: (ep: Episode, series: Series)? {
         if case .episode(let ep, let s) = currentItem { return (ep, s) }
@@ -942,6 +995,14 @@ struct PlayerEngineView: View {
                         .background(Color.black.opacity(0.5)).clipShape(Capsule())
                         .frame(maxWidth: .infinity, alignment: .trailing)
                     }
+
+                    // What you are watching, immediately above where you are in it.
+                    // The top bar has carried this as a small subhead beside the back
+                    // chevron — the same place the reference puts it, and far from the
+                    // scrubber the eye is actually on. Here the two questions the
+                    // controls answer, "in what" and "where", finally sit together.
+                    billingPlate
+                        .padding(.bottom, 6)
 
                     if vm.duration > 0 {
                         Slider(value: $scrubValue, in: 0...1, onEditingChanged: { editing in
