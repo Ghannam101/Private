@@ -97,72 +97,111 @@ enum Plate {
 
         // Structure is what separates two plates; hue is what must not. Twelve plates
         // at a clamped chroma would read as one object repeated if only the hue moved.
-        var weft = 46 + Int(k[0] * 34)
-        var warp = 26 + Int(k[1] * 26)
+        var weft: Int = 46 + Int(k[0] * 34)
+        var warp: Int = 26 + Int(k[1] * 26)
         weft = max(12, min(weft, Int(pixels.height / minThread)))
         warp = max(8, min(warp, Int(pixels.width / minThread)))
 
-        let hue = k[2] * 2 * .pi
-        let skew = (k[3] - 0.5) * 1.1
+        // EVERY binding below is annotated, and none of them chains. That is not style:
+        // an unannotated `1.0 + (k[(i * 7 + 19) % 64] - 0.5) * slub` mixes Int index
+        // arithmetic with CGFloat literals, and Swift's type checker has to weigh every
+        // overload of +, -, * and % across Int, Double and CGFloat at once. It gave up —
+        // "unable to type-check this expression in reasonable time" — and failed the
+        // build. Explicit types collapse the search space to one candidate per operator.
+        let hue: CGFloat = k[2] * 2 * .pi
+        let skew: CGFloat = (k[3] - 0.5) * 1.1
 
         // Three low-frequency sinusoids. LOW frequency is the point — high frequency
         // here stops being cloth and becomes a sprite.
-        let f1 = 0.6 + k[4] * 1.6, f2 = 1.4 + k[5] * 2.4, f3 = 2.6 + k[6] * 4.0
-        let p1 = k[7] * 6.283, p2 = k[8] * 6.283, p3 = k[9] * 6.283
-        let a1 = 0.55 + k[10] * 0.45, a2 = 0.30 + k[11] * 0.38, a3 = 0.14 + k[12] * 0.26
-        let ribWeft = 0.085 + k[14] * 0.055
-        let ribWarp = 0.075 + k[15] * 0.050
-        let slub = 0.20 + k[16] * 0.35
+        let f1: CGFloat = 0.6 + k[4] * 1.6
+        let f2: CGFloat = 1.4 + k[5] * 2.4
+        let f3: CGFloat = 2.6 + k[6] * 4.0
+        let p1: CGFloat = k[7] * 6.283
+        let p2: CGFloat = k[8] * 6.283
+        let p3: CGFloat = k[9] * 6.283
+        let a1: CGFloat = 0.55 + k[10] * 0.45
+        let a2: CGFloat = 0.30 + k[11] * 0.38
+        let a3: CGFloat = 0.14 + k[12] * 0.26
+        let aSum: CGFloat = a1 + a2 + a3
+        let ribWeft: CGFloat = 0.085 + k[14] * 0.055
+        let ribWarp: CGFloat = 0.075 + k[15] * 0.050
+        let slub: CGFloat = 0.20 + k[16] * 0.35
 
         // Per-thread thickness variation, seeded like everything else. A perfectly even
         // weave reads as machine print rather than as something made.
-        let slubY = (0...(weft + 1)).map { 1.0 + (k[($0 * 7 + 19) % 64] - 0.5) * slub }
-        let slubX = (0...(warp + 1)).map { 1.0 + (k[($0 * 11 + 23) % 64] - 0.5) * slub }
+        var slubY = [CGFloat](repeating: 1, count: weft + 2)
+        for i in 0..<slubY.count {
+            let j: Int = (i * 7 + 19) % 64
+            slubY[i] = 1 + (k[j] - 0.5) * slub
+        }
+        var slubX = [CGFloat](repeating: 1, count: warp + 2)
+        for i in 0..<slubX.count {
+            let j: Int = (i * 11 + 23) % 64
+            slubX[i] = 1 + (k[j] - 0.5) * slub
+        }
 
-        let fmt = UIGraphicsImageRendererFormat.default()
+        let fmt: UIGraphicsImageRendererFormat = UIGraphicsImageRendererFormat.default()
         fmt.scale = scale
         fmt.opaque = true
-        let pointSize = CGSize(width: pixels.width / scale, height: pixels.height / scale)
+        let ptW: CGFloat = pixels.width / scale
+        let ptH: CGFloat = pixels.height / scale
+        let pointSize: CGSize = CGSize(width: ptW, height: ptH)
 
-        return UIGraphicsImageRenderer(size: pointSize, format: fmt).image { ctx in
-            let cg = ctx.cgContext
-            let cellH = pointSize.height / CGFloat(weft)
-            let cellW = pointSize.width / CGFloat(warp)
+        // The renderer is bound to a name before the closure rather than constructed
+        // inside the same expression: the build that failed reported this whole
+        // `UIGraphicsImageRenderer(…).image { … }` as ONE expression over budget, and
+        // splitting the construction off leaves the closure's expression with a single
+        // concretely-typed receiver and exactly one `image(actions:)` candidate.
+        let renderer: UIGraphicsImageRenderer = UIGraphicsImageRenderer(size: pointSize, format: fmt)
+        return renderer.image { ctx in
+            let cg: CGContext = ctx.cgContext
+            let cellH: CGFloat = pointSize.height / CGFloat(weft)
+            let cellW: CGFloat = pointSize.width / CGFloat(warp)
+            // Loop-invariant, and hoisted so the CGRect below takes four already-typed
+            // CGFloats instead of arithmetic against CGRect's Int/Double/CGFloat inits.
+            let drawW: CGFloat = cellW + 0.5
+            let drawH: CGFloat = cellH + 0.5
 
             // Drawn as a grid of cells rather than per pixel: the interlace varies per
             // cell, not per pixel, so a few thousand fills give the same image for a
             // fraction of the cost. The vertical gradient bands at `weft` steps, which
             // at 46+ rows is below the threshold where an eye reads it as banding.
             for row in 0..<weft {
-                let t = CGFloat(row) / CGFloat(weft)
-                let s = (a1 * sin(f1 * t * 6.283 + p1)
-                       + a2 * sin(f2 * t * 6.283 + p2)
-                       + a3 * sin(f3 * t * 6.283 + p3)) / (a1 + a2 + a3)
+                let t: CGFloat = CGFloat(row) / CGFloat(weft)
+                // Split one term per line, each annotated. Summing three sin() calls in
+                // a single expression is the same trap that failed the build above.
+                let w1: CGFloat = a1 * sin(f1 * t * 6.283 + p1)
+                let w2: CGFloat = a2 * sin(f2 * t * 6.283 + p2)
+                let w3: CGFloat = a3 * sin(f3 * t * 6.283 + p3)
+                let s: CGFloat = (w1 + w2 + w3) / aSum
 
-                let baseL = lightLow + (lightHigh - lightLow) * (0.5 + 0.5 * s)
-                let h = hue + s * skew
-                let c = chromaCap * (0.55 + 0.45 * abs(s))
-                let aStar = c * cos(h), bStar = c * sin(h)
+                let baseL: CGFloat = lightLow + (lightHigh - lightLow) * (0.5 + 0.5 * s)
+                let h: CGFloat = hue + s * skew
+                let c: CGFloat = chromaCap * (0.55 + 0.45 * abs(s))
+                let aStar: CGFloat = c * cos(h)
+                let bStar: CGFloat = c * sin(h)
 
                 // Thread thickness reads as how much of the cell the crown occupies.
-                let crownY = 0.5 * min(max(slubY[row], 0.4), 1.6)
+                let crownY: CGFloat = 0.5 * min(max(slubY[row], 0.4), 1.6)
 
                 for col in 0..<warp {
-                    let crownX = 0.5 * min(max(slubX[col], 0.4), 1.6)
+                    let crownX: CGFloat = 0.5 * min(max(slubX[col], 0.4), 1.6)
 
                     // THE INTERLACE. On an "over" cell the weft thread lies on top and
                     // catches the light; on "under" the warp does. A plain sine grid
                     // reads as a screen door — this parity is what reads as weaving.
-                    let over = (row + col) % 2 == 0
-                    let lift = over
-                        ? crownY * ribWeft * 1.15 - (1 - crownX) * ribWarp * 0.45
-                        : crownX * ribWarp * 1.15 - (1 - crownY) * ribWeft * 0.45
+                    let over: Bool = (row + col) % 2 == 0
+                    let liftOver: CGFloat = crownY * ribWeft * 1.15 - (1 - crownX) * ribWarp * 0.45
+                    let liftUnder: CGFloat = crownX * ribWarp * 1.15 - (1 - crownY) * ribWeft * 0.45
+                    let lift: CGFloat = over ? liftOver : liftUnder
 
-                    cg.setFillColor(srgb(l: baseL + lift, a: aStar, b: bStar))
+                    let fillL: CGFloat = baseL + lift
+                    cg.setFillColor(srgb(l: fillL, a: aStar, b: bStar))
                     // Overdrawn by a hair so seams between cells cannot show as a grid
                     // of pale hairlines on a non-integral scale.
-                    cg.fill(CGRect(x: CGFloat(col) * cellW, y: CGFloat(row) * cellH,
-                                   width: cellW + 0.5, height: cellH + 0.5))
+                    let cellX: CGFloat = CGFloat(col) * cellW
+                    let cellY: CGFloat = CGFloat(row) * cellH
+                    cg.fill(CGRect(x: cellX, y: cellY, width: drawW, height: drawH))
                 }
             }
         }
@@ -176,19 +215,27 @@ enum Plate {
     private static let space = CGColorSpace(name: CGColorSpace.sRGB)!
 
     private static func srgb(l: CGFloat, a: CGFloat, b: CGFloat) -> CGColor {
-        let L = min(max(l, 0), 1)
-        let l_ = L + 0.3963377774 * a + 0.2158037573 * b
-        let m_ = L - 0.1055613458 * a - 0.0638541728 * b
-        let s_ = L - 0.0894841775 * a - 1.2914855480 * b
-        let lc = l_ * l_ * l_, mc = m_ * m_ * m_, sc = s_ * s_ * s_
+        // Annotated throughout for the same reason as `draw`: long chains of literal
+        // arithmetic on CGFloat are what put the type checker over its budget.
+        let L: CGFloat = min(max(l, 0), 1)
+        let l_: CGFloat = L + 0.3963377774 * a + 0.2158037573 * b
+        let m_: CGFloat = L - 0.1055613458 * a - 0.0638541728 * b
+        let s_: CGFloat = L - 0.0894841775 * a - 1.2914855480 * b
+        let lc: CGFloat = l_ * l_ * l_
+        let mc: CGFloat = m_ * m_ * m_
+        let sc: CGFloat = s_ * s_ * s_
 
         func encode(_ v: CGFloat) -> CGFloat {
-            let c = min(max(v, 0), 1)
-            return c <= 0.0031308 ? 12.92 * c : 1.055 * pow(c, 1 / 2.4) - 0.055
+            let c: CGFloat = min(max(v, 0), 1)
+            if c <= 0.0031308 { return 12.92 * c }
+            return 1.055 * pow(c, 1 / 2.4) - 0.055
         }
-        let r = encode(+4.0767416621 * lc - 3.3077115913 * mc + 0.2309699292 * sc)
-        let g = encode(-1.2684380046 * lc + 2.6097574011 * mc - 0.3413193965 * sc)
-        let bl = encode(-0.0041960863 * lc - 0.7034186147 * mc + 1.7076147010 * sc)
+        let rLin: CGFloat = 4.0767416621 * lc - 3.3077115913 * mc + 0.2309699292 * sc
+        let gLin: CGFloat = -1.2684380046 * lc + 2.6097574011 * mc - 0.3413193965 * sc
+        let bLin: CGFloat = -0.0041960863 * lc - 0.7034186147 * mc + 1.7076147010 * sc
+        let r: CGFloat = encode(rLin)
+        let g: CGFloat = encode(gLin)
+        let bl: CGFloat = encode(bLin)
         // Built straight in the colour space rather than through UIColor: this runs a
         // few thousand times per plate, and it is also honest about what it is. These
         // are not identity colours and must not resolve through BrandTheme — they are
