@@ -1,5 +1,5 @@
 // ============================================================
-// Blank Prime — Core.swift
+// Trex TV — Core.swift
 // Network + Storage + Security — All in one file
 // ============================================================
 
@@ -2632,7 +2632,7 @@ enum ContentService {
     // the user's OWN provider via PlaylistService (raw M3U or Xtream-direct), or to
     // DemoContent. The old `XtreamService` proxy fallback has been
     // removed structurally, so no content request can ever reach the backend —
-    // regardless of `mode`. Blank Prime is a pure, independent player.
+    // regardless of `mode`. This is a pure, independent player.
     // The two live accessors take the fast path: channels do not wait on the movies
     // and series payloads, which are many times their size. See PlaylistService
     // .channelsFast for why the protocol leaves no other lever.

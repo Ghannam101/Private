@@ -1795,7 +1795,7 @@ struct S8KWatermark: View {
     }
 }
 
-// MARK: - Brand wordmark (premium "BLANK TV")
+// MARK: - Brand wordmark
 // MARK: - Brand kit (per-reseller white-label: name / logo / accent)
 /// THE IDENTITY. Everything that makes this app *this* brand is decided here and
 /// nowhere else, so changing identity is editing one type rather than hunting through
