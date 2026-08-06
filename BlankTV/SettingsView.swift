@@ -510,6 +510,19 @@ struct SetAboutPage: View {
                 SetUI.navRow(icon: "hand.raised.fill", title: L("set.privacy"), chevron: true) { showPrivacy = true }
                 SetUI.divider()
                 SetUI.navRow(icon: "doc.text.fill", title: L("set.terms"), chevron: true) { showTerms = true }
+                // Guideline 1.2 wants a way to report objectionable content in any app
+                // that shows content it did not author, and this app plays whatever
+                // stream the user's provider sends. The address existed in S8KBrand and
+                // was rendered NOWHERE — zero call sites — so there was no mechanism at
+                // all, only the appearance of having planned one.
+                //
+                // The mail is pre-composed because a reviewer checks that the button
+                // WORKS, and because a report with no subject line is a report nobody
+                // can action.
+                SetUI.divider()
+                SetUI.navRow(icon: "exclamationmark.bubble.fill", title: L("set.report"), chevron: true) {
+                    openReportMail()
+                }
                 SetUI.divider()
                 Button(action: { showDeleteAlert = true }) {
                     SetUI.proRow(icon: "person.crop.circle.badge.minus", title: L("set.delete"), danger: true, trailing: { EmptyView() })
@@ -529,6 +542,24 @@ struct SetAboutPage: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: showDeleteAlert)
+    }
+
+    /// Open a pre-composed report to the address in `S8KBrand`.
+    ///
+    /// Percent-encoding the subject and body is not optional: they are Arabic, and a raw
+    /// mailto: with non-ASCII query values produces a URL that `URL(string:)` refuses to
+    /// build — the button would then silently do nothing, which is worse than not having
+    /// it, because a reviewer taps it and sees a dead control.
+    private func openReportMail() {
+        let subject = L("report.subject")
+        let body = L("report.body")
+        var c = URLComponents()
+        c.scheme = "mailto"
+        c.path = S8KBrand.reportEmail
+        c.queryItems = [URLQueryItem(name: "subject", value: subject),
+                        URLQueryItem(name: "body", value: body)]
+        guard let url = c.url else { return }
+        UIApplication.shared.open(url)
     }
 }
 

@@ -832,7 +832,7 @@ struct BrandTheme {
     var accentDeep: Color
 
     /// The active theme the whole app renders with. Change it → the app re-skins.
-    static var active: BrandTheme = .arenaOrange
+    static var active: BrandTheme = .trexEmber
 
     // ---- Ready-made palettes ----
 
@@ -850,6 +850,33 @@ struct BrandTheme {
     /// Ink on the accent is COMPUTED, never fixed — `S8KBrand.accentInk` measures
     /// luminance. #FF6029 lands near 0.30, so it resolves to white, which is exactly
     /// what the brand's own lockup does: a white wordmark on the orange field.
+    /// TREX TV — every value measured out of the owner's own logo file, not chosen.
+    ///
+    /// `base` is his background pixel, unaltered. The surfaces walk H240 → 249 → 260 → 265
+    /// and arrive at the violet corner sampled from the T-stem of his wordmark, so the dark
+    /// ramp is his drawing too rather than a navy someone liked.
+    ///
+    /// `accentHigh` is the skull's measured MEAN, and choosing the mean over the gradient's
+    /// amber end was a deliberate 4.3 decision: that amber is #FC9119 at H31, and the live
+    /// sibling "strong 8k" ships gold #C8860A at H39. Eight degrees apart. Taking the app
+    /// accent to the mean at H20 puts nineteen degrees between them — the mark's gradient
+    /// may reach amber, but the flat UI accent must not walk into the competitor's hue.
+    ///
+    /// Contrast recomputed by the chief engineer, not copied: accentHigh reads 6.70 / 6.28 /
+    /// 5.84 / 5.19 against base / surface / card / elevated. All four clear AA, and that is
+    /// what pins `elevated` at V23 rather than something lighter. Everything below
+    /// accentHigh is fill and border only — never text.
+    static let trexEmber = BrandTheme(
+        base:     Color(red: 0.043, green: 0.043, blue: 0.090),   // #0B0B17  his ground
+        surface:  Color(red: 0.082, green: 0.075, blue: 0.129),   // #151321
+        card:     Color(red: 0.122, green: 0.098, blue: 0.169),   // #1F192B
+        elevated: Color(red: 0.173, green: 0.129, blue: 0.231),   // #2C213B
+        accentHigh: Color(red: 0.957, green: 0.439, blue: 0.165), // #F4702A  skull mean
+        accentMid:  Color(red: 0.753, green: 0.263, blue: 0.165), // #C0432A
+        accentLow:  Color(red: 0.494, green: 0.173, blue: 0.133), // #7E2C22
+        accentDeep: Color(red: 0.298, green: 0.102, blue: 0.090)  // #4C1A17
+    )
+
     static let arenaOrange = BrandTheme(
         base:     Color(red: 0.047, green: 0.031, blue: 0.024),   // #0C0806
         surface:  Color(red: 0.082, green: 0.063, blue: 0.063),   // #151010

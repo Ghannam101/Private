@@ -148,6 +148,15 @@ enum L10n {
         "set.about":    [.ar: "عن التطبيق",       .en: "About",     .fr: "À propos", .tr: "Hakkında",.es: "Acerca de"],
         "set.privacy":  [.ar: "سياسة الخصوصية",   .en: "Privacy Policy", .fr: "Confidentialité", .tr: "Gizlilik Politikası", .es: "Política de privacidad"],
         "set.terms":    [.ar: "شروط الاستخدام",   .en: "Terms of Use", .fr: "Conditions", .tr: "Kullanım Şartları", .es: "Términos"],
+        // Guideline 1.2 — the reporting mechanism. The English wording is deliberately
+        // the phrase Apple's own guideline uses, because a reviewer scans for it.
+        "set.report":   [.ar: "الإبلاغ عن محتوى مسيء", .en: "Report Objectionable Content", .fr: "Signaler un contenu", .tr: "Uygunsuz İçeriği Bildir", .es: "Denunciar contenido"],
+        "report.subject": [.ar: "إبلاغ عن محتوى مسيء", .en: "Report objectionable content", .fr: "Signalement de contenu", .tr: "Uygunsuz içerik bildirimi", .es: "Denuncia de contenido"],
+        "report.body":  [.ar: "صف المحتوى الذي تريد الإبلاغ عنه، واسم القناة أو العمل إن أمكن:\n\n",
+                         .en: "Describe the content you are reporting, with the channel or title if you can:\n\n",
+                         .fr: "Décrivez le contenu signalé, avec la chaîne ou le titre si possible :\n\n",
+                         .tr: "Bildirdiğiniz içeriği, mümkünse kanal veya başlık adıyla birlikte açıklayın:\n\n",
+                         .es: "Describe el contenido que denuncias, con el canal o título si puedes:\n\n"],
         "set.delete":   [.ar: "حذف الحساب",       .en: "Delete Account", .fr: "Supprimer le compte", .tr: "Hesabı Sil", .es: "Eliminar cuenta"],
         "set.support":  [.ar: "تواصل مع الدعم", .en: "Contact Support", .fr: "Écrire au support", .tr: "Destek ekibine yaz", .es: "Escribir a soporte"],
         "set.connection":[.ar: "الاتصال والحساب", .en: "Connection & Account", .fr: "Connexion et compte", .tr: "Bağlantı ve Hesap", .es: "Conexión y cuenta"],
@@ -389,7 +398,12 @@ enum L10n {
         "login.need_url":      [.ar: "أدخل رابط السيرفر كاملاً — مثل http://host:8080", .en: "Enter the full server URL — e.g. http://host:8080", .fr: "Saisissez l'URL complète du serveur — ex. http://host:8080", .tr: "Tam sunucu adresini girin — örn. http://host:8080", .es: "Introduce la URL completa del servidor — p. ej. http://host:8080"],
         "login.server_or_code":[.ar: "رابط السيرفر", .en: "Server URL", .fr: "URL du serveur", .tr: "Sunucu adresi", .es: "URL del servidor"],
         "login.server_hint":[.ar: "يعطيك إيّاه مزوّدك · مثل http://host:8080", .en: "Your provider gives you this · e.g. http://host:8080", .fr: "Fourni par votre opérateur · ex. http://host:8080", .tr: "Sağlayıcınız verir · örn. http://host:8080", .es: "Te lo da tu proveedor · ej. http://host:8080"],
-        "login.demo":       [.ar: "ادخل للتجربة أولاً", .en: "Try it first", .fr: "Essayer d'abord", .tr: "Önce dene", .es: "Probar primero"],
+        // The English MUST contain "Demo" or "Guest". App Review notes tell the reviewer
+        // to tap this button to get in without an account, and "Try it first" is not a
+        // phrase anyone searches a login screen for — a reviewer who cannot find the way
+        // in rejects the app under 2.1, and that is the commonest rejection there is for
+        // anything behind a sign-in.
+        "login.demo":       [.ar: "تصفّح كضيف — بلا حساب", .en: "Browse as Guest (Demo)", .fr: "Parcourir en invité (démo)", .tr: "Misafir olarak gez (Demo)", .es: "Explorar como invitado (demo)"],
         "login.need_help":  [.ar: "تعثّر التفعيل؟ الدعم جاهز", .en: "Activation stuck? Support is here", .fr: "L'activation bloque ? Le support est là", .tr: "Etkinleştirme takıldı mı? Destek burada", .es: "¿Se atasca la activación? Soporte está aquí"],
         "login.agree":      [.ar: "بدخولك أنت توافق على", .en: "By signing in you agree to", .fr: "En vous connectant, vous acceptez", .tr: "Giriş yaparak şunları kabul edersiniz", .es: "Al iniciar sesión aceptas"],
         "login.and":        [.ar: "و",                  .en: "and",             .fr: "et",              .tr: "ve",              .es: "y"],
