@@ -647,7 +647,7 @@ struct GatewayView: View {
             // Reseller support — this lived on the retired SubscriptionsGateView, and
             // without it a customer whose line has expired has no way to reach their
             // reseller from the login screen.
-            if let support = activation.supportURL, let u = URL(string: support) {
+            if let u = S8KBrand.supportURL {
                 Button { UIApplication.shared.open(u) } label: {
                     Text(L("login.need_help")).font(S8KFont.caption1.weight(.semibold))
                         .foregroundColor(.s8kTextSecondary)

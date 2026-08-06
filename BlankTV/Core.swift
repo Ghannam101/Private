@@ -39,8 +39,28 @@ final class LocalizationManager: ObservableObject {
     }
     private init() {
         let saved = UserDefaults.standard.string(forKey: "s8k.lang")
-        lang = AppLang(rawValue: saved ?? "") ?? .ar
+        // A saved choice always wins — the picker in Settings is the user's, not ours.
+        // With nothing saved, FOLLOW THE DEVICE. It used to fall to Arabic no matter who
+        // was holding the phone, so a French, Turkish or English speaker opened an app
+        // they could not read and had to find a language picker written in a script they
+        // do not use. An App Review reviewer is one of those people, and "we could not
+        // review your app" under 2.1 is where that ends. Arabic remains the fallback
+        // when the device speaks none of the five we ship, which is the honest default
+        // for this product's audience.
+        lang = AppLang(rawValue: saved ?? "") ?? Self.deviceLanguage()
         Self.current = lang
+    }
+
+    /// The first of the device's preferred languages that this app actually speaks.
+    ///
+    /// Matched on the language SUBTAG only: iOS hands back tags like "ar-SA", "en-GB",
+    /// "fr-CA" and "zh-Hans-CN", and comparing those whole would match nothing.
+    private static func deviceLanguage() -> AppLang {
+        for tag in Locale.preferredLanguages {
+            let code = tag.split(separator: "-").first.map(String.init) ?? tag
+            if let match = AppLang(rawValue: code.lowercased()) { return match }
+        }
+        return .ar
     }
     func set(_ l: AppLang) { lang = l }
 }
@@ -416,13 +436,13 @@ enum L10n {
 
         // Privacy policy
         "privacy.collect.t": [.ar: "ما نجمعه", .en: "What we collect", .fr: "Ce que nous collectons", .tr: "Neleri topluyoruz", .es: "Qué recopilamos"],
-        "privacy.collect.b": [.ar: "بيانات دخولك، ومعرّف جهازك، وإحصاءات استخدام أساسية بموافقتك. لا شيء غير ذلك.", .en: "Your sign-in details, your device ID, and basic usage statistics with your consent. Nothing else.", .fr: "Vos identifiants de connexion, l'ID de l'appareil et des statistiques d'usage de base, avec votre accord. Rien d'autre.", .tr: "Giriş bilgileriniz, cihaz kimliğiniz ve onayınızla temel kullanım istatistikleri. Başka hiçbir şey.", .es: "Tus datos de acceso, el ID del dispositivo y estadísticas de uso básicas, con tu permiso. Nada más."],
+        "privacy.collect.b": [.ar: "بيانات دخول مزوّدك، وهي محفوظة على جهازك وحده. لا حسابات لدينا، ولا إحصاءات، ولا تتبّع.", .en: "Your provider sign-in details, kept on your device only. We run no accounts, no analytics and no tracking.", .fr: "Vos identifiants de connexion, l'ID de l'appareil et des statistiques d'usage de base, avec votre accord. Rien d'autre.", .tr: "Giriş bilgileriniz, cihaz kimliğiniz ve onayınızla temel kullanım istatistikleri. Başka hiçbir şey.", .es: "Tus datos de acceso, el ID del dispositivo y estadísticas de uso básicas, con tu permiso. Nada más."],
         "privacy.use.t":     [.ar: "فيمَ نستخدمها", .en: "What we use it for", .fr: "À quoi elles servent", .tr: "Ne için kullanıyoruz", .es: "Para qué los usamos"],
-        "privacy.use.b":     [.ar: "لتشغيل الخدمة، ولتحسين التطبيق، ولإشعارات تخصّ حسابك وحده.", .en: "To run the service, to improve the app, and for notifications about your account alone.", .fr: "À faire fonctionner le service, à améliorer l'app et à vous notifier au sujet de votre compte, rien de plus.", .tr: "Hizmeti çalıştırmak, uygulamayı iyileştirmek ve yalnızca hesabınızla ilgili bildirimler göndermek için.", .es: "Para que el servicio funcione, para mejorar la app y para avisarte solo sobre tu cuenta."],
+        "privacy.use.b":     [.ar: "لفتح اشتراكك عند مزوّدك أنت، لا غير. لا يُرسَل شيء إلينا.", .en: "Only to open your subscription with your own provider. Nothing is sent to us.", .fr: "À faire fonctionner le service, à améliorer l'app et à vous notifier au sujet de votre compte, rien de plus.", .tr: "Hizmeti çalıştırmak, uygulamayı iyileştirmek ve yalnızca hesabınızla ilgili bildirimler göndermek için.", .es: "Para que el servicio funcione, para mejorar la app y para avisarte solo sobre tu cuenta."],
         "privacy.share.t":   [.ar: "من يطّلع عليها",   .en: "Who sees it",    .fr: "Qui y a accès", .tr: "Kim görebilir", .es: "Quién los ve"],
         "privacy.share.b":   [.ar: "لا أحد. لا نبيع بياناتك الشخصية ولا نشاركها مع أي طرف ثالث، تحت أي ظرف.", .en: "Nobody. We do not sell your personal data and we do not share it with any third party, under any circumstances.", .fr: "Personne. Nous ne vendons pas vos données personnelles et ne les partageons avec aucun tiers, en aucun cas.", .tr: "Hiç kimse. Kişisel verilerinizi satmayız ve hiçbir koşulda üçüncü kişilerle paylaşmayız.", .es: "Nadie. No vendemos tus datos personales ni los compartimos con terceros, bajo ninguna circunstancia."],
         "privacy.security.t":[.ar: "كيف نحميها",     .en: "How we protect it",   .fr: "Comment nous les protégeons", .tr: "Nasıl koruyoruz", .es: "Cómo los protegemos"],
-        "privacy.security.b":[.ar: "نشفّر كلمات المرور ونؤمّن الاتصال بخوادمنا. أمّا روابط البثّ فيتحكّم بها مزوّدك، وقد تصلك دون تشفير.", .en: "We encrypt passwords and secure the connection to our servers. Stream links, however, are controlled by your provider and may reach you unencrypted.", .fr: "Nous chiffrons les mots de passe et sécurisons la liaison avec nos serveurs. Les liens de diffusion, eux, dépendent de votre fournisseur et peuvent vous parvenir sans chiffrement.", .tr: "Şifreleri şifreler, sunucularımıza olan bağlantıyı güvene alırız. Yayın bağlantıları ise sağlayıcınızın denetimindedir ve size şifresiz ulaşabilir.", .es: "Ciframos las contraseñas y aseguramos la conexión con nuestros servidores. Los enlaces de emisión, en cambio, los controla tu proveedor y pueden llegarte sin cifrar."],
+        "privacy.security.b":[.ar: "بياناتك لا تغادر جهازك إلى خوادمنا، لأنه لا توجد لنا خوادم. أمّا الاتصال بمزوّدك وروابط البثّ فيتحكّم بها هو، وقد تصلك دون تشفير.", .en: "Your data never leaves your device for our servers, because we do not run any. The connection to your provider and its stream links are controlled by them, and may reach you unencrypted.", .fr: "Nous chiffrons les mots de passe et sécurisons la liaison avec nos serveurs. Les liens de diffusion, eux, dépendent de votre fournisseur et peuvent vous parvenir sans chiffrement.", .tr: "Şifreleri şifreler, sunucularımıza olan bağlantıyı güvene alırız. Yayın bağlantıları ise sağlayıcınızın denetimindedir ve size şifresiz ulaşabilir.", .es: "Ciframos las contraseñas y aseguramos la conexión con nuestros servidores. Los enlaces de emisión, en cambio, los controla tu proveedor y pueden llegarte sin cifrar."],
         "privacy.rights.t":  [.ar: "ما تملكه أنت",             .en: "What is yours",     .fr: "Ce qui vous appartient",      .tr: "Size ait olan",      .es: "Lo que es tuyo"],
         "privacy.rights.b":  [.ar: "تستطيع حذف حسابك وكل بياناتك متى شئت، من داخل الإعدادات.", .en: "You can delete your account and all of your data whenever you like, from inside Settings.", .fr: "Vous pouvez supprimer votre compte et toutes vos données quand vous le souhaitez, depuis les réglages.", .tr: "Hesabınızı ve tüm verilerinizi dilediğiniz an Ayarlar'dan silebilirsiniz.", .es: "Puedes eliminar tu cuenta y todos tus datos cuando quieras, desde Ajustes."],
         "privacy.content.t": [.ar: "عن المحتوى",           .en: "About the content",         .fr: "À propos du contenu",         .tr: "İçerik hakkında",          .es: "Sobre el contenido"],

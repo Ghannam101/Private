@@ -1848,6 +1848,28 @@ enum S8KBrand {
     /// identity string still pointing at the reference's domain, and it is pending the
     /// owner's domain. Kept HERE so replacing it is one literal, like the rest.
     static let reportEmail = "report@strong8k.app"
+
+    /// Where a user in trouble writes. Guideline 1.2 requires published contact
+    /// information, and until now there was none that worked: `ActivationService`
+    /// declared a `supportURL` that no code path ever assigned, so all four support rows
+    /// — on the gateway, in the multi-account gate, on the activation screen and in
+    /// Settings — were `if let` branches that could never be true. The app looked like it
+    /// had support in four places and had it in none.
+    ///
+    /// A compile-time constant, not a server field, for the same reason the rest of the
+    /// identity is: nothing about who we are should arrive over the network.
+    static let supportEmail = "support@strong8k.app"
+
+    /// A ready-to-open support link. Built through `URLComponents` because the subject is
+    /// Arabic and a raw `mailto:` with non-ASCII query values fails `URL(string:)`, which
+    /// would put a dead control back in all four places.
+    static var supportURL: URL? {
+        var c = URLComponents()
+        c.scheme = "mailto"
+        c.path = supportEmail
+        c.queryItems = [URLQueryItem(name: "subject", value: "\(name) — \(L("set.support"))")]
+        return c.url
+    }
     // NOTE: there is deliberately no `palette` here. The palette's home is
     // `BrandTheme.active`, which the reseller path mutates at runtime; a second copy
     // pinned to `.blankGreen` would only invite ink to be computed against a colour

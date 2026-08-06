@@ -357,7 +357,7 @@ extension AdmissionDeniedScreen {
     // button that leads nowhere is worse than no button at all.
     @ViewBuilder
     private var supportLink: some View {
-        if let support = act.supportURL, let u = URL(string: support) {
+        if let u = S8KBrand.supportURL {
             Button(action: { UIApplication.shared.open(u) }) {
                 HStack(spacing: 8) {
                     Image(systemName: "bubble.left.and.bubble.right.fill")

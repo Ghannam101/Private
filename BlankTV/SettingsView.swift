@@ -502,7 +502,7 @@ struct SetAboutPage: View {
         SetScaffold(title: L("set.about_legal")) {
             SetUI.group(L("set.about_legal")) {
                 SetUI.navRow(icon: "info.circle.fill", title: L("set.about"), value: "v\(appVersion)", chevron: true) { showAbout = true }
-                if let support = activation.supportURL, let u = URL(string: support) {
+                if let u = S8KBrand.supportURL {
                     SetUI.divider()
                     SetUI.navRow(icon: "bubble.left.and.bubble.right.fill", title: L("set.support"), chevron: true) { UIApplication.shared.open(u) }
                 }

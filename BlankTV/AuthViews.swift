@@ -660,7 +660,7 @@ struct SubscriptionsGateView: View {
             }
             .buttonStyle(S8KButtonStyle())
 
-            if let support = activation.supportURL, let u = URL(string: support) {
+            if let u = S8KBrand.supportURL {
                 Button(action: { UIApplication.shared.open(u) }) {
                     Text(L("login.need_help")).font(S8KFont.caption1.weight(.semibold))
                         .foregroundColor(.s8kGoldMid)

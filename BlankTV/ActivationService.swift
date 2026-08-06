@@ -57,7 +57,11 @@ final class ActivationService: ObservableObject {
     @Published var expiresAt:      Double? = nil
     @Published var message:        String  = ""
     @Published var announcement:   String? = nil
-    @Published var supportURL:     String? = nil
+    // `supportURL` stood here: declared, published, read at four sites, and assigned by
+    // nothing. Every support row in the app was an `if let` that could never be true, so
+    // the product appeared to offer help in four places and offered it in none — a 1.2
+    // finding hiding as a feature. Support is now `S8KBrand.supportURL`, a compile-time
+    // link, because nothing about who we are should arrive over a network.
     @Published var notifications:  [AppNotification] = []
     @Published var lastError:      String? = nil
 
