@@ -1128,7 +1128,7 @@ struct ParentalControlView: View {
     @State private var recoveryEntry = ""
     @State private var recoveryError = ""
 
-    enum Step { case menu, create, disable, changeVerify, changeSet, forgotEntry, forgotSet, showRecovery, lockedCats }
+    enum Step { case menu, create, disable, changeVerify, changeSet, forgotEntry, forgotSet, showRecovery, lockedCatsVerify, lockedCats }
 
     var body: some View {
         ZStack {
@@ -1165,6 +1165,18 @@ struct ParentalControlView: View {
                 else { step = .menu }
             }
         case .showRecovery: recoveryDisplay
+        // The PIN is verified BEFORE the locked-category list opens, like every other
+        // door in this screen. It used to open straight from the menu: "Disable" and
+        // "Change PIN" both demanded the PIN, while the one screen that can actually
+        // UNLOCK the categories — and unlock them in bulk — asked for nothing. A child
+        // who reaches Settings walks past the lock through the widest gate in it.
+        //
+        // We declare parentalControls = YES on the rating questionnaire, which is a
+        // statement that this control works. It did not.
+        case .lockedCatsVerify:
+            PINEntryView(mode: .verify, allowForgot: true, onForgot: { step = .forgotEntry }) { pin in
+                step = (pin != nil) ? .lockedCats : .menu
+            }
         case .lockedCats: LockedCategoriesView(onClose: { step = .menu })
         }
     }
@@ -1215,7 +1227,7 @@ struct ParentalControlView: View {
                             .padding(.horizontal, S8KSpace.xl).padding(.top, 4)
                     } else {
                         VStack(spacing: 10) {
-                            actionCard(L("app.locked_cats"), L("pc.locked_cats.sub"), "lock.rectangle.stack.fill") { step = .lockedCats }
+                            actionCard(L("app.locked_cats"), L("pc.locked_cats.sub"), "lock.rectangle.stack.fill") { step = .lockedCatsVerify }
                             actionCard(L("pc.change_pin"), L("pc.change_pin.sub"), "key.fill") { step = .changeVerify }
                             actionCard(L("pc.disable"), L("pc.disable.sub"), "lock.open.fill", danger: true) { step = .disable }
                         }

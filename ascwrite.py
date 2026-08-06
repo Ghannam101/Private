@@ -69,10 +69,26 @@ Trex TV مشغّل فقط. لا يوفّر ولا يستضيف أي قنوات �
 #   the two INFREQUENT_OR_MILD entries mirror what the owner's live app declared and Apple
 #                          accepted five times — this is a proven answer, not a guess.
 RATING = {
-    "unrestrictedWebAccess":                       True,
+    # NO. Declared YES by mirroring the live sibling without checking whether the field
+    # applies here — and it does not: WKWebView, SFSafariViewController, WebKit and
+    # SafariServices appear ZERO times in 21,834 lines. The app plays streams through
+    # AVPlayer and VLC; it has no browser. Declaring unrestricted web access an app does
+    # not have is an inaccurate rating questionnaire under 2.3, and it was caught by an
+    # adversarial review pass, not by the person who wrote it.
+    "unrestrictedWebAccess":                       False,
     "parentalControls":                            True,
     "gunsOrOtherWeapons":                          "INFREQUENT_OR_MILD",
     "violenceCartoonOrFantasy":                    "INFREQUENT_OR_MILD",
+    # 17+ is RAISED here rather than earned by answering a question dishonestly.
+    #
+    # With unrestrictedWebAccess correctly NO, the questionnaire computes 9+ — and 9+ is
+    # wrong for this product, because the app plays whatever stream the user's provider
+    # sends and that content is not rated by anyone. No field in the questionnaire
+    # describes "third-party video of unknown rating", so the accurate answers stay
+    # accurate and the rating is lifted with the instrument Apple provides for exactly
+    # this. Declaring a browser we do not have to reach the same number would be a false
+    # answer that happens to land on the right rating.
+    "ageRatingOverride":                           "SEVENTEEN_PLUS",
     "advertising":                                 False,
     "ageAssurance":                                False,
     "contests":                                    "NONE",
