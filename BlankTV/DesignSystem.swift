@@ -1558,6 +1558,34 @@ struct S8KImage: View {
     /// blew the image cache (~38 images at 800px) and caused re-decode flicker
     /// while scrolling. Cost scales with maxPixel², so 150 vs 800 is ~28× cheaper.
     var maxPixel: CGFloat = 800
+    /// The item's name, used to weave a plate when there is no artwork.
+    ///
+    /// This is the metadata-agnostic rule made real. An IPTV provider is not a
+    /// catalogue: a large share of channels and a meaningful share of VOD arrive with
+    /// no poster at all, or with a poster URL that 404s. Every one of those cells used
+    /// to be the SAME grey box with the same grey glyph, so a screen of them read as a
+    /// screen of nothing — and worse, as a screen of identical nothings, where the eye
+    /// cannot tell one row from the next or notice that it has already scrolled past
+    /// this one.
+    ///
+    /// With a name, the cell gets a plate instead: cloth woven from the SHA-256 of that
+    /// name, so it is unique to the item, identical on every device, and computed with
+    /// no network and no metadata provider. Nothing is invented and nothing is claimed —
+    /// it is a surface, not a fabricated poster.
+    ///
+    /// Optional on purpose. A caller that genuinely has no name (a decorative frame, a
+    /// hero backdrop whose title is already set beside it) passes nothing and keeps the
+    /// old glyph, which stays the right answer when there is nothing to weave from.
+    var plateTitle: String? = nil
+    /// Whether the plate may also SET that name into its lower corner.
+    ///
+    /// The weave is always drawn — it is what makes one artless cell different from the
+    /// next. The type is separate, and there are two places it is wrong. A cell too small
+    /// to carry three legible lines: `PlateView` refuses that on its own, by measurement.
+    /// And a full-bleed hero, where the page already prints the work's name a few points
+    /// below the canvas edge — there the plate's own title lands on the seam and says the
+    /// same thing twice. Only that second case needs telling, so only it passes `false`.
+    var plateSetsTitle: Bool = true
 
     @State private var image: UIImage?
     @State private var placeholderImage: UIImage?
@@ -1652,12 +1680,22 @@ struct S8KImage: View {
         } else { failed = true }
     }
 
+    @ViewBuilder
     private var placeholderView: some View {
-        ZStack {
-            Color.s8kElevated
-            Image(systemName: placeholder)
-                .font(.system(size: 22, weight: .ultraLight))
-                .foregroundColor(.s8kTextDisabled)
+        // A name to weave from beats a glyph. `trimmed` and not `isEmpty` because
+        // providers send " " and "\n" as often as they send nothing, and a plate woven
+        // from a space is one cloth shared by every nameless item — precisely the
+        // sameness this replaces.
+        if let name = plateTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !name.isEmpty {
+            PlateView(title: name, setsTitle: plateSetsTitle)
+        } else {
+            ZStack {
+                Color.s8kElevated
+                Image(systemName: placeholder)
+                    .font(.system(size: 22, weight: .ultraLight))
+                    .foregroundColor(.s8kTextDisabled)
+            }
         }
     }
 
@@ -2050,7 +2088,7 @@ struct ContentCard: View {
             VStack(alignment: .trailing, spacing: 7) {
                 // Image container
                 ZStack(alignment: .topTrailing) {
-                    S8KImage(url: imageURL, placeholder: "film")
+                    S8KImage(url: imageURL, placeholder: "film", plateTitle: title)
                         .frame(width: 118, height: 166)
                         .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md))
                         .overlay(
@@ -2112,7 +2150,8 @@ struct ChannelChip: View {
         Button(action: onTap) {
             VStack(spacing: 7) {
                 ZStack(alignment: .topTrailing) {
-                    S8KImage(url: logoURL, placeholder: "antenna.radiowaves.left.and.right", maxPixel: 240)
+                    S8KImage(url: logoURL, placeholder: "antenna.radiowaves.left.and.right", maxPixel: 240,
+                             plateTitle: name)
                         .frame(width: 64, height: 64)
                         .background(Color.s8kElevated)
                         .clipShape(RoundedRectangle(cornerRadius: 18))

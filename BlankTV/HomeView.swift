@@ -660,7 +660,7 @@ private extension HomeView {
     /// Artwork, the centre glyph and how far in they got — one fixed-size tile.
     func resumeThumb(_ item: WatchHistory) -> some View {
         ZStack(alignment: .bottom) {
-            S8KImage(url: item.posterURL, placeholder: "play.fill")
+            S8KImage(url: item.posterURL, placeholder: "play.fill", plateTitle: item.contentName)
                 .frame(width: 220, height: 124)
                 .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md))
                 .overlay(RoundedRectangle(cornerRadius: S8KRadius.md)
@@ -684,13 +684,17 @@ private extension HomeView {
         VStack(spacing: 0) {
             if !vm.topMovies.isEmpty {
                 RankRail(title: L("home.top_movies"),
-                         cells: vm.topMovies.enumerated().map { ($0.offset + 1, $0.element.id, $0.element.posterURL, $0.element.rating, $0.element.year) }) { id in
+                         cells: vm.topMovies.enumerated().map { e -> RankRail.Cell in
+                                 (e.offset + 1, e.element.id, e.element.name, e.element.posterURL, e.element.rating, e.element.year)
+                             }) { id in
                     if let m = vm.topMovies.first(where: { $0.id == id }) { route = .movieDetail(m) }
                 }
             }
             if !vm.topSeries.isEmpty {
                 RankRail(title: L("home.top_series"),
-                         cells: vm.topSeries.enumerated().map { ($0.offset + 1, $0.element.id, $0.element.coverURL, $0.element.rating, $0.element.year) }) { id in
+                         cells: vm.topSeries.enumerated().map { e -> RankRail.Cell in
+                                 (e.offset + 1, e.element.id, e.element.name, e.element.coverURL, e.element.rating, e.element.year)
+                             }) { id in
                     if let s = vm.topSeries.first(where: { $0.id == id }) { route = .seriesDetail(s) }
                 }
                 .padding(.bottom, S8KSpace.md)
@@ -1093,7 +1097,8 @@ struct HeroCarouselView: View {
                         VStack(spacing: 0) {
                             Color.clear.frame(height: metrics.safeTop)
                             S8KImage(url: item.backdropURL, placeholder: "film",
-                                     maxPixel: s8kHeroPixels(metrics.cls.isCompact))
+                                     maxPixel: s8kHeroPixels(metrics.cls.isCompact),
+                                     plateTitle: item.name, plateSetsTitle: false)
                         }
                     }
                     .clipped()
@@ -1233,7 +1238,23 @@ struct HeroCarouselView: View {
 // (rank / id / poster / rating / year); `onTap` receives the tapped id.
 struct RankRail: View {
     let title: String
-    let cells: [(rank: Int, id: String, poster: String?, rating: String?, year: String?)]
+    /// One entry in the rail.
+    ///
+    /// Named, and not written inline at each call site, for the type checker rather than
+    /// for the reader. Every caller builds these with
+    /// `.enumerated().map { ($0.offset + 1, $0.element.id, …) }`, and an unannotated
+    /// six-element heterogeneous tuple returned from a closure inside a `map` inside a
+    /// `ForEach` inside a `ViewBuilder` is the exact shape that expired three expression
+    /// budgets and failed build 111. With the return type named, there is nothing left
+    /// to infer.
+    ///
+    /// `name` is carried only so a cell with no poster can weave a plate from it — the
+    /// rail itself never prints it. Without it every artless entry in the Top 10 fell
+    /// back to the same grey glyph, which on the one rail that is explicitly about ORDER
+    /// made ten distinct titles look like one tile repeated.
+    typealias Cell = (rank: Int, id: String, name: String, poster: String?, rating: String?, year: String?)
+
+    let cells: [Cell]
     let onTap: (String) -> Void
 
     var body: some View {
@@ -1255,7 +1276,7 @@ struct RankRail: View {
                 LazyHStack(alignment: .bottom, spacing: 10) {
                     ForEach(cells, id: \.id) { c in
                         Button(action: { onTap(c.id) }) {
-                            rankCell(rank: c.rank, poster: c.poster, rating: c.rating, year: c.year)
+                            rankCell(rank: c.rank, name: c.name, poster: c.poster, rating: c.rating, year: c.year)
                         }
                         .buttonStyle(S8KButtonStyle())
                     }
@@ -1269,11 +1290,11 @@ struct RankRail: View {
 
     // A big HOLLOW (outlined) rank number with the poster overlapping its right
     // side, and the global rating (★ 8.3) badged on the poster.
-    private func rankCell(rank: Int, poster: String?, rating: String?, year: String?) -> some View {
+    private func rankCell(rank: Int, name: String, poster: String?, rating: String?, year: String?) -> some View {
         HStack(alignment: .bottom, spacing: -18) {
             outlinedNumber(rank)
             Color.clear.frame(width: 106, height: 154)
-                .overlay { S8KImage(url: poster, placeholder: "film", maxPixel: 420) }
+                .overlay { S8KImage(url: poster, placeholder: "film", maxPixel: 420, plateTitle: name) }
                 .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
                     .strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
@@ -1347,7 +1368,8 @@ struct ChannelCardSheet: View {
             // medium detent would push the Play button out of reach.
             ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: S8KSpace.xl) {
-                S8KImage(url: channel.logoURL, placeholder: "antenna.radiowaves.left.and.right", maxPixel: 240)
+                S8KImage(url: channel.logoURL, placeholder: "antenna.radiowaves.left.and.right", maxPixel: 240,
+                         plateTitle: channel.name)
                     .frame(width: 90, height: 90)
                     .background(Color.s8kElevated)
                     .clipShape(RoundedRectangle(cornerRadius: 22))
@@ -1459,7 +1481,7 @@ struct WatchHistoryPage: View {
                 ZStack(alignment: .bottom) {
                     Color.clear
                         .frame(maxWidth: .infinity).frame(height: 96)
-                        .overlay { S8KImage(url: h.posterURL, placeholder: "play.fill") }
+                        .overlay { S8KImage(url: h.posterURL, placeholder: "play.fill", plateTitle: h.contentName) }
                         .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm))
                     S8KProgressBar(fraction: h.progress, track: Color.white.opacity(0.15))
                 }
@@ -1536,7 +1558,7 @@ private struct HomeSearchOverlay: View {
     private func row(_ r: SearchVM.SearchResult) -> some View {
         HStack(spacing: 12) {
             Color.clear.frame(width: 46, height: 46)
-                .overlay { S8KImage(url: r.imageURL, placeholder: r.type.icon, maxPixel: 160) }
+                .overlay { S8KImage(url: r.imageURL, placeholder: r.type.icon, maxPixel: 160, plateTitle: r.title) }
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
                     .strokeBorder(Color.s8kBorder, lineWidth: 1))

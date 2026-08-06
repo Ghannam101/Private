@@ -799,7 +799,7 @@ struct MovieTile: View {
                     Color.clear
                         .frame(maxWidth: .infinity)
                         .aspectRatio(2.0 / 3.0, contentMode: .fit)
-                        .overlay { S8KImage(url: movie.posterURL, placeholder: "film") }
+                        .overlay { S8KImage(url: movie.posterURL, placeholder: "film", plateTitle: movie.name) }
                         .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
                             .strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
@@ -872,7 +872,7 @@ struct SeriesTile: View {
                 Color.clear
                     .frame(maxWidth: .infinity)
                     .aspectRatio(2.0 / 3.0, contentMode: .fit)
-                    .overlay { S8KImage(url: series.coverURL, placeholder: "tv") }
+                    .overlay { S8KImage(url: series.coverURL, placeholder: "tv", plateTitle: series.name) }
                     .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
                         .strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
@@ -922,7 +922,7 @@ struct SeriesWall: View {
                         Color.clear
                             .frame(maxWidth: .infinity)
                             .aspectRatio(2.0 / 3.0, contentMode: .fit)
-                            .overlay { S8KImage(url: s.coverURL, placeholder: "tv") }
+                            .overlay { S8KImage(url: s.coverURL, placeholder: "tv", plateTitle: s.name) }
                             .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm))
                             .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm)
                                 .strokeBorder(Color.s8kBorder, lineWidth: 1))
@@ -962,7 +962,7 @@ struct WatchHistoryTiles: View {
                     Button(action: { onTap(h) }) {
                         VStack(alignment: .trailing, spacing: 6) {
                             ZStack(alignment: .bottom) {
-                                S8KImage(url: h.posterURL, placeholder: "play.rectangle")
+                                S8KImage(url: h.posterURL, placeholder: "play.rectangle", plateTitle: h.contentName)
                                     .frame(height: 150)
                                     .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm))
                                     .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm)
@@ -1004,7 +1004,8 @@ struct LineupRow: View {
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
                         .foregroundColor(.s8kTextDisabled).frame(width: 22)
 
-                    S8KImage(url: channel.logoURL, placeholder: "antenna.radiowaves.left.and.right", maxPixel: 240)
+                    S8KImage(url: channel.logoURL, placeholder: "antenna.radiowaves.left.and.right", maxPixel: 240,
+                             plateTitle: channel.name)
                         .frame(width: 46, height: 46).background(Color.s8kElevated)
                         .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous)
@@ -1840,7 +1841,9 @@ struct MoviesView: View {
                 }
                 if !vm.topRanked.isEmpty {
                     RankRail(title: L("home.top_movies"),
-                             cells: vm.topRanked.enumerated().map { ($0.offset + 1, $0.element.id, $0.element.posterURL, $0.element.rating, $0.element.year) }) { id in
+                             cells: vm.topRanked.enumerated().map { e -> RankRail.Cell in
+                                 (e.offset + 1, e.element.id, e.element.name, e.element.posterURL, e.element.rating, e.element.year)
+                             }) { id in
                         if let m = vm.topRanked.first(where: { $0.id == id }) { selected = m }
                     }
                 }
@@ -2065,7 +2068,9 @@ struct SeriesListView: View {
                 }
                 if !vm.topRanked.isEmpty {
                     RankRail(title: L("home.top_series"),
-                             cells: vm.topRanked.enumerated().map { ($0.offset + 1, $0.element.id, $0.element.coverURL, $0.element.rating, $0.element.year) }) { id in
+                             cells: vm.topRanked.enumerated().map { e -> RankRail.Cell in
+                                 (e.offset + 1, e.element.id, e.element.name, e.element.coverURL, e.element.rating, e.element.year)
+                             }) { id in
                         if let s = vm.topRanked.first(where: { $0.id == id }) { selected = s }
                     }
                 }
@@ -2477,7 +2482,8 @@ struct MovieDetailView: View {
         Color.clear
             .frame(maxWidth: .infinity).frame(height: canvasHeight)
             .overlay(alignment: .top) {
-                S8KImage(url: m.backdropURL ?? m.posterURL, placeholder: "film", maxPixel: 1400)
+                S8KImage(url: m.backdropURL ?? m.posterURL, placeholder: "film", maxPixel: 1400,
+                         plateTitle: m.name, plateSetsTitle: false)
             }
             .clipped()
             // A dark wash over the artwork so the status bar and the close control stay
@@ -2722,7 +2728,8 @@ struct SeriesDetailView: View {
         Color.clear
             .frame(maxWidth: .infinity).frame(height: canvasHeight)
             .overlay(alignment: .top) {
-                S8KImage(url: series.backdropURL ?? series.coverURL, placeholder: "tv", maxPixel: 1400)
+                S8KImage(url: series.backdropURL ?? series.coverURL, placeholder: "tv", maxPixel: 1400,
+                         plateTitle: series.name, plateSetsTitle: false)
             }
             .clipped()
             .overlay(LinearGradient(stops: [
@@ -2987,7 +2994,8 @@ struct SeriesDetailView: View {
             .frame(width: 112, height: 63)
             .overlay {
                 S8KImage(url: ep.posterURL ?? series.backdropURL ?? series.coverURL,
-                         placeholder: "play.tv.fill")
+                         placeholder: "play.tv.fill",
+                         plateTitle: "\(series.name) \(L("episode.number")) \(ep.episodeNumber)")
             }
             .overlay(alignment: .bottom) {
                 if progress > 0.02 && !watched {
@@ -3437,7 +3445,7 @@ struct SearchView: View {
                 RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
                     .fill(Color.s8kElevated)
                     .aspectRatio(2.0/3.0, contentMode: .fit)
-                    .overlay(S8KImage(url: r.imageURL, placeholder: r.type.icon))
+                    .overlay(S8KImage(url: r.imageURL, placeholder: r.type.icon, plateTitle: r.title))
                     .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
                         .strokeBorder(Color.s8kBorder, lineWidth: 1))
@@ -3451,7 +3459,7 @@ struct SearchView: View {
     private func matchRow(_ r: SearchVM.SearchResult) -> some View {
         Button(action: { present(r) }) {
             HStack(spacing: 12) {
-                S8KImage(url: r.imageURL, placeholder: r.type.icon)
+                S8KImage(url: r.imageURL, placeholder: r.type.icon, plateTitle: r.title)
                     .frame(width: 50, height: 50)
                     .background(Color.s8kElevated)
                     .clipShape(RoundedRectangle(cornerRadius: 12))

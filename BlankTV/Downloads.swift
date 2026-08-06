@@ -831,7 +831,7 @@ struct DownloadsView: View {
 
     private func row(_ d: SavedDownload) -> some View {
         HStack(spacing: 12) {
-            S8KImage(url: d.posterURL, placeholder: d.kind == .movie ? "film" : "tv")
+            S8KImage(url: d.posterURL, placeholder: d.kind == .movie ? "film" : "tv", plateTitle: d.title)
                 .frame(width: 60, height: 84)
                 .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm))
             VStack(alignment: .trailing, spacing: 6) {

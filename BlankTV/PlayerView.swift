@@ -828,10 +828,16 @@ struct PlayerEngineView: View {
 
     private func nextPromptCard(_ ep: Episode) -> some View {
         let art = ep.posterURL ?? episodeContext?.series.backdropURL ?? episodeContext?.series.coverURL
+        // Seeds the plate when the next episode has no artwork. Per-EPISODE, not per
+        // series: a season woven from one seed would show the same cloth in this card
+        // all the way through, which is the sameness the plate exists to break. The
+        // 96×58 thumbnail is under the type floor, so this is a seed and a VoiceOver
+        // label only — nothing here is drawn as text.
+        let artSeed = "\(episodeContext?.series.name ?? title) \(L("episode.number")) \(ep.episodeNumber)"
         return HStack(spacing: 12) {
             // Next-episode thumbnail with a circular countdown ring
             ZStack {
-                S8KImage(url: art, placeholder: "play.tv.fill")
+                S8KImage(url: art, placeholder: "play.tv.fill", plateTitle: artSeed)
                     .frame(width: 96, height: 58)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 Color.black.opacity(0.35)

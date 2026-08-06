@@ -256,12 +256,40 @@ struct PlateView: View {
     let title: String
     /// Point size of the title. Callers in a small cell should come down from this.
     var titleSize: CGFloat = 15
+    /// A caller's veto over the title. The size rule below can only judge the box; it
+    /// cannot know that the surrounding page already prints this same name.
+    var setsTitle: Bool = true
+
+    /// Below this, the plate is cloth only — no type, no scrim.
+    ///
+    /// A 46pt channel-logo tile cannot carry "beIN SPORTS 1 HD PREMIUM". At
+    /// `minimumScaleFactor(0.7)` it becomes three lines of 10.5pt type over a woven
+    /// ground: unreadable, and it turns a calm grid into noise. The threshold is the
+    /// smallest box where three lines at the floor size still clear the padding
+    /// (9 + 3 × ~14.7 + 9 ≈ 62), rounded up so the last line is never cramped.
+    ///
+    /// The weave still runs at every size — that is the part that says "this item
+    /// exists and it is not the same as its neighbour". VoiceOver reads the title
+    /// either way, so nothing is lost to a user who cannot see the cloth.
+    private static let titleFloor = CGSize(width: 96, height: 70)
+
+    private var showsTitle: Bool {
+        setsTitle
+            && box.width >= Self.titleFloor.width
+            && box.height >= Self.titleFloor.height
+    }
 
     @State private var plate: UIImage?
     @State private var box: CGSize = .zero
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
+        // Aligned by LANGUAGE, not by `.leading`. The app forces layoutDirection
+        // .leftToRight everywhere, so `.leading` is the physical left even in Arabic —
+        // a channel name set here would have hugged the opposite edge from every other
+        // label on the same screen. `s8kFrameAlign` is the rule the rest of the app
+        // already follows; `.bottom` is combined with it so the type still sits on the
+        // floor of the plate under the scrim.
+        ZStack(alignment: Alignment(horizontal: s8kTextAlign, vertical: .bottom)) {
             if let plate {
                 Image(uiImage: plate).resizable()
             } else {
@@ -271,19 +299,21 @@ struct PlateView: View {
                 Color.s8kBlack
             }
 
-            // A short scrim so a title stays readable over the palest weave a hash
-            // can produce, without dimming the cloth everywhere.
-            LinearGradient(colors: [.black.opacity(0.55), .clear],
-                           startPoint: .bottom, endPoint: .center)
+            if showsTitle {
+                // A short scrim so a title stays readable over the palest weave a hash
+                // can produce, without dimming the cloth everywhere.
+                LinearGradient(colors: [.black.opacity(0.55), .clear],
+                               startPoint: .bottom, endPoint: .center)
 
-            Text(title)
-                .font(.system(size: titleSize, weight: .semibold))
-                .foregroundColor(.white)
-                .lineLimit(3)
-                .minimumScaleFactor(0.7)
-                .multilineTextAlignment(.leading)
-                .padding(.horizontal, 10)
-                .padding(.bottom, 9)
+                Text(title)
+                    .font(.system(size: titleSize, weight: .semibold))
+                    .foregroundColor(.white)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.7)
+                    .multilineTextAlignment(s8kMultiline)
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 9)
+            }
         }
         // Measured from the BACKGROUND, never from a root GeometryReader: as the root
         // it reports zero on the first pass, and every derived value — including the
