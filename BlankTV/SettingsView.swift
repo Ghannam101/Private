@@ -495,6 +495,7 @@ struct SetAboutPage: View {
     @State private var showAbout = false
     @State private var showPrivacy = false
     @State private var showTerms = false
+    @State private var showLicenses = false
     @State private var showDeleteAlert = false
     private var appVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0" }
 
@@ -523,6 +524,13 @@ struct SetAboutPage: View {
                 SetUI.navRow(icon: "exclamationmark.bubble.fill", title: L("set.report"), chevron: true) {
                     openReportMail()
                 }
+                // MIT wants its notice carried with the copy; LGPL wants the user told the
+                // library is here and able to reach its source. Three libraries ship in
+                // this binary and none of them was named anywhere until now.
+                SetUI.divider()
+                SetUI.navRow(icon: "doc.badge.gearshape.fill", title: L("set.licenses"), chevron: true) {
+                    showLicenses = true
+                }
                 SetUI.divider()
                 Button(action: { showDeleteAlert = true }) {
                     SetUI.proRow(icon: "person.crop.circle.badge.minus", title: L("set.delete"), danger: true, trailing: { EmptyView() })
@@ -532,6 +540,7 @@ struct SetAboutPage: View {
         .sheet(isPresented: $showAbout)   { AboutView() }
         .sheet(isPresented: $showPrivacy) { PrivacyView() }
         .sheet(isPresented: $showTerms)   { TermsView() }
+        .sheet(isPresented: $showLicenses) { LicensesView() }
         .overlay {
             if showDeleteAlert {
                 S8KConfirm(icon: "person.crop.circle.badge.minus", iconColor: .s8kRed,

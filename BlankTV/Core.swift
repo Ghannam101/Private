@@ -171,6 +171,22 @@ enum L10n {
         // Guideline 1.2 — the reporting mechanism. The English wording is deliberately
         // the phrase Apple's own guideline uses, because a reviewer scans for it.
         "set.report":   [.ar: "الإبلاغ عن محتوى مسيء", .en: "Report Objectionable Content", .fr: "Signaler un contenu", .tr: "Uygunsuz İçeriği Bildir", .es: "Denunciar contenido"],
+        // Third-party licences. MIT requires the notice to travel with the copy; LGPL 2.1
+        // requires the user to be told the library is present and to be able to reach its
+        // source. Three libraries shipped in this binary and none was acknowledged.
+        "set.licenses": [.ar: "التراخيص والإسناد", .en: "Licences & Attribution", .fr: "Licences et attributions", .tr: "Lisanslar ve Atıflar", .es: "Licencias y atribuciones"],
+        "licenses.intro": [.ar: "يستعمل هذا التطبيق مكتبات مفتوحة المصدر. فيما يلي رخصها وإشعارات حقوقها كما وردت من أصحابها.",
+                           .en: "This app uses open-source libraries. Their licences and copyright notices follow, as published by their authors.",
+                           .fr: "Cette application utilise des bibliothèques open source. Voici leurs licences et mentions de droits, telles que publiées par leurs auteurs.",
+                           .tr: "Bu uygulama açık kaynak kütüphaneler kullanır. Lisansları ve telif bildirimleri, sahipleri tarafından yayımlandığı şekliyle aşağıdadır.",
+                           .es: "Esta app usa bibliotecas de código abierto. A continuación, sus licencias y avisos de copyright, tal como los publican sus autores."],
+        "licenses.vlc": [.ar: "محرّك التشغيل MobileVLCKit من VideoLAN، مرخّص تحت LGPL v2.1. يُوزَّع كمكتبة مرتبطة ديناميكياً، ولك الحقّ في الحصول على شيفرته المصدرية وإعادة ربطها. الرابطان أدناه يوصلانك إلى نصّ الرخصة وإلى المصدر.",
+                         .en: "The MobileVLCKit playback engine, by VideoLAN, is licensed under LGPL v2.1. It ships as a dynamically linked library, and you have the right to obtain its source and relink it. The links below lead to the licence text and to the source.",
+                         .fr: "Le moteur MobileVLCKit, de VideoLAN, est sous licence LGPL v2.1. Il est fourni en bibliothèque liée dynamiquement ; vous avez le droit d'en obtenir la source et de la relier. Les liens ci-dessous mènent au texte de la licence et à la source.",
+                         .tr: "VideoLAN tarafından geliştirilen MobileVLCKit oynatma motoru LGPL v2.1 ile lisanslanmıştır. Dinamik bağlanan bir kütüphane olarak gelir; kaynağını edinme ve yeniden bağlama hakkınız vardır. Aşağıdaki bağlantılar lisans metnine ve kaynağa gider.",
+                         .es: "El motor de reproducción MobileVLCKit, de VideoLAN, se licencia bajo LGPL v2.1. Se distribuye como biblioteca enlazada dinámicamente y tienes derecho a obtener su código fuente y reenlazarla. Los enlaces llevan al texto de la licencia y al código."],
+        "licenses.text":   [.ar: "نصّ الرخصة", .en: "Licence text", .fr: "Texte de la licence", .tr: "Lisans metni", .es: "Texto de la licencia"],
+        "licenses.source": [.ar: "الشيفرة المصدرية", .en: "Source code", .fr: "Code source", .tr: "Kaynak kodu", .es: "Código fuente"],
         "report.subject": [.ar: "إبلاغ عن محتوى مسيء", .en: "Report objectionable content", .fr: "Signalement de contenu", .tr: "Uygunsuz içerik bildirimi", .es: "Denuncia de contenido"],
         "report.body":  [.ar: "صف المحتوى الذي تريد الإبلاغ عنه، واسم القناة أو العمل إن أمكن:\n\n",
                          .en: "Describe the content you are reporting, with the channel or title if you can:\n\n",

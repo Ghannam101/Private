@@ -442,6 +442,109 @@ struct PrivacyView: View {
     }
 }
 
+// MARK: - Third-party licences
+// Three libraries ship inside this binary and none of them was acknowledged anywhere in
+// the app. That is a licence breach before it is an App Store problem: MIT requires the
+// copyright notice and the permission text to travel with every copy, and LGPL v2.1
+// requires the user to be TOLD the library is there and to be able to reach its source.
+// Guideline 5.2.1 asks for the rights to everything you ship; these are the rights, shown.
+//
+// Every copyright line below was fetched from the project's own repository, not recalled:
+// Evan Wallace 2023 and Gwendal Roué 2015-2025 both via the GitHub licence API. VideoLAN's
+// own host sits behind a challenge page, so VLCKit carries the licence NAME and the source
+// URL rather than a copyright year invented to fill the gap.
+struct LicensesView: View {
+    @Environment(\.dismiss) var dismiss
+
+    private static let mit = """
+    Permission is hereby granted, free of charge, to any person obtaining a copy of this \
+    software and associated documentation files (the "Software"), to deal in the Software \
+    without restriction, including without limitation the rights to use, copy, modify, \
+    merge, publish, distribute, sublicense, and/or sell copies of the Software, and to \
+    permit persons to whom the Software is furnished to do so, subject to the following \
+    conditions:
+
+    The above copyright notice and this permission notice shall be included in all copies \
+    or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, \
+    INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A \
+    PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT \
+    HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF \
+    CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE \
+    OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+    """
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
+                    Text(L("licenses.intro"))
+                        .font(S8KFont.caption1).foregroundColor(.s8kTextSecondary)
+                        .lineSpacing(4).multilineTextAlignment(.trailing)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .padding(.bottom, 2)
+
+                    entry("MobileVLCKit",
+                          "GNU Lesser General Public License, version 2.1",
+                          L("licenses.vlc"),
+                          "https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html",
+                          "https://code.videolan.org/videolan/VLCKit")
+
+                    entry("GRDB.swift",
+                          "MIT License · Copyright (C) 2015-2025 Gwendal Roué",
+                          Self.mit, nil, "https://github.com/groue/GRDB.swift")
+
+                    entry("ThumbHash",
+                          "MIT License · Copyright (c) 2023 Evan Wallace",
+                          Self.mit, nil, "https://github.com/evanw/thumbhash")
+                }
+                .padding(20)
+            }
+            .background(Color.s8kBlack.ignoresSafeArea())
+            .navigationTitle(L("set.licenses"))
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(L("common.close")) { dismiss() }
+                        .foregroundColor(.s8kGoldMid)
+                }
+            }
+        }
+    }
+
+    /// One library: its name, its licence line, the licence body, and the links that make
+    /// the LGPL obligation reachable rather than merely mentioned.
+    private func entry(_ name: String, _ licence: String, _ body: String,
+                       _ licenceURL: String?, _ sourceURL: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(name).font(S8KFont.subhead).foregroundColor(.s8kTextPrimary)
+            Text(licence).font(S8KFont.caption2).foregroundColor(.s8kGoldMid)
+            Text(body).font(S8KFont.caption2).foregroundColor(.s8kTextSecondary)
+                .lineSpacing(3).multilineTextAlignment(.leading)
+            HStack(spacing: 14) {
+                if let l = licenceURL, let u = URL(string: l) {
+                    Link(L("licenses.text"), destination: u)
+                }
+                if let u = URL(string: sourceURL) {
+                    Link(L("licenses.source"), destination: u)
+                }
+            }
+            .font(S8KFont.caption2.weight(.semibold))
+            .foregroundColor(.s8kGoldMid)
+            .padding(.top, 2)
+        }
+        // Latin licence text stays left-aligned even under an Arabic UI: a paragraph of
+        // English right-aligned is unreadable, and the wording is legally fixed anyway.
+        .environment(\.layoutDirection, .leftToRight)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color.s8kSurface)
+        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md))
+        .overlay(RoundedRectangle(cornerRadius: S8KRadius.md).strokeBorder(Color.s8kBorder, lineWidth: 1))
+    }
+}
+
 // MARK: - Terms View (Apple Required)
 struct TermsView: View {
     @Environment(\.dismiss) var dismiss
