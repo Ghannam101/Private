@@ -73,8 +73,7 @@ final class AuthService: ObservableObject {
             let p = SavedPlaylist(name: resp.user.username, kind: .xtream,
                                   url: customURL ?? resp.server.host,
                                   username: resp.server.username, password: resp.server.password)
-            Store.shared.activePlaylistID = Store.shared.upsertPlaylist(p)   // stable scope id
-            reloadScopedCaches()
+            activate(playlistID: Store.shared.upsertPlaylist(p))   // stable scope id, leaves demo
             user = resp.user; serverInfo = resp.server; loggedIn = true
         } catch let e as AppError {
             error = e
@@ -130,8 +129,7 @@ final class AuthService: ObservableObject {
             Store.shared.loginMode = .m3u
             mode = .m3u
             let pl = SavedPlaylist(name: u, kind: .m3u, url: url)
-            Store.shared.activePlaylistID = Store.shared.upsertPlaylist(pl)   // stable scope id
-            reloadScopedCaches()
+            activate(playlistID: Store.shared.upsertPlaylist(pl))   // stable scope id, leaves demo
             // MUST reset the shared VMs: this method also runs from "add account" while
             // ALREADY signed in, where the view models still hold the previous line's
             // catalog and `loaded == true` would make every load() early-return.
@@ -190,8 +188,7 @@ final class AuthService: ObservableObject {
             mode = .m3u
             // Remember this playlist
             let p = SavedPlaylist(name: Self.playlistName(from: trimmed), kind: .m3u, url: trimmed)
-            Store.shared.activePlaylistID = Store.shared.upsertPlaylist(p)   // stable scope id
-            reloadScopedCaches()
+            activate(playlistID: Store.shared.upsertPlaylist(p))   // stable scope id, leaves demo
             ContentCache.reset()                    // see loginXtream — same reason
             AppRouter.shared.contentReady = false   // remount the tabs → fetch this line
             loggedIn = true
@@ -223,8 +220,7 @@ final class AuthService: ObservableObject {
             Store.shared.loginMode = .xtream
             mode = .xtream
         }
-        Store.shared.activePlaylistID = p.id
-        reloadScopedCaches()                    // per-playlist history/favorites/watchlist
+        activate(playlistID: p.id)              // leaves demo + per-playlist history/favorites/watchlist
         ContentCache.reset()
         AppRouter.shared.contentReady = false   // re-run the boot loader → fresh content
     }
@@ -258,8 +254,7 @@ final class AuthService: ObservableObject {
                                   kind: .m3u, url: trimmed)
             let scopeID = Store.shared.upsertPlaylist(p)   // stable scope id
             Store.shared.loginMode = .m3u; mode = .m3u
-            Store.shared.activePlaylistID = scopeID
-            reloadScopedCaches()
+            activate(playlistID: scopeID)          // leaves demo
             ContentCache.reset()
             AppRouter.shared.contentReady = false
             return true
@@ -292,6 +287,36 @@ final class AuthService: ObservableObject {
         reloadScopedCaches()    // demo has its own scope → show demo data only
         loggedIn = true
         error = nil
+    }
+
+    /// A real account becomes the active one. THE ONLY way to do that.
+    ///
+    /// Reported from a device: sign out, then try to get back into a subscription while
+    /// moving between it and the demo, and the subscription will not take.
+    ///
+    /// `demoMode` had exactly one writer setting it true — `enterDemo` — and two setting
+    /// it false: `logout` and `deleteAccount`. FIVE functions made a real account active
+    /// (login, loginXtream, loginM3U, addM3UPlaylist, switchPlaylist) and not one of them
+    /// said the demo was over. So entering a real account from inside the demo left the
+    /// flag standing, and `Store.isDemo` short-circuits ELEVEN content accessors —
+    /// channels, movies, series, categories, seasons, EPG. Every screen kept answering
+    /// with `DemoContent` while the app believed it had signed the user in. It is not
+    /// that the account was rejected; it is that nothing it fetched was ever displayed.
+    ///
+    /// Two more things went with it. `scopeID` is `demoMode ? "demo" : activePlaylistID`,
+    /// so favourites, history and watchlist stayed in the demo bucket — the real account's
+    /// were invisible and anything saved landed in the wrong one. And `restore()` opens
+    /// with `if demoMode { loggedIn = true; return }`, so the next launch went straight
+    /// back to the demo, which is why it did not look like a glitch but like a refusal.
+    ///
+    /// The fix is this function rather than five assignments, because the sixth caller
+    /// written next year would have repeated it. Order is load-bearing and is why the
+    /// two lines live together: `reloadScopedCaches` reads `scopeID`, which reads
+    /// `demoMode` — clear the flag after it and the caches reload into "demo" anyway.
+    func activate(playlistID: String) {
+        Store.shared.demoMode = false          // must precede the scope read below
+        Store.shared.activePlaylistID = playlistID
+        reloadScopedCaches()
     }
 
     /// Reload all per-playlist in-memory caches (history/favorites/watchlist) after
