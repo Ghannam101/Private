@@ -1544,6 +1544,67 @@ final class S8KImageCache: @unchecked Sendable {
     }
 }
 
+// MARK: - The surface every player overlay sits on
+
+/// One material for everything that floats over playing video.
+///
+/// It replaced nine. An audit of PlayerView found black at 0.30, 0.35, 0.40, 0.50, 0.55,
+/// 0.60 and 0.90, some over `.ultraThinMaterial` and some not, edged with five different
+/// hairlines — gold, white 0.30, white 0.25, white 0.16, white 0.10. Every one of those
+/// numbers was typed by hand at the moment that control was written, and none of them
+/// was decided against the others. On screen it reads as what it is: overlays that do
+/// not look like they belong to the same instrument.
+///
+/// The three things this fixes, in order of who notices:
+///
+/// THE VIEWER. A player's overlays appear one at a time, over moving picture. When each
+/// carries a different weight, the picture behind seems to change brightness as controls
+/// come and go. One weight everywhere means the video is the only thing that moves.
+///
+/// LEGIBILITY. The old values were tuned against whatever frame happened to be on screen
+/// when each was written, and 0.30 is not enough over a bright one. This sits on INK —
+/// the brand's own base, a warm near-black — rather than pure black, so a single opacity
+/// holds white type over a snow scene and over a night scene both.
+///
+/// THE NEXT EDIT. Nine literals is nine places to forget. One modifier is one.
+///
+/// Uses `InsettableShape`, not `Shape`, because `strokeBorder` draws INSIDE the bounds.
+/// A plain `.stroke` straddles the edge and puts half a hairline outside the material,
+/// which on a Capsule over video is a visible bright fringe.
+struct S8KPlayerSurface<S: InsettableShape>: ViewModifier {
+    let shape: S
+    /// Raised for a surface that must carry sustained reading — the next-episode card —
+    /// rather than a badge that shows for a second. Two values, both here.
+    var heavy: Bool = false
+
+    func body(content: Content) -> some View {
+        content
+            .background(.ultraThinMaterial, in: shape)
+            .background(Color.s8kBlack.opacity(heavy ? 0.62 : 0.48), in: shape)
+            .overlay(
+                // A single hairline, lit from the top. Flat borders read as a drawn
+                // outline; a surface that catches light along its upper edge and fades
+                // to a trace of the accent below reads as a physical thing lying on the
+                // video. The accent appears only here, at a tenth — the player's colour
+                // belongs to the play control, not to the edge of every badge.
+                shape.strokeBorder(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.22), Color.s8kGoldHigh.opacity(0.10)],
+                        startPoint: .top, endPoint: .bottom
+                    ),
+                    lineWidth: 1
+                )
+            )
+    }
+}
+
+extension View {
+    /// The player's overlay material. Pass the same shape the control is clipped to.
+    func s8kPlayerSurface<S: InsettableShape>(_ shape: S, heavy: Bool = false) -> some View {
+        modifier(S8KPlayerSurface(shape: shape, heavy: heavy))
+    }
+}
+
 // MARK: - Async Image (cached + downsampled)
 // No GeometryReader (it forced an extra layout pass per image and made large
 // grids/lists — and the whole app — sluggish). Fixed downsample size instead;

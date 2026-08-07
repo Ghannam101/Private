@@ -487,9 +487,7 @@ struct PlayerEngineView: View {
                     }
                     .foregroundColor(.white)
                     .padding(.horizontal, 18).padding(.vertical, 10)
-                    .background(.ultraThinMaterial).background(Color.black.opacity(0.4))
-                    .clipShape(Capsule())
-                    .overlay(Capsule().strokeBorder(Color.s8kBorderGold, lineWidth: 1))
+                    .s8kPlayerSurface(Capsule())
                     .padding(.top, isLandscape ? 24 : 70)
                     Spacer()
                 }
@@ -754,8 +752,8 @@ struct PlayerEngineView: View {
                 Capsule().fill(S8KGradient.goldFlat).frame(width: 5, height: 110 * value)
             }
         }
-        .padding(16).background(Color.black.opacity(0.55))
-        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.lg))
+        .padding(16)
+        .s8kPlayerSurface(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous))
     }
 
     private func seekHoldBadge(_ hs: (forward: Bool, secs: Int)) -> some View {
@@ -770,8 +768,7 @@ struct PlayerEngineView: View {
                 .foregroundColor(.white)
         }
         .padding(.horizontal, 22).padding(.vertical, 16)
-        .background(Color.black.opacity(0.55))
-        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.lg))
+        .s8kPlayerSurface(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous))
     }
 
     // Expanding ripple on the double-tapped side.
@@ -795,13 +792,11 @@ struct PlayerEngineView: View {
                 Label(L("play.unlock"), systemImage: "lock.open.fill")
                     .font(S8KFont.subhead).foregroundColor(.white)
                     .padding(.horizontal, 18).padding(.vertical, 11)
-                    .background(.ultraThinMaterial)
-                    .background(Color.black.opacity(0.4))
-                    .clipShape(Capsule())
-                    .overlay(Capsule().strokeBorder(Color.s8kBorderGold, lineWidth: 1))
-                    // ~40 → 44pt, after the clip so it isn't clipped back off. This is
-                    // the ONLY way out of a locked player: a missed tap leaves the user
-                    // with no visible exit at all.
+                    .s8kPlayerSurface(Capsule())
+                    // ~40 → 44pt. After the surface, which draws its material and edge
+                    // INTO the shape and never clips the label — so unlike the old
+                    // .clipShape this cannot trim the expansion back off. This is the ONLY
+                    // way out of a locked player: a missed tap leaves no visible exit.
                     .s8kMinTouch(2)
             }
             .buttonStyle(S8KButtonStyle())
@@ -818,10 +813,8 @@ struct PlayerEngineView: View {
             Label(L("play.skip_intro"), systemImage: "forward.end.fill")
                 .font(S8KFont.subhead).foregroundColor(.white)
                 .padding(.horizontal, 16).padding(.vertical, 10)
-                .background(Color.black.opacity(0.6))
-                .clipShape(Capsule())
-                .overlay(Capsule().strokeBorder(Color.white.opacity(0.3), lineWidth: 1))
-                .s8kMinTouch(3)                      // ~38 → 44pt, after the clip
+                .s8kPlayerSurface(Capsule())
+                .s8kMinTouch(3)                      // ~38 → 44pt, after the surface
         }
         .buttonStyle(S8KButtonStyle())
     }
@@ -884,11 +877,9 @@ struct PlayerEngineView: View {
             }
         }
         .padding(12)
-        .background(.ultraThinMaterial)
-        .background(Color.black.opacity(0.35))
-        .clipShape(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous)
-            .strokeBorder(Color.s8kBorderGold, lineWidth: 1))
+        // heavy: this one is READ, not glanced — a title and two buttons under a
+        // ten-second countdown, over whatever the episode is still showing behind it.
+        .s8kPlayerSurface(RoundedRectangle(cornerRadius: S8KRadius.lg, style: .continuous), heavy: true)
         .shadow(color: .black.opacity(0.4), radius: 12, y: 4)
         .frame(maxWidth: 340)
     }
@@ -932,7 +923,7 @@ struct PlayerEngineView: View {
                         // at 38pt, which keeps it visually identical to its neighbours.
                         .frame(width: 44, height: 44)
                         .background(
-                            Circle().fill(Color.black.opacity(0.4)).frame(width: 38, height: 38)
+                            Color.clear.frame(width: 38, height: 38).s8kPlayerSurface(Circle())
                         )
                     // Native Picture-in-Picture (AVPlayer engine only)
                     if vm.pipSupported {
@@ -998,7 +989,7 @@ struct PlayerEngineView: View {
                         }
                         .foregroundColor(.s8kGoldMid)
                         .padding(.horizontal, 10).padding(.vertical, 4)
-                        .background(Color.black.opacity(0.5)).clipShape(Capsule())
+                        .s8kPlayerSurface(Capsule())
                         .frame(maxWidth: .infinity, alignment: .trailing)
                     }
 
@@ -1107,7 +1098,7 @@ struct PlayerEngineView: View {
         Button(action: { action(); resetControlsTimer() }) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
-                .frame(width: 38, height: 38).background(Color.black.opacity(0.4)).clipShape(Circle())
+                .frame(width: 38, height: 38).s8kPlayerSurface(Circle())
                 // 38 → 44pt of hit area, drawn identically. Inside the label, because
                 // outside it would only widen the layout cell and leave the gesture on
                 // the 38pt image. Neighbours are 12pt apart, so 3pt a side cannot overlap.
@@ -1270,10 +1261,7 @@ struct PlayerEngineView: View {
         .padding(.horizontal, 12).padding(.vertical, 6)
         // Frosted glass over a dark scrim → the timecode stays legible even on a
         // bright frame (blur alone can wash out over high-key video).
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-        .background(Color.black.opacity(0.30), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous)
-            .strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
+        .s8kPlayerSurface(RoundedRectangle(cornerRadius: 11, style: .continuous))
         .shadow(color: .black.opacity(0.4), radius: 8, y: 3)
     }
     private func startSleep(mins: Int) {
