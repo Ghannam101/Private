@@ -22,6 +22,13 @@ import urllib.request
 
 import jwt
 
+# Windows consoles default to cp1252, which cannot encode Arabic — and this script
+# prints Arabic store metadata. Without this the process dies INSIDE a print, after
+# the API call succeeded, so the answer is fetched and then thrown away with a
+# traceback. That is the brandlint defect again: a tool that fails on its own output
+# reports nothing and looks like it found nothing.
+sys.stdout.reconfigure(encoding="utf-8")
+
 KEY_ID = "5C527D55JX"
 KEY_PATH = os.path.join(".secrets", "AuthKey_%s.p8" % KEY_ID)
 BUNDLE_HINT = "blank"          # substring match, so a bundle-id rename still finds it

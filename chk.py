@@ -13,6 +13,13 @@ implausibly small source file is itself a failure — a truncated file balances 
 import os
 import sys
 
+# Windows consoles default to cp1252, which cannot encode Arabic — and this script
+# prints Arabic store metadata. Without this the process dies INSIDE a print, after
+# the API call succeeded, so the answer is fetched and then thrown away with a
+# traceback. That is the brandlint defect again: a tool that fails on its own output
+# reports nothing and looks like it found nothing.
+sys.stdout.reconfigure(encoding="utf-8")
+
 # A Swift file in this project is never legitimately this small. GatewayView.swift was
 # truncated to 0 bytes and the old checker called it OK.
 MIN_BYTES = 200
