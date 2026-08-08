@@ -422,6 +422,16 @@ final class AuthService: ObservableObject {
         Keychain.shared.clearAll()
         // Everything below this line is what "delete all my data" actually has to
         // reach. Logout deliberately keeps all of it; deletion must not.
+        //
+        // `purgeSavedPlaylists` is here and NOT in `clearAll()` for a reason that used to
+        // be automatic and no longer is. The accounts used to live in UserDefaults, so
+        // `Store.clearAll()` below — which removes the whole persistent domain — swept
+        // them up for free. They are in the Keychain now, and a Keychain item survives
+        // deleting the APP, let alone a defaults wipe. Without this line "delete my
+        // account" would leave every saved provider password on the device: the exact
+        // 5.1.1(v) failure the comment above this function records happening once
+        // already, reintroduced by a change made to improve security.
+        Store.shared.purgeSavedPlaylists()
         Keychain.shared.deleteDeviceID()        // a Keychain item outlives the APP itself
         DownloadService.shared.clearAll()       // the downloaded files on disk
         CatalogDiskCache.purgeAll()             // every cached catalogue, all scopes

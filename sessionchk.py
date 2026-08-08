@@ -19,6 +19,13 @@ where it lives — in the one function allowed to change either.
   activate-only     Every non-nil write to `Store.shared.activePlaylistID` is inside
                     `AuthService.activate(playlistID:)`. A sixth caller written next year
                     cannot quietly reintroduce the defect.
+  creds-not-in-defaults
+                    `SavedPlaylist` is never encoded into UserDefaults. It carries the
+                    user's provider passwords — inside `url` for an Xtream line — and
+                    UserDefaults is an unencrypted plist that an unencrypted device backup
+                    copies verbatim. The Keychain comment on `m3uURL` already stated the
+                    rule; this stops the next `save(list, key: .savedPlaylists)` from
+                    quietly undoing it.
   activate-clears   `activate` itself still clears `demoMode`, and still does it BEFORE
                     setting the id. Order is load-bearing: `reloadScopedCaches` reads
                     `scopeID`, which reads `demoMode`, so clearing it afterwards reloads
@@ -49,6 +56,10 @@ SRC = "BlankTV"
 ACTIVE_WRITE = re.compile(r'Store\.shared\.activePlaylistID\s*=(?!=)\s*(.+)$')
 DEMO_CLEAR = re.compile(r'Store\.shared\.demoMode\s*=\s*false')
 ACTIVATE_DECL = re.compile(r'\bfunc\s+activate\s*\(\s*playlistID\s*:')
+# The defaults-backed accessors take `key:`. The raw `ud.removeObject(forKey:)` calls in
+# the migration and the purge are how the OLD plist copy is deleted, so they stay allowed
+# — this looks only for the encode/decode pair that would put it back.
+CREDS_IN_DEFAULTS = re.compile(r'(?:save|load)\s*\([^)]*key:\s*\.savedPlaylists')
 
 
 def decomment(line):
@@ -104,6 +115,14 @@ def check_source(name, text):
                         "demo flag will survive into a real account and every content "
                         "accessor keeps returning DemoContent"))
 
+    for i, raw in enumerate(lines):
+        if CREDS_IN_DEFAULTS.search(decomment(raw)):
+            out.append((i + 1, "creds-not-in-defaults",
+                        "SavedPlaylist encoded into UserDefaults — it carries provider "
+                        "passwords (inside `url` for an Xtream line) and UserDefaults is "
+                        "an unencrypted plist copied verbatim into a device backup. It "
+                        "belongs in the Keychain, as Keychain.m3uURL already says."))
+
     if span is not None:
         body = lines[span[0]:span[1] + 1]
         clear_at = next((k for k, l in enumerate(body) if DEMO_CLEAR.search(decomment(l))), None)
@@ -131,6 +150,19 @@ final class AuthService {
         Store.shared.demoMode = false
         Store.shared.activePlaylistID = playlistID
         reloadScopedCaches()
+    }
+}
+'''
+
+CREDS_BROKEN = '''
+final class Store {
+    var savedPlaylists: [SavedPlaylist] {
+        get { load([SavedPlaylist].self, key: .savedPlaylists) ?? [] }
+        set { save(newValue, key: .savedPlaylists) }
+    }
+    func activate(playlistID: String) {
+        Store.shared.demoMode = false
+        Store.shared.activePlaylistID = playlistID
     }
 }
 '''
@@ -171,6 +203,7 @@ def selftest():
     cases = [
         ("the original defect", BROKEN, "activate-only"),
         ("cleared too late", MISORDERED, "activate-clears"),
+        ("credentials in UserDefaults", CREDS_BROKEN, "creds-not-in-defaults"),
     ]
     for label, src, want in cases:
         rules = {r for _, r, _ in check_source("<selftest>", src)}

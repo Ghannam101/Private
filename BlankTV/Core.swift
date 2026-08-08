@@ -753,7 +753,7 @@ final class Keychain {
     private let service = "com.blanktv.app"
 
     private enum Key: String {
-        case token, host, user, pass, userID, tokenExpiry, deviceID, m3uURL
+        case token, host, user, pass, userID, tokenExpiry, deviceID, m3uURL, playlists
     }
 
     /// Persistent device identity (survives app reinstall — stays in Keychain)
@@ -768,6 +768,28 @@ final class Keychain {
         get { load(.m3uURL) }
         set { newValue == nil ? delete(.m3uURL) : save(.m3uURL, value: newValue!) }
     }
+
+    /// Every SAVED account, JSON-encoded — see `Store.savedPlaylists`.
+    ///
+    /// Here for exactly the reason written four lines above about `m3uURL`, applied to
+    /// the case that had been missed: `m3uURL` is the ONE line currently open, and it was
+    /// carefully Keychained because an Xtream url carries the username and password in
+    /// its query string. `savedPlaylists` holds that same url for EVERY account the user
+    /// has ever added — and it was going straight into UserDefaults, which is an
+    /// unencrypted plist inside the app container and is included verbatim in an
+    /// unencrypted device backup.
+    ///
+    /// So the active credential was protected and the whole address book of credentials
+    /// beside it was not. One rule now, and the rule is the one the code already stated.
+    var savedPlaylistsJSON: String? {
+        get { load(.playlists) }
+        set { newValue == nil ? delete(.playlists) : save(.playlists, value: newValue!) }
+    }
+
+    /// Deliberately NOT part of `clearAll()`. Signing out keeps saved accounts — that is
+    /// the entire purpose of the account list — so only a real account DELETION reaches
+    /// this, the same line `deviceID` walks.
+    func deleteSavedPlaylists() { delete(.playlists) }
 
     var token: String? {
         get { load(.token) }
@@ -808,6 +830,11 @@ final class Keychain {
         return (h, u, p)
     }
 
+    /// The SESSION, not the identity. `deviceID` is excluded because logout must not mint
+    /// a new device, and `playlists` is excluded for the same shape of reason: signing out
+    /// keeps your saved accounts, or the account list would empty itself every time
+    /// someone left. Both are erased by `deleteAccount`, which is where "erase everything"
+    /// actually means it.
     func clearAll() {
         [Key.token, Key.host, Key.user, Key.pass, Key.userID, Key.tokenExpiry,
          Key.m3uURL].forEach { delete($0) }
@@ -822,7 +849,10 @@ final class Keychain {
     func upgradeAccessibilityIfNeeded() {
         let flag = "s8k.kc.accessibility.v2"
         guard !UserDefaults.standard.bool(forKey: flag) else { return }
-        for k in [Key.token, .host, .user, .pass, .userID, .tokenExpiry, .deviceID, .m3uURL] {
+        // `.playlists` included: it is written once at migration and then only when an
+        // account is added or renamed, so like `deviceID` it can sit for months in an
+        // older accessibility class with nothing to rewrite it.
+        for k in [Key.token, .host, .user, .pass, .userID, .tokenExpiry, .deviceID, .m3uURL, .playlists] {
             if let v = load(k) { save(k, value: v) }   // rewrites with the new class
         }
         UserDefaults.standard.set(true, forKey: flag)
@@ -898,6 +928,20 @@ final class Store {
     static let shared = Store()
     private init() {}
     private let ud = UserDefaults.standard
+    /// In-memory copy of `savedPlaylists`. The Keychain is a syscall and the account
+    /// views read the list on every appearance — `SettingsView` resolves a playlist name
+    /// by id from inside a row, so without this a long list is one `SecItemCopyMatching`
+    /// per row. nil means "not loaded yet", which is also how every wipe invalidates it.
+    ///
+    /// Locked, and the lock is not decoration. `Store` is a plain `final class`, not
+    /// `@MainActor` — it is a singleton reachable from any thread. What it held before
+    /// was `UserDefaults`, which is thread-safe on its own, so no caller ever had to
+    /// think about isolation. This cache is a bare `var` and would be a data race the
+    /// moment one background read appeared, and the compiler would not say a word.
+    /// Every caller today is main-thread; nothing enforces that, and the next one
+    /// added will not know it was ever a rule.
+    private var playlistCache: [SavedPlaylist]?
+    private let playlistLock = NSLock()
 
     enum K: String {
         case onboarded, theme, features, appConfig
@@ -1006,9 +1050,76 @@ final class Store {
     }
 
     // MARK: - Saved playlists (multiple)
+    /// Every saved account. Backed by the KEYCHAIN, not UserDefaults.
+    ///
+    /// A `SavedPlaylist` carries credentials. For an Xtream line they are inside `url`
+    /// itself (`…/player_api.php?username=…&password=…`); for the backend path they are
+    /// the `username` / `password` fields. Either way this array is the user's whole set
+    /// of provider logins, and it used to be `JSONEncoder` → `UserDefaults` — an
+    /// unencrypted plist in the app container that an unencrypted device backup copies
+    /// verbatim.
+    ///
+    /// What made it worth changing rather than tolerating is that the codebase had
+    /// already decided: `Keychain.m3uURL` says, in its own comment, that a url of this
+    /// shape "belongs here and not in UserDefaults". That protected the ONE line
+    /// currently open while the address book of every other line sat unprotected beside
+    /// it. This is not a new policy; it is the existing one, applied where it was missed.
+    ///
+    /// Cached in memory because a Keychain read is a syscall and the account views read
+    /// this on every appearance. The cache is the only copy readers see, so it is
+    /// invalidated wherever the store is wiped.
     var savedPlaylists: [SavedPlaylist] {
-        get { load([SavedPlaylist].self, key: .savedPlaylists) ?? [] }
-        set { save(newValue, key: .savedPlaylists) }
+        get {
+            playlistLock.lock(); defer { playlistLock.unlock() }
+            if let c = playlistCache { return c }
+            migratePlaylistsToKeychainIfNeeded()
+            let list = Keychain.shared.savedPlaylistsJSON
+                .flatMap { $0.data(using: .utf8) }
+                .flatMap { try? JSONDecoder().decode([SavedPlaylist].self, from: $0) } ?? []
+            playlistCache = list
+            return list
+        }
+        set {
+            playlistLock.lock(); defer { playlistLock.unlock() }
+            playlistCache = newValue
+            guard let data = try? JSONEncoder().encode(newValue),
+                  let json = String(data: data, encoding: .utf8) else { return }
+            Keychain.shared.savedPlaylistsJSON = json
+        }
+    }
+
+    /// Move an existing install's accounts across, once, and DELETE the old copy.
+    ///
+    /// The deletion is the entire point. Writing to the Keychain and leaving the plist
+    /// behind would protect nothing — the credentials would still be sitting in the
+    /// backup, and the migration would have bought a comment rather than a fix.
+    ///
+    /// Ordered so a failure cannot lose data: the old copy is removed only after the
+    /// Keychain write is read back and confirmed. If the write fails the plist stays,
+    /// the flag is not set, and the next launch tries again — the user keeps their
+    /// accounts either way.
+    private func migratePlaylistsToKeychainIfNeeded() {
+        let flag = "s8k.playlists.keychain.v1"
+        guard !ud.bool(forKey: flag) else { return }
+        guard let old = ud.data(forKey: K.savedPlaylists.rawValue) else {
+            ud.set(true, forKey: flag)      // nothing to move — a fresh install
+            return
+        }
+        if Keychain.shared.savedPlaylistsJSON == nil,
+           let json = String(data: old, encoding: .utf8) {
+            Keychain.shared.savedPlaylistsJSON = json
+        }
+        guard Keychain.shared.savedPlaylistsJSON != nil else { return }   // retry next launch
+        ud.removeObject(forKey: K.savedPlaylists.rawValue)
+        ud.set(true, forKey: flag)
+    }
+
+    /// Erase the accounts entirely — account deletion only, never logout.
+    func purgeSavedPlaylists() {
+        playlistLock.lock(); defer { playlistLock.unlock() }
+        playlistCache = nil
+        Keychain.shared.deleteSavedPlaylists()
+        ud.removeObject(forKey: K.savedPlaylists.rawValue)   // any pre-migration remnant
     }
     var activePlaylistID: String? {
         get { ud.string(forKey: K.activePlaylist.rawValue) }
@@ -1299,6 +1410,13 @@ final class Store {
     }
     func clearAll() {
         invalidateM3UCache()
+        // The accounts no longer live in this domain, so wiping it can no longer remove
+        // them. `purgeSavedPlaylists()` is what does, and account deletion calls it —
+        // this only drops the stale in-memory copy so nothing reads a list that the
+        // caller is in the middle of erasing.
+        playlistLock.lock()
+        playlistCache = nil
+        playlistLock.unlock()
         if let id = Bundle.main.bundleIdentifier {
             ud.removePersistentDomain(forName: id)
         }
