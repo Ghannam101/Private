@@ -1360,22 +1360,27 @@ struct PlayerEngineView: View {
     /// threaded through a nested struct, which is precisely the shape that expired three
     /// expression budgets and failed build 111. A sheet presented on a tap can afford one
     /// box; a build that does not compile cannot.
+    /// `Int32`, not `Int`, because that is what the ENGINE speaks: libVLC's track ids
+    /// are Int32 and `subtitleTracks`, `audioTracks`, `currentSubtitle`, `currentAudio`,
+    /// `selectSubtitle` and `selectAudio` all carry that type through. Written as `Int`
+    /// first, this cost a build — six conversion errors — and the fix is not a cast at
+    /// each boundary but the picker using the type the data already has.
     struct PlayerPickItem: Identifiable, Equatable {
-        let id: Int
+        let id: Int32
         let label: String
     }
 
     private struct PlayerPicker: View {
         let title: String
         let items: [PlayerPickItem]
-        let selected: Int
+        let selected: Int32
         /// Shown instead of the list when there is nothing to choose from.
         var emptyIcon: String = ""
         var emptyTitle: String = ""
         var emptySub: String = ""
         /// Sits above the list. Only subtitles use it, for the size presets.
         var header: AnyView? = nil
-        let onPick: (Int) -> Void
+        let onPick: (Int32) -> Void
         let onClose: () -> Void
 
         var body: some View {
@@ -1533,7 +1538,7 @@ struct PlayerEngineView: View {
     /// an integer key removes the question instead of tuning an epsilon.
     private var speedItems: [PlayerPickItem] {
         speedOptions.map { r in
-            PlayerPickItem(id: Int((r * 100).rounded()),
+            PlayerPickItem(id: Int32((r * 100).rounded()),
                            label: r == 1.0 ? L("play.speed.normal") : speedLabel(r))
         }
     }
@@ -1542,7 +1547,7 @@ struct PlayerEngineView: View {
         PlayerPicker(
             title: L("play.speed.title"),
             items: speedItems,
-            selected: Int((vm.rate * 100).rounded()),
+            selected: Int32((vm.rate * 100).rounded()),
             onPick: { key in
                 vm.setRate(Float(key) / 100)
                 showSpeedSheet = false
