@@ -1,0 +1,157 @@
+/* Trex TV — the pages that live on strong8k.app.
+   One stylesheet, inlined into each page at publish time or linked from /trex/.
+   No webfonts, no CDN, no analytics: these are the pages that PROMISE the app does
+   not track anyone, and loading a third-party script here would make that a lie. */
+
+:root {
+  --ink:        #0B0B17;   /* brand base — a warm near-black, not neutral */
+  --ink-soft:   #141422;
+  --ember:      #F4702A;   /* the mark's measured mean */
+  --ember-deep: #C0432A;
+  --paper:      #FBF9F7;
+  --text:       #12121C;
+  --muted:      #5C5C6B;
+  --rule:       rgba(18,18,28,.12);
+  --card:       #FFFFFF;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: var(--ink);
+    --text:  #EDECF2;
+    --muted: #9A99A8;
+    --rule:  rgba(237,236,242,.14);
+    --card:  var(--ink-soft);
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0B0B17; --text: #EDECF2; --muted: #9A99A8;
+  --rule: rgba(237,236,242,.14); --card: #141422;
+}
+:root[data-theme="light"] {
+  --paper: #FBF9F7; --text: #12121C; --muted: #5C5C6B;
+  --rule: rgba(18,18,28,.12); --card: #FFFFFF;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  font-size: 17px;
+  line-height: 1.75;
+}
+
+.wrap {
+  max-width: 46rem;          /* ~66 characters of running text */
+  margin: 0 auto;
+  padding: 2.5rem 1.25rem 5rem;
+}
+
+/* The lockup. Drawn, not an image file, so the page has no second request and
+   cannot show a broken icon if a path is wrong on the server. */
+.mark {
+  display: inline-flex; align-items: center; gap: .6rem;
+  text-decoration: none; color: inherit;
+}
+.mark .glyph {
+  width: 2.1rem; height: 2.1rem; border-radius: .62rem;
+  background: linear-gradient(150deg, var(--ember), var(--ember-deep));
+  display: grid; place-items: center;
+  color: #0B0B17; font-weight: 800; font-size: .95rem; letter-spacing: -.02em;
+}
+.mark .name { font-weight: 700; letter-spacing: -.01em; }
+.mark .name span { color: var(--muted); font-weight: 500; }
+
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap;
+  padding-bottom: 1.5rem; margin-bottom: 2.5rem;
+  border-bottom: 1px solid var(--rule);
+}
+header nav { display: flex; gap: 1.25rem; font-size: .93rem; }
+header nav a { color: var(--muted); text-decoration: none; }
+header nav a:hover, header nav a:focus-visible { color: var(--ember); }
+
+h1 {
+  font-size: clamp(1.75rem, 1.2rem + 2.2vw, 2.4rem);
+  line-height: 1.2; letter-spacing: -.02em;
+  text-wrap: balance; margin: 0 0 .5rem;
+}
+h2 {
+  font-size: 1.18rem; letter-spacing: -.01em;
+  margin: 2.75rem 0 .6rem; text-wrap: balance;
+}
+h2:first-of-type { margin-top: 2rem; }
+
+.lede { color: var(--muted); font-size: 1.05rem; margin: 0 0 2rem; }
+.stamp {
+  font-size: .85rem; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+p, li { margin: 0 0 1rem; }
+ul { padding-inline-start: 1.15rem; margin: 0 0 1rem; }
+li::marker { color: var(--ember); }
+
+a { color: var(--ember); text-underline-offset: .18em; }
+
+strong { font-weight: 650; }
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .9em;
+  background: color-mix(in srgb, var(--ember) 12%, transparent);
+  padding: .1em .38em; border-radius: .3em;
+}
+
+/* The one panel that carries the sentence everything else supports. */
+.claim {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-inline-start: 3px solid var(--ember);
+  border-radius: .7rem;
+  padding: 1.15rem 1.3rem;
+  margin: 0 0 2rem;
+}
+.claim p:last-child { margin-bottom: 0; }
+
+/* Arabic runs right-to-left; the English half of the same document does not.
+   Set per BLOCK rather than per PAGE so one file serves both a user and a
+   reviewer without a toggle that could fail. */
+[dir="rtl"] { text-align: right; }
+[dir="ltr"] { text-align: left; }
+
+.divider {
+  margin: 4rem 0 3rem;
+  border: 0; border-top: 1px solid var(--rule);
+  position: relative;
+}
+.divider::after {
+  content: attr(data-label);
+  position: absolute; inset-inline-start: 50%; transform: translate(-50%, -50%);
+  background: var(--paper); padding: 0 .9rem;
+  font-size: .78rem; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted);
+}
+
+footer {
+  margin-top: 4rem; padding-top: 1.5rem;
+  border-top: 1px solid var(--rule);
+  font-size: .9rem; color: var(--muted);
+  display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+}
+footer a { color: var(--muted); }
+
+table { width: 100%; border-collapse: collapse; margin: 0 0 1.5rem; font-size: .95rem; }
+.scroller { overflow-x: auto; }
+th, td { text-align: start; padding: .6rem .7rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-weight: 650; color: var(--muted); font-size: .82rem; text-transform: uppercase; letter-spacing: .06em; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
