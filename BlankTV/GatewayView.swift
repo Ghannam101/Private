@@ -513,8 +513,17 @@ struct GatewayView: View {
         guard entering == nil else { return }
         entering = acc.id
         Task {
-            await auth.switchPlaylist(acc)
-            auth.loggedIn = true
+            let ok = await auth.switchPlaylist(acc)
+            if ok {
+                auth.loggedIn = true
+            } else {
+                // Refused — the line answered and said no. The message is already in
+                // `auth.error`, and the banner that renders it lives in `loginCard`,
+                // on the gateway BEHIND this sheet. Closing the sheet is what makes it
+                // readable; leaving it open would turn a clear rejection into a tap
+                // that silently did nothing, which is worse than the bug this fixes.
+                showAccounts = false
+            }
             entering = nil
         }
     }

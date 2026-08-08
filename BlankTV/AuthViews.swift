@@ -605,6 +605,11 @@ struct SubscriptionsGateView: View {
     @State private var entering: String? = nil    // id currently being entered
     @State private var appear    = false
     @State private var logoFloat = false
+    /// Why a saved line refused to open. This screen shows saved accounts and nothing
+    /// else — it has no login form, so it never had anywhere to put an error, and until
+    /// `switchPlaylist` started refusing it never produced one. It does now, and a
+    /// refusal the user cannot read is the same as a tap that did nothing.
+    @State private var switchError: String? = nil
 
     var body: some View {
         ZStack {
@@ -635,6 +640,13 @@ struct SubscriptionsGateView: View {
         // successful add it flips auth.loggedIn → the whole gate unmounts.
         .sheet(isPresented: $showAdd, onDismiss: { accounts = Store.shared.savedPlaylists }) {
             LoginView()
+        }
+        .alert(L("accounts.cannot_open"),
+               isPresented: Binding(get: { switchError != nil },
+                                    set: { if !$0 { switchError = nil } })) {
+            Button(L("common.close"), role: .cancel) { switchError = nil }
+        } message: {
+            Text(switchError ?? "")
         }
     }
 
@@ -800,8 +812,11 @@ struct SubscriptionsGateView: View {
         guard entering == nil else { return }
         entering = acc.id
         Task {
-            await auth.switchPlaylist(acc)
-            auth.loggedIn = true     // enter the app with the chosen subscription
+            if await auth.switchPlaylist(acc) {
+                auth.loggedIn = true     // enter the app with the chosen subscription
+            } else {
+                switchError = auth.error?.errorDescription ?? L("common.error")
+            }
             entering = nil
         }
     }

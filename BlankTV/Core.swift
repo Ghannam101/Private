@@ -113,6 +113,10 @@ enum L10n {
         "accounts.title": [.ar: "الحسابات", .en: "Accounts", .fr: "Comptes", .tr: "Hesaplar", .es: "Cuentas"],
         "accounts.add":   [.ar: "إضافة حساب", .en: "Add account", .fr: "Ajouter un compte", .tr: "Hesap ekle", .es: "Añadir cuenta"],
         "accounts.current":[.ar: "الحساب الحالي", .en: "Current", .fr: "Actuel", .tr: "Mevcut", .es: "Actual"],
+        // Title only — the body is the PROVIDER's own message ("expired", "banned"),
+        // passed through untranslated because it is the panel speaking, not us. A
+        // reassuring paraphrase here would be us inventing a reason we do not know.
+        "accounts.cannot_open":[.ar: "تعذّر فتح هذا الحساب", .en: "Can't open this account", .fr: "Impossible d'ouvrir ce compte", .tr: "Bu hesap açılamadı", .es: "No se puede abrir esta cuenta"],
         "accounts.rename":[.ar: "تعديل الاسم", .en: "Rename", .fr: "Renommer", .tr: "Yeniden adlandır", .es: "Renombrar"],
         "accounts.name_ph":[.ar: "اسم الحساب", .en: "Account name", .fr: "Nom du compte", .tr: "Hesap adı", .es: "Nombre de la cuenta"],
         "reorder.search": [.ar: "ابحث عن قسم…", .en: "Search a category…", .fr: "Trouver une catégorie…", .tr: "Kategori bul…", .es: "Encontrar categoría…"],

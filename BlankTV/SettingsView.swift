@@ -641,6 +641,8 @@ struct AccountSwitcherView: View {
     @State private var accounts: [SavedPlaylist] = Store.shared.savedPlaylists
     @State private var showAdd = false
     @State private var switching = false
+    /// Why a saved line refused to open — see AuthService.switchPlaylist.
+    @State private var switchError: String? = nil
     @State private var renaming: SavedPlaylist? = nil
     @State private var renameText = ""
 
@@ -683,6 +685,13 @@ struct AccountSwitcherView: View {
             TextField(L("accounts.name_ph"), text: $renameText)
             Button(L("common.save")) { commitRename() }
             Button(L("common.cancel"), role: .cancel) { renaming = nil }
+        }
+        .alert(L("accounts.cannot_open"),
+               isPresented: Binding(get: { switchError != nil },
+                                    set: { if !$0 { switchError = nil } })) {
+            Button(L("common.close"), role: .cancel) { switchError = nil }
+        } message: {
+            Text(switchError ?? "")
         }
     }
 
@@ -743,7 +752,14 @@ struct AccountSwitcherView: View {
 
     private func switchTo(_ acc: SavedPlaylist) {
         switching = true
-        Task { await auth.switchPlaylist(acc); switching = false; onClose() }
+        Task {
+            let ok = await auth.switchPlaylist(acc)
+            switching = false
+            // Only close on success. Closing on a refusal would drop the user back into
+            // the account they are ALREADY in, with nothing said — indistinguishable
+            // from the switch having worked.
+            if ok { onClose() } else { switchError = auth.error?.errorDescription ?? L("common.error") }
+        }
     }
     private func commitRename() {
         guard let acc = renaming else { return }
@@ -765,6 +781,8 @@ struct PlaylistsView: View {
     @Environment(\.dismiss) var dismiss
     @State private var playlists: [SavedPlaylist] = Store.shared.savedPlaylists
     @State private var activeID  = Store.shared.activePlaylistID
+    /// Why a saved line refused to open — see AuthService.switchPlaylist.
+    @State private var switchError: String? = nil
     @State private var showAdd   = false
     @State private var switching = false
 
@@ -790,6 +808,13 @@ struct PlaylistsView: View {
                     ProgressView().tint(.s8kGoldMid).scaleEffect(1.3)
                 }
             }
+        .alert(L("accounts.cannot_open"),
+               isPresented: Binding(get: { switchError != nil },
+                                    set: { if !$0 { switchError = nil } })) {
+            Button(L("common.close"), role: .cancel) { switchError = nil }
+        } message: {
+            Text(switchError ?? "")
+        }
             .navigationTitle(L("playlists.title")).navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -863,9 +888,16 @@ struct PlaylistsView: View {
     private func switchTo(_ p: SavedPlaylist) {
         switching = true
         Task {
-            await auth.switchPlaylist(p)
-            activeID = p.id
+            let ok = await auth.switchPlaylist(p)
             switching = false
+            guard ok else {
+                // `activeID` deliberately NOT moved: the refused line never became
+                // active, and marking it so would leave this list showing a green
+                // "current" badge on the one account the app just declined to open.
+                switchError = auth.error?.errorDescription ?? L("common.error")
+                return
+            }
+            activeID = p.id
             dismiss()
         }
     }

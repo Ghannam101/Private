@@ -208,21 +208,69 @@ final class AuthService: ObservableObject {
         return "قائمة"
     }
 
-    /// Switch the active playlist and reload content from it.
-    func switchPlaylist(_ p: SavedPlaylist) async {
+    /// Switch the active playlist and reload content from it. `false` = refused, and
+    /// `error` says why; the previous session is left exactly as it was.
+    ///
+    /// The login FORM has always pre-flighted the line — `validateCredentials` — so an
+    /// expired or banned subscription is rejected while the user is still looking at the
+    /// screen they typed it on. A saved-account card did not. Same destination, same
+    /// engine, and one of the two roads told you the truth.
+    ///
+    /// What that cost: tapping a line that had since expired signed you in. `loggedIn`
+    /// went true, the tabs remounted, the boot loader fetched nothing, and the app sat
+    /// there empty with no message. Nothing said "this subscription has ended" — the
+    /// one sentence the user needed, and the one the form would have shown.
+    ///
+    /// The refusal is deliberately narrow. Only `AppError` blocks the switch, because
+    /// that is what `validateAuth` throws when the PANEL has answered and its answer was
+    /// no: auth != 1, or a status of expired / banned / disabled, or a reply with no
+    /// parseable `user_info` at all. A timeout, a dropped connection, a captive portal —
+    /// anything that is not `AppError` — is the network failing to deliver a verdict, not
+    /// a verdict. Those let the switch through: the boot loader has its own retry and its
+    /// own error, and locking a paying customer out of a working line because a hotel
+    /// wifi blinked would be a worse bug than the one this fixes.
+    ///
+    /// Order matters and is the reason validation sits where it does. `m3uURL` must be
+    /// set first because that is what `validateCredentials` reads. But the teardown —
+    /// `PlaylistService.reset()`, `ContentCache.reset()`, `contentReady = false` — comes
+    /// only AFTER the line has answered, so a refused switch never destroys the session
+    /// the user is still in. On refusal the three restored values are all that changed.
+    @discardableResult
+    func switchPlaylist(_ p: SavedPlaylist) async -> Bool {
         if p.kind == .m3u {
+            let prevURL  = Store.shared.m3uURL
+            let prevLogin = Store.shared.loginMode
+            let prevMode = mode
+
             Store.shared.m3uURL = p.url
+            do {
+                try await PlaylistService.shared.validateCredentials()
+            } catch let e as AppError {
+                Store.shared.m3uURL = prevURL       // nothing else has been touched yet
+                Store.shared.loginMode = prevLogin
+                mode = prevMode
+                error = e
+                return false
+            } catch {
+                // Not a verdict — the panel never answered. Fall through and let the
+                // boot loader report it, the same as a line that goes down mid-session.
+            }
+
             Store.shared.loginMode = .m3u
             mode = .m3u
             await PlaylistService.shared.reset()
         } else {
+            // The backend path, which has no pre-flight to call — it is validated by the
+            // token it does not have here. Left as it was rather than guessed at.
             Keychain.shared.saveServerCredentials(host: p.url, user: p.username ?? "", pass: p.password ?? "")
             Store.shared.loginMode = .xtream
             mode = .xtream
         }
+        error = nil
         activate(playlistID: p.id)              // leaves demo + per-playlist history/favorites/watchlist
         ContentCache.reset()
         AppRouter.shared.contentReady = false   // re-run the boot loader → fresh content
+        return true
     }
 
     /// Force a fresh reload of the current playlist's content (#6 refresh).
@@ -274,9 +322,17 @@ final class AuthService: ObservableObject {
         // If the active (e.g. broken/expired) playlist was deleted, properly
         // re-activate a remaining one — reloading its credentials + content —
         // instead of leaving the app pointed at the dead playlist (#5).
+        //
+        // The result is CHECKED, and that is new. `switchPlaylist` used to always
+        // succeed; now it refuses a line the panel has rejected — and the most likely
+        // moment to hit that is exactly here, deleting one dead subscription when the
+        // only one left is dead too. Ignoring the refusal would leave activePlaylistID
+        // pointing at the id just removed from the list: a scope with no playlist, whose
+        // favourites and history were wiped two lines above. Nothing at all is better
+        // than a pointer to something deleted.
         if wasActive {
-            if let next = list.first { await switchPlaylist(next) }
-            else { Store.shared.activePlaylistID = nil }
+            if let next = list.first, await switchPlaylist(next) { return }
+            Store.shared.activePlaylistID = nil
         }
     }
 
