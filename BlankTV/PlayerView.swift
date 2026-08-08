@@ -1327,37 +1327,155 @@ struct PlayerEngineView: View {
         .presentationDetents([.medium, .large])
     }
 
-    // MARK: - Subtitle sheet
-    private var subtitleSheet: some View {
-        NavigationStack {
-            ZStack {
-                Color.s8kBlack.ignoresSafeArea()
-                if vm.subtitleTracks.isEmpty {
-                    EmptyState(icon: "captions.bubble", title: L("play.subtitle.empty.title"),
-                               subtitle: L("play.subtitle.empty.sub"))
-                } else {
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 4) {
-                            subtitleSizeRow
-                            subtitleRow(title: L("play.subtitle.none"), isOn: vm.currentSubtitle < 0) {
-                                vm.selectSubtitle(-1); showSubtitleSheet = false
-                            }
-                            ForEach(vm.subtitleTracks, id: \.id) { track in
-                                subtitleRow(title: track.name, isOn: vm.currentSubtitle == track.id) {
-                                    vm.selectSubtitle(track.id); showSubtitleSheet = false
+    // MARK: - The one picker the player opens
+
+    /// Subtitles, audio tracks and speed were three sheets with one body.
+    ///
+    /// Each was a NavigationStack over a black ZStack over a ScrollView of rows, with the
+    /// same title bar and the same close button — and the speed sheet did not even call
+    /// the shared row, it re-typed those twelve lines inline. Three copies of one screen,
+    /// and every future fix owed to all three.
+    ///
+    /// Collapsing them fixed three faults that were present in all three at once:
+    ///
+    /// THE LIST COULD NOT BE OPENED. `.presentationDetents([.medium])` was the only
+    /// detent. A stream with twenty audio tracks — ordinary on a multi-language line —
+    /// showed six of them in a pane that could not be dragged taller.
+    ///
+    /// IT OPENED AT THE TOP, NOT AT YOUR CHOICE. Selecting track fifteen and reopening
+    /// the sheet showed track one, with no sign the selection had survived. It scrolls to
+    /// the current one now.
+    ///
+    /// VOICEOVER WAS NOT TOLD. The selection was a checkmark GLYPH and nothing else, so a
+    /// blind user heard the track name with no indication of which was playing. The row
+    /// carries `.isSelected` now, which is the trait VoiceOver actually announces.
+    ///
+    /// The chosen row is marked by an ember SPINE down its leading edge instead of a
+    /// checkmark in a circle: it reads at a glance rather than being hunted for, it is the
+    /// thread the rest of this app is woven from, and it holds a constant width so labels
+    /// never shift as the selection moves.
+    ///
+    /// `AnyView` for the header is deliberate, and it is the one place in this file that
+    /// pays a small runtime cost on purpose. The alternative is a generic `Header: View`
+    /// threaded through a nested struct, which is precisely the shape that expired three
+    /// expression budgets and failed build 111. A sheet presented on a tap can afford one
+    /// box; a build that does not compile cannot.
+    struct PlayerPickItem: Identifiable, Equatable {
+        let id: Int
+        let label: String
+    }
+
+    private struct PlayerPicker: View {
+        let title: String
+        let items: [PlayerPickItem]
+        let selected: Int
+        /// Shown instead of the list when there is nothing to choose from.
+        var emptyIcon: String = ""
+        var emptyTitle: String = ""
+        var emptySub: String = ""
+        /// Sits above the list. Only subtitles use it, for the size presets.
+        var header: AnyView? = nil
+        let onPick: (Int) -> Void
+        let onClose: () -> Void
+
+        var body: some View {
+            NavigationStack {
+                ZStack {
+                    Color.s8kBlack.ignoresSafeArea()
+                    if items.isEmpty && !emptyIcon.isEmpty {
+                        EmptyState(icon: emptyIcon, title: emptyTitle, subtitle: emptySub)
+                    } else {
+                        ScrollViewReader { proxy in
+                            ScrollView(showsIndicators: false) {
+                                VStack(spacing: 6) {
+                                    if let header { header }
+                                    ForEach(items) { item in
+                                        row(item).id(item.id)
+                                    }
                                 }
+                                .padding(.top, 14)
+                                .padding(.bottom, 24)
+                            }
+                            .onAppear {
+                                // Unanimated on purpose: the sheet is still arriving, and
+                                // animating a jump the user never saw begin reads as a
+                                // glitch rather than as a scroll.
+                                guard items.contains(where: { $0.id == selected }) else { return }
+                                proxy.scrollTo(selected, anchor: .center)
                             }
                         }
-                        .padding(.top, 14)
+                    }
+                }
+                .navigationTitle(title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(L("common.close")) { onClose() }.foregroundColor(.s8kGoldHigh)
                     }
                 }
             }
-            .navigationTitle(L("play.subtitle.title")).navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .topBarLeading) {
-                Button(L("common.close")) { showSubtitleSheet = false }.foregroundColor(.s8kGoldMid) } }
+            // .large as well as .medium — a twenty-track list was unreachable without it.
+            .presentationDetents([.medium, .large])
         }
-        .presentationDetents([.medium])
+
+        private func row(_ item: PlayerPickItem) -> some View {
+            let isOn: Bool = item.id == selected
+            return Button(action: { onPick(item.id) }) {
+                HStack(spacing: 12) {
+                    RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                        .fill(isOn ? AnyShapeStyle(S8KGradient.goldVertical)
+                                   : AnyShapeStyle(Color.white.opacity(0.07)))
+                        .frame(width: 3)
+                    Text(item.label)
+                        .font(S8KFont.headline)
+                        .foregroundColor(isOn ? .s8kGoldHigh : .white)
+                        .lineLimit(2)
+                        .multilineTextAlignment(s8kMultiline)
+                        .frame(maxWidth: .infinity, alignment: s8kFrameAlign)
+                }
+                .padding(.trailing, S8KSpace.lg)
+                .padding(.vertical, 14)
+                .frame(minHeight: 52)          // comfortably past the 44pt minimum
+                .background(Color.s8kSurface)
+                .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous))
+            }
+            .buttonStyle(S8KButtonStyle())
+            .padding(.horizontal, S8KSpace.xl)
+            // Only `.isSelected` is added: a Button already carries `.isButton`, and a
+            // ternary between an array literal and a bare member makes the compiler
+            // unify two different inference paths for no gain. This one has an empty
+            // set on the other side, so both branches are the same shape.
+            .accessibilityAddTraits(isOn ? .isSelected : [])
+        }
     }
+
+    // MARK: - Subtitles
+
+    private var subtitleSheet: some View {
+        PlayerPicker(
+            title: L("play.subtitle.title"),
+            items: subtitleItems,
+            selected: vm.currentSubtitle,
+            emptyIcon: "captions.bubble",
+            emptyTitle: L("play.subtitle.empty.title"),
+            emptySub: L("play.subtitle.empty.sub"),
+            header: AnyView(subtitleSizeRow),
+            onPick: { id in vm.selectSubtitle(id); showSubtitleSheet = false },
+            onClose: { showSubtitleSheet = false }
+        )
+    }
+
+    /// "Off" is id -1, which is already what the engine uses for no subtitle — so it is a
+    /// real row in the list rather than a special case bolted above it, and the scroll-to
+    /// and the selection spine work on it for free.
+    private var subtitleItems: [PlayerPickItem] {
+        var out: [PlayerPickItem] = [PlayerPickItem(id: -1, label: L("play.subtitle.none"))]
+        for t in vm.subtitleTracks {
+            out.append(PlayerPickItem(id: t.id, label: t.name))
+        }
+        return out
+    }
+
     // Subtitle-size presets (VLC engine): tap to change size live while watching.
     // NOTE: libVLC's rel-fontsize is INVERSE — a SMALLER number renders BIGGER text —
     // so the values below descend from صغير→ضخم. (16 ≈ VLC's Normal default.) We never
@@ -1367,10 +1485,10 @@ struct PlayerEngineView: View {
             (L("subsize.small"), 22), (L("subsize.medium"), 16),
             (L("subsize.large"), 12), (L("subsize.xl"), 8)
         ]
-        return VStack(alignment: .trailing, spacing: 8) {
+        return VStack(alignment: s8kTextAlign, spacing: 8) {
             Text(L("play.subtitle.size"))
                 .font(S8KFont.caption1).foregroundColor(.s8kTextTertiary)
-                .frame(maxWidth: .infinity, alignment: .trailing)
+                .frame(maxWidth: .infinity, alignment: s8kFrameAlign)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(presets, id: \.1) { label, px in
@@ -1385,82 +1503,51 @@ struct PlayerEngineView: View {
         }
         .padding(.horizontal, S8KSpace.xl).padding(.bottom, 8)
     }
-    private func subtitleRow(title: String, isOn: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack {
-                if isOn { Image(systemName: "checkmark.circle.fill").foregroundColor(.s8kGoldMid) }
-                Spacer()
-                Text(title).font(S8KFont.headline).foregroundColor(isOn ? .s8kGoldMid : .white)
-            }
-            .padding(.horizontal, S8KSpace.xl).padding(.vertical, 15)
-            .background(Color.s8kSurface).clipShape(RoundedRectangle(cornerRadius: S8KRadius.md))
-        }
-        .buttonStyle(S8KButtonStyle()).padding(.horizontal, S8KSpace.xl)
+
+    // MARK: - Audio tracks
+
+    private var audioSheet: some View {
+        PlayerPicker(
+            title: L("play.audio_track.title"),
+            items: vm.audioTracks.map { PlayerPickItem(id: $0.id, label: $0.name) },
+            selected: vm.currentAudio,
+            emptyIcon: "waveform",
+            emptyTitle: L("play.audio_track.empty.title"),
+            emptySub: L("play.audio_track.empty.sub"),
+            onPick: { id in vm.selectAudio(id); showAudioSheet = false },
+            onClose: { showAudioSheet = false }
+        )
     }
 
-    // MARK: - Playback speed sheet
+    // MARK: - Speed
+
     private func speedLabel(_ r: Float) -> String {
         // Trim trailing ".0" → "2x", keep "1.5x"
         let s = String(format: "%g", Double(r))
         return "\(s)x"
     }
     private let speedOptions: [Float] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
-    private var speedSheet: some View {
-        NavigationStack {
-            ZStack {
-                Color.s8kBlack.ignoresSafeArea()
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 4) {
-                        ForEach(speedOptions, id: \.self) { r in
-                            let isOn = abs(vm.rate - r) < 0.001
-                            Button(action: { vm.setRate(r); showSpeedSheet = false }) {
-                                HStack {
-                                    if isOn { Image(systemName: "checkmark.circle.fill").foregroundColor(.s8kGoldMid) }
-                                    Spacer()
-                                    Text(r == 1.0 ? L("play.speed.normal") : speedLabel(r))
-                                        .font(S8KFont.headline).foregroundColor(isOn ? .s8kGoldMid : .white)
-                                }
-                                .padding(.horizontal, S8KSpace.xl).padding(.vertical, 15)
-                                .background(Color.s8kSurface).clipShape(RoundedRectangle(cornerRadius: S8KRadius.md))
-                            }
-                            .buttonStyle(S8KButtonStyle()).padding(.horizontal, S8KSpace.xl)
-                        }
-                    }
-                    .padding(.top, 14)
-                }
-            }
-            .navigationTitle(L("play.speed.title")).navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .topBarLeading) {
-                Button(L("common.close")) { showSpeedSheet = false }.foregroundColor(.s8kGoldMid) } }
+
+    /// Rate is a Float and the picker keys on Int, so a rate travels as hundredths — 1.25
+    /// is 125. The old sheet compared Floats for identity with `abs(vm.rate - r) < 0.001`;
+    /// an integer key removes the question instead of tuning an epsilon.
+    private var speedItems: [PlayerPickItem] {
+        speedOptions.map { r in
+            PlayerPickItem(id: Int((r * 100).rounded()),
+                           label: r == 1.0 ? L("play.speed.normal") : speedLabel(r))
         }
-        .presentationDetents([.medium])
     }
 
-    // MARK: - Audio track sheet (audio selection + remember)
-    private var audioSheet: some View {
-        NavigationStack {
-            ZStack {
-                Color.s8kBlack.ignoresSafeArea()
-                if vm.audioTracks.isEmpty {
-                    EmptyState(icon: "waveform", title: L("play.audio_track.empty.title"),
-                               subtitle: L("play.audio_track.empty.sub"))
-                } else {
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 4) {
-                            ForEach(vm.audioTracks, id: \.id) { track in
-                                subtitleRow(title: track.name, isOn: vm.currentAudio == track.id) {
-                                    vm.selectAudio(track.id); showAudioSheet = false
-                                }
-                            }
-                        }
-                        .padding(.top, 14)
-                    }
-                }
-            }
-            .navigationTitle(L("play.audio_track.title")).navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .topBarLeading) {
-                Button(L("common.close")) { showAudioSheet = false }.foregroundColor(.s8kGoldMid) } }
-        }
-        .presentationDetents([.medium])
+    private var speedSheet: some View {
+        PlayerPicker(
+            title: L("play.speed.title"),
+            items: speedItems,
+            selected: Int((vm.rate * 100).rounded()),
+            onPick: { key in
+                vm.setRate(Float(key) / 100)
+                showSpeedSheet = false
+            },
+            onClose: { showSpeedSheet = false }
+        )
     }
 }
