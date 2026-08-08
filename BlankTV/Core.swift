@@ -293,14 +293,22 @@ enum L10n {
         "player.quality":        [.ar: "جودة البث",      .en: "Streaming quality", .fr: "Qualité du flux", .tr: "Akış kalitesi", .es: "Calidad de emisión"],
         "player.sleep.default":  [.ar: "مؤقت النوم الافتراضي", .en: "Default sleep timer", .fr: "Minuteur par défaut", .tr: "Varsayılan uyku süresi", .es: "Temporizador predeterminado"],
         "player.engine":         [.ar: "محرّك التشغيل", .en: "Playback engine", .fr: "Moteur de lecture", .tr: "Oynatma motoru", .es: "Motor de reproducción"],
-        "player.engine.auto":    [.ar: "تلقائي", .en: "Automatic", .fr: "Automatique", .tr: "Otomatik", .es: "Automático"],
+        "player.engine.auto":    [.ar: "تلقائي (موصى به)", .en: "Automatic (recommended)", .fr: "Automatique (recommandé)", .tr: "Otomatik (önerilir)", .es: "Automático (recomendado)"],
         "player.pip":            [.ar: "صورة داخل صورة", .en: "Picture in Picture", .fr: "Image dans l'image", .tr: "Resim İçinde Resim", .es: "Imagen en imagen"],
         "quality.auto":          [.ar: "تلقائي", .en: "Automatic", .fr: "Automatique", .tr: "Otomatik", .es: "Automático"],
         "quality.high":          [.ar: "عالي HD", .en: "High HD", .fr: "Haute HD", .tr: "Yüksek HD", .es: "Alta HD"],
         "quality.medium":        [.ar: "متوسط", .en: "Medium", .fr: "Moyenne", .tr: "Orta", .es: "Media"],
         "quality.low":           [.ar: "منخفض", .en: "Low", .fr: "Basse", .tr: "Düşük", .es: "Baja"],
-        "player.engine.av":      [.ar: "عتادي (الأسرع)", .en: "Hardware (fastest)", .fr: "Matériel (le plus rapide)", .tr: "Donanım (en hızlı)", .es: "Hardware (el más rápido)"],
-        "player.engine.vlc":     [.ar: "شامل (VLC)", .en: "Universal (VLC)", .fr: "Universel (VLC)", .tr: "Evrensel (VLC)", .es: "Universal (VLC)"],
+        // "الأسرع" / "fastest" was a claim the app's OWN router contradicts: StreamRouter
+        // sends AVPlayer only HLS and gives VLC every VOD, TS, MKV, AVI and every local
+        // file, because AVPlayer cannot decode them. Labelled "fastest", this option
+        // reads as the better one and is in fact the NARROWER one — a user who picks it
+        // forces most of their library onto an engine that has to fail over. The label
+        // now says what it is for, which is also what makes it worth choosing.
+        "player.engine.av":      [.ar: "للبثّ المباشر", .en: "For live streams", .fr: "Pour le direct", .tr: "Canlı yayın için", .es: "Para directos"],
+        // The engine NAME is no longer inside the string — `PlayerEngineKind.displayName`
+        // supplies it, so Settings and the diagnostics screen cannot drift apart again.
+        "player.engine.vlc":     [.ar: "يشغّل كل شيء", .en: "Plays everything", .fr: "Lit tout", .tr: "Her şeyi oynatır", .es: "Reproduce todo"],
 
         // Offline downloads
         "set.downloads":         [.ar: "التنزيلات", .en: "Downloads", .fr: "Téléchargements", .tr: "İndirilenler", .es: "Descargas"],

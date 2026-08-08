@@ -448,8 +448,18 @@ struct SetPlayerPage: View {
         }
     }
 
+    /// "AVPlayer · للبثّ المباشر" — the engine's real name first, then what it is for.
+    ///
+    /// The name comes from `PlayerEngineKind.displayName`, which is the same source the
+    /// engine-diagnostics screen reads. That is the whole point: the two screens used to
+    /// hard-code different names for the same two engines, so the row you SET and the
+    /// row you READ two taps later disagreed with each other.
     private func engineLabel(_ p: String) -> String {
-        switch p { case "av": return L("player.engine.av"); case "vlc": return L("player.engine.vlc"); default: return L("player.engine.auto") }
+        switch p {
+        case "av":  return "\(PlayerEngineKind.av.displayName) · \(L("player.engine.av"))"
+        case "vlc": return "\(PlayerEngineKind.vlc.displayName) · \(L("player.engine.vlc"))"
+        default:    return L("player.engine.auto")
+        }
     }
 }
 
@@ -586,8 +596,9 @@ struct EngineStatsView: View {
         SetScaffold(title: L("diag.engine.title")) {
             SetUI.group(L("diag.engine.memory")) {
                 statRow(L("diag.remembered"), "\(cache.total)")
-                SetUI.divider(); statRow("AVPlayer", "\(cache.av)")
-                SetUI.divider(); statRow("VLC", "\(cache.vlc)")
+                // Same source as the Settings row above — see PlayerEngineKind.displayName.
+                SetUI.divider(); statRow(PlayerEngineKind.av.displayName, "\(cache.av)")
+                SetUI.divider(); statRow(PlayerEngineKind.vlc.displayName, "\(cache.vlc)")
             }
             SetUI.group(L("diag.engine.usage")) {
                 statRow(L("diag.opens"), "\(s.opens)")

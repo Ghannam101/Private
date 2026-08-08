@@ -637,22 +637,52 @@ struct GatewayView: View {
 
     // (the switcher lives in its own `GatewayModeSwitcher` view, defined above)
 
+    /// The way into the app without a subscription.
+    ///
+    /// It was plain grey text sitting in a stack with "Need help?", Terms and Privacy —
+    /// four grey links, one of which was a major feature and three of which were legal
+    /// boilerplate. Nothing distinguished them, so the only door for someone with no
+    /// credentials read as fine print.
+    ///
+    /// That matters twice. A visitor evaluating the app before subscribing cannot find
+    /// the demo. And an App Store reviewer, who by definition has no IPTV line, lands on
+    /// a screen demanding a server address, a username and a password — with ninety
+    /// seconds and a rejection template open. "We were unable to review your app" under
+    /// Guideline 2.1 costs a week.
+    ///
+    /// The screen's rule is kept, not broken. It says exactly one accent-FILLED element
+    /// belongs here, and that is still the sign-in button. This is outlined: accent on a
+    /// hairline and on the type, neutral inside. That is the missing middle rung —
+    /// filled primary, outlined secondary, plain text links — instead of one primary and
+    /// four things that all look like footnotes.
+    ///
+    /// `contentShape` because the label is transparent: without it the button hit-tests
+    /// the glyphs rather than the 44pt capsule around them, and the padding buys nothing.
+    private var demoEntry: some View {
+        Button { auth.enterDemo() } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "play.circle")
+                    .font(.system(size: 15, weight: .semibold))
+                Text(L("login.demo"))
+                    .font(S8KFont.subhead.weight(.semibold))
+                    .lineLimit(1).minimumScaleFactor(0.85)
+            }
+            .foregroundColor(.s8kGoldHigh)
+            .padding(.horizontal, 22)
+            .frame(minHeight: 44)
+            .contentShape(Capsule())
+            .overlay(Capsule().strokeBorder(Color.s8kGoldHigh.opacity(0.45), lineWidth: 1))
+        }
+        .buttonStyle(S8KButtonStyle())
+        .padding(.top, 18)
+        .padding(.bottom, 2)
+        .accessibilityLabel(L("login.demo"))
+    }
+
     // MARK: Footer — demo + legal
     private var footer: some View {
         VStack(spacing: 13) {
-            // Demoted to neutral text: a coloured link 20pt under the accent CTA was a
-            // second "primary" competing with the real one. Exactly ONE accent-filled
-            // element belongs on this screen.
-            Button { auth.enterDemo() } label: {
-                Text(L("login.demo")).font(S8KFont.subhead.weight(.semibold))
-                    .foregroundColor(.s8kTextSecondary)
-                    .lineLimit(1).minimumScaleFactor(0.85)
-                    // The footer stacks four text links 13pt apart, so 6 a side is all
-                    // any of them can take before two of them overlap. 44 here needs the
-                    // footer itself to open up — a layout change, not a hit-area one.
-                    .s8kMinTouch(h: 16, v: 6)
-            }
-            .buttonStyle(S8KButtonStyle()).padding(.top, 14)
+            demoEntry
             // Reseller support — this lived on the retired SubscriptionsGateView, and
             // without it a customer whose line has expired has no way to reach their
             // reseller from the login screen.

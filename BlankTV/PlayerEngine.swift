@@ -778,6 +778,25 @@ struct PlayerSurfaceView: UIViewRepresentable {
 enum PlayerEngineKind: String {
     case av, vlc
     var other: PlayerEngineKind { self == .av ? .vlc : .av }
+
+    /// The engine's own name, and the ONLY place it is written.
+    ///
+    /// It had been written in two places with two different answers. Settings called
+    /// these "Hardware (fastest)" and "Universal (VLC)"; the engine-diagnostics screen
+    /// two rows below hard-coded "AVPlayer" and "VLC". Same two engines, four names, and
+    /// a user who set one and then read the other had no way to know they were looking
+    /// at the same thing. Reported from the device, and correctly.
+    ///
+    /// Not localised, deliberately: these are product names. AVPlayer is AVPlayer in
+    /// every language, and translating it would put the app back to describing one thing
+    /// two ways — which is the defect, not the fix. The plain-language part that DOES
+    /// need translating lives beside it in `player.engine.av` / `.vlc`.
+    var displayName: String {
+        switch self {
+        case .av:  return "AVPlayer"
+        case .vlc: return "VLC"
+        }
+    }
 }
 
 enum PlayerEngineSelector {
