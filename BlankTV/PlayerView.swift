@@ -199,7 +199,17 @@ struct PlayerEngineView: View {
     @State private var channelBadgeSeq = 0
     // Axis lock for a drag: once it starts moving we commit to vertical
     // (volume/brightness) OR horizontal (channel zap) so they never fight.
-    private enum DragAxis { case none, vertical, horizontal }
+    /// No `none` case, deliberately. An unset side is `nil` in the dictionary —
+    /// `endDrag` clears it that way — so a `.none` case was a SECOND way to say the
+    /// same thing that nothing ever wrote.
+    ///
+    /// It was not merely redundant. `sideAxis[isVolume] ?? .none` reads as
+    /// `DragAxis.none` and the compiler resolved it as `Optional.none`, warning
+    /// "assuming you mean Optional<DragAxis>.none". Both readings agree while the
+    /// case is never assigned; the first assignment of `.none` anywhere would have
+    /// silently turned the axis lock off, because the check would then be comparing
+    /// a committed axis against nil and finding them different.
+    private enum DragAxis { case vertical, horizontal }
     @State private var sideAxis: [Bool: DragAxis] = [:]   // per-side axis lock (keyed by isVolume)
 
     private let haptic = UIImpactFeedbackGenerator(style: .medium)
@@ -655,7 +665,7 @@ struct PlayerEngineView: View {
         // Commit THIS side to an axis on its first significant movement so a
         // horizontal channel-swipe never nudges volume/brightness and vice-versa.
         // State is per-side (keyed by isVolume) so the two sides never interfere.
-        if (sideAxis[isVolume] ?? .none) == .none {
+        if sideAxis[isVolume] == nil {
             sideAxis[isVolume] = abs(translation.width) > abs(translation.height) ? .horizontal : .vertical
             haptic.prepare()   // warm the Taptic engine so the zap/boundary tap has no latency
         }

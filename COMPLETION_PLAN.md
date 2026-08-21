@@ -57,6 +57,43 @@
   2. تحويل `list(in:)` من متزامنة إلى مخزن صفحات في كل VM.
   3. شريحة رأسية واحدة أولاً (`MoviesVM`)، بسقوط آمن إلى المسار الحالي عند `!CatalogDB.isPopulated(scope:)`.
 
+
+### م2.3 (Swift 6) — مُستقصى بالكامل، لم يُنفَّذ بعد
+
+**الطريقة:** فحص `complete` في وضع Swift 5 يُنتج تحذيرات لا أخطاء، فبناءٌ واحد أعطى التشخيص كاملاً بمخاطرة صفر. جرى على فرع `chore/concurrency-survey` (**غير مدموج، ولا يُدمج**).
+
+**النتيجة النهائية: صفر أخطاء · 176 تحذيراً.**
+
+> ⚠️ **تصحيح مسجَّل:** جولة أولى أبلغت «8 مسائل». كان ذلك ما أسعف المترجمَ إصدارَه **قبل أن يوقفه خطآن**، لا التشخيص. بعد إصلاح الخطأين اكتمل البناء وظهرت الـ176. رقمٌ صغير من بناءٍ توقّف مبكراً ليس نتيجة.
+
+**حقائق مؤكَّدة تجريبياً:**
+- `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` **يعمل في وضع Swift 5** (`-default-isolation=MainActor` مع `-swift-version 5` في السجل). فالترحيل خطوتان: الافتراض الحديث أولاً، ثم وضع اللغة.
+- `isolated deinit` (SE-0371) **مقبولة في وضع Swift 5** — أصلحت الخطأين.
+- إعدادات سطر أوامر `xcodebuild` تسري على **Pods**. GRDB انهارت تحتها. النطاق الصحيح هو إعدادات الهدف.
+
+**الـ176 في ثمانية أنماط:**
+
+| # | النمط | ~العدد | الإصلاح |
+|---|---|---|---|
+| 1 | إغلاقات `Timer`/KVO تلمس حالة MainActor | 50 | `MainActor.assumeIsolated` |
+| 2 | `PlaylistService` (actor) ينادي ثوابت صارت MainActor | 25 | `nonisolated` على `CatalogDB`/`S8KPerf`/`M3UParser`/`XtreamDirect` |
+| 3 | `L()` صارت MainActor وتُنادى من nonisolated | 20 | `nonisolated func L` |
+| 4 | `sending 'd'/'info'` — `[[String:Any]]` عبر حدود actor | 12 | إعادة تشكيل صغيرة |
+| 5 | `Keychain` صار MainActor و`XtreamService` actor يناديه | 8 | `nonisolated` على `Keychain` |
+| 6 | ضجيج Sendable من MobileVLCKit | 8 | `@preconcurrency import` |
+| 7 | `mediaSelectionGroup` مهجورة | 4 | يحتاج جهازاً |
+| 8 | `Optional.none` ملتبسة | 2 | ✅ **أُصلح** — `fix/dragaxis-ambiguity` |
+
+**التوزيع:** `Core.swift` 70 · `PlayerEngine` 50 · `PlayerView` 13 · `Downloads` 12 · `VLCPlayer` 8 · `Models` 8 · `DesignSystem` 6 · `ContentViews` 6 · `Services` 2 · `Plate` 1
+
+### ⛔ لماذا لم تُدمج إعدادات العزل
+
+`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` **ليس تغيير إعداد — بل تغيير سلوك**. يغيّر **أين تعمل الشيفرة فعلاً**: `Keychain` مثلاً يقفز إلى الخيط الرئيسي، و`Timer` تتغيّر دلالة إغلاقاته. لا اختبار وحدة في هذا المستودع يستطيع إثبات أن هذا لم يُدخل جموداً أو تغييراً في الترتيب.
+
+**الشرط:** تحقّق على جهاز بعد الترحيل. حتى ذلك الحين الإعدادات تبقى على الفرع المُلقى، والتشخيص مسجَّل هنا كي لا يُعاد شراؤه.
+
+---
+
 ### مُكتشَف ولم يُصلَح — يحتاج تحققاً على جهاز
 
 `PlayerEngine.swift:698,715,728,745` تستخدم `mediaSelectionGroup(forMediaCharacteristic:)` — **مهجورة منذ iOS 16**. وهي قراءة **متزامنة** لخاصية `AVAsset`، والبديل `loadMediaSelectionGroup(for:)` غير متزامن. الموضع هو `loadSubtitles()` / `loadAudioTracks()`، أي **المسار الساخن عند فتح المشغّل** — فقد تحجب الخيط الرئيسي وتؤثر في زمن أول إطار. الحدّ الأدنى iOS 17، فالبديل متاح.
