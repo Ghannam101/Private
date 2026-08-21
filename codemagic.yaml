@@ -165,6 +165,42 @@ workflows:
           done
           echo "pod install failed after 5 attempts (CocoaPods CDN 429?)"
           exit 1
+      # Tests run BEFORE signing, versioning and the archive, and that order is the
+      # point. Apple caps TestFlight uploads per day; this project has hit that cap
+      # and lost a day of device testing to it. Four minutes here is cheaper than
+      # discovering a regression after the upload slot is already spent.
+      #
+      # Signing is explicitly off for the test build so this step cannot disturb the
+      # keychain the archive depends on. The whole step is verbatim the one proven
+      # green in the `ios-test` workflow — see the note at the top of this file for
+      # the two architecture facts that made it work.
+      - name: Run unit tests before spending a release
+        script: |
+          set -o pipefail
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          runtimes = json.load(sys.stdin)['devices']
+          for rt in sorted(runtimes, reverse=True):
+              if 'iOS' not in rt:
+                  continue
+              for dev in runtimes[rt]:
+                  if dev.get('isAvailable') and 'iPhone' in dev.get('name', ''):
+                      print(dev['udid'])
+                      sys.exit(0)
+          sys.exit(1)
+          ")
+          if [ -z "$UDID" ]; then
+            echo "No available iPhone simulator on this image."
+            xcrun simctl list devices available
+            exit 1
+          fi
+          xcodebuild test \
+            -workspace "$XCODE_WORKSPACE" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Debug \
+            -destination "id=$UDID" \
+            -derivedDataPath build/test-dd \
+            CODE_SIGNING_ALLOWED=NO
       - name: Apply profiles
         script: |
           xcode-project use-profiles

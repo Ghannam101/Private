@@ -35,6 +35,41 @@
 
 ---
 
+## ‏0.5 حالة التنفيذ — محدَّثة 2026-08-21
+
+| البند | الحالة | الدليل |
+|---|---|---|
+| **م1.1** هدف اختبار + Swift Testing | ✅ **مُنجز** | `BlankTVTests` — **113 اختباراً في 14 مجموعة، خضراء، 0.8 ثانية** |
+| **م1.2** بوابة اختبار في CI | ✅ **مُنجز** | workflow `ios-test` + خطوة اختبار داخل `ios-release` قبل التوقيع والأرشفة |
+| م1.3 `DatabasePool` + WAL | ⬜ التالي | |
+| م1.4 الخطوة 4 من `CatalogDB` | ⬜ | |
+
+### تصحيح على §م1.2 كما كُتبت أصلاً
+
+كُتبت «أضف `xcode-project run-tests` في `codemagic.yaml`». نُفِّذت بشكل مختلف عن قصد:
+
+- **`xcodebuild` مباشرةً لا `xcode-project run-tests`** — لتجنّب التخمين في أسماء الرايات.
+- **workflow منفصل أولاً، ثم خطوة داخل الإصدار.** الاختبارات احتاجت أربعة أبنية لتُثبَّت؛ لو كانت داخل `ios-release` منذ البداية لأحرقت أربعة أبنية إصدار ضدّ سقف Apple اليومي. بعد الخُضرة أُضيفت إلى `ios-release` قبل التوقيع — فالمقصد الآن هو ألّا يُنفَق رفعٌ على شيفرة مكسورة.
+
+### حقائق حسمتها أبنية CI — لا تُعاد اشتقاقها
+
+1. **كل محاكيات Xcode 26 على Apple Silicon هي arm64 فقط.** التثبيت على x86_64 لتشغيل Rosetta لا يعمل: `does not support any of iPhone 17 Pro's architectures`.
+2. **MobileVLCKit 3.6 هو xcframework** وشريحته `ios-arm64_i386_x86_64-simulator`. لذا `EXCLUDED_ARCHS[sdk=iphonesimulator*]` كان يحمي من لا شيء — **حُذف من `Podfile`**.
+3. **`Category` اسم يملكه وقت تشغيل Objective-C** (`objc/runtime.h`). داخل حزمة اختبار يصير غامضاً. أسماء النماذج في `TestFactories` مؤهَّلة بـ `BlankTV.`.
+4. **لا Foundation ولا SQLite يطبّعان العربية.** `.diacriticInsensitive` لاتيني فقط، و`unicode61 remove_diacritics 2` تُرجع صفراً على `افلام` ضد `أفلام` (مختبَر على SQLite 3.50.4). الحل: `TextFold.swift` = قواعد `ArabicNormalizer` من Lucene، مطبَّقة على **الذاكرة والفهرس** معاً + ترحيل `v3_fold_fts`.
+
+### عيوب اكتُشفت وأُصلحت في هذه الدفعة
+
+| العيب | الحالة |
+|---|---|
+| البحث العربي لا يتحمّل الهمزة ولا الحركات — في **كلا** المسارين | ✅ مُصلَح + مُغطّى بالاختبارات |
+| `Romania TV` → عربي (R‑oman‑ia) | ✅ صار أوروبياً |
+| `Sukkar TV` / `Duke TV` → أوروبي (s‑uk‑kar) | ✅ صارا `nil` |
+| `Abu Dhabi TV` → لا يُصنَّف | ✅ صار عربياً |
+| `chk.py` يفحص جذراً واحداً | ✅ 33 ملفاً |
+
+---
+
 ## 1. تقييم البنية التحتية
 
 | المحور | التقييم | الدليل |
@@ -43,7 +78,7 @@
 | ذاكرة الصور | 🟢 ممتاز | `DesignSystem.swift:1388-1560` — NSCache بحد تكلفة، URLCache قرص، downsample، `byPreparingForDisplay`، single-flight بـ token، ThumbHash |
 | أمن البيانات | 🟢 جيد جداً | كل الاعتماديات في Keychain (`Core.swift:758`)، عزل لكل حساب، `deleteAccount` يمسح Keychain + القرص + SQLite |
 | نظافة الكود | 🟢 جيد جداً | `try!`/`as!`: 1 · `ForEach(id:\.self)`: 0 · LazyStacks: 34 موضع |
-| **الاختبارات** | 🔴 **معدومة** | `find . -iname "*test*"` → **صفر نتيجة** |
+| **الاختبارات** | 🟢 **قائمة** | 113 اختباراً خضراء — انظر §0.5 |
 | **طبقة البيانات** | 🔴 **نصف موصولة** | §2.1 |
 | المراقبة | 🔴 ضعيف | MetricKit فقط (`Diagnostics.swift:15`) |
 | الشبكة | 🟠 ناقص | صفر `NWPathMonitor` / `import Network` |
@@ -79,9 +114,11 @@
 
 توثيق GRDB: `DatabasePool` مع WAL يسمح بقراءات متزامنة أثناء الكتابة، وهو المناسب لحمل «قراءة عالية / كتابة معتدلة». وينصّ أيضاً على أن `DatabaseQueue` هو الافتراضي الآمن — **لذا هذا تغيير مقصود لسبب مُقاس، لا ترقية تلقائية.** WAL يتطلّب قاعدة على القرص (متحقَّق: `catalog.sqlite` على القرص ✅).
 
-### 2.3 صفر اختبارات
+### 2.3 ~~صفر اختبارات~~ — ✅ أُغلق 2026-08-21
 
-22,630 سطر بلا اختبار واحد، و`codemagic.yaml` فيه بناء ونشر فقط — **لا خطوة اختبار**.
+كان: 22,630 سطر بلا اختبار واحد، و`codemagic.yaml` بناءً ونشراً فقط.
+
+صار: **113 اختباراً في 14 مجموعة**، خضراء في 0.8 ثانية، تعمل في `ios-test` وفي `ios-release` قبل التوقيع. التفاصيل والعيوب التي كشفتها في §0.5.
 
 منطق نقيّ قابل للاختبار فوراً بلا أي إعادة هيكلة:
 `RailEngine.classify` / `cleanTitle` · `RegionClassifier.region` · `M3UParser.entries` / `build` · `StreamRouter.classify` / `defaultEngine` · `AuthService.normalizeXtreamHost` · `CatalogText.fold` · `Plate` (توليد حتمي) · `ActivationService.versionLessThan` · `DownloadByteText.string`.
