@@ -109,6 +109,10 @@ class BasePlayerVM: NSObject, ObservableObject {
         // and channel zap. Marking only there measured everything except the thing the
         // owner reports as slow.
         S8KPerf.begin("التشغيل ← أول إطار")
+        // Closes the chain the tap opened. A no-op when nothing opened it — a failover
+        // builds a second VM through here and the mark is already spent, and the
+        // next-episode path never taps at all.
+        S8KPerf.end("اللمسة ← المشغّل")
     }
     func setItem(_ i: ContentItem) {
         item = i; hasFirstFrame = false
