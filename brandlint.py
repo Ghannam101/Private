@@ -67,6 +67,20 @@ CHECKS = [
     ("ink on an accent surface",
      re.compile(r'foregroundColor\(\s*\.s8kBlack\s*\)|tint\(\s*\.s8kBlack\s*\)'),
      "text drawn ON the accent must use S8KBrand.accentInk, or a dark accent hides it"),
+    # A DOMAIN IS PART OF THE IDENTITY, and this tool was blind to it.
+    #
+    # `reportEmail` and `supportEmail` live inside S8KBrand, so every other check here
+    # calls them correct — the kit is exactly where they belong. But their VALUE still
+    # names the previous owner. This app is sold as a distinct product and submitted
+    # from the buyer's own account; shipping a rival's domain inside it is the evidence
+    # a 4.3 rejection is built from, and Guideline 1.2 wants contact information that a
+    # reviewer can actually reach, which an address on someone else's domain is not.
+    #
+    # Deliberately a HARD FAILURE rather than a note. It is a submission blocker, and a
+    # blocker that only whispers is one that ships.
+    ("previous owner's domain",
+     re.compile(r'strong8k\.app|strong8k\.com'),
+     "replace with the buyer's own domain before submission (Guideline 1.2 / 4.3)"),
 ]
 
 
