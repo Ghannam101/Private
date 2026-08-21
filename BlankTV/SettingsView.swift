@@ -1537,6 +1537,7 @@ struct LockedCategoriesView: View {
 //   الكتالوج            how long the catalogue took, and whether it came off the disk
 struct PerfStatsView: View {
     @State private var samples = S8KPerf.recent
+    @State private var tallies = S8KPerf.counted
     @State private var copied  = false
     // iOS hands this app every crash, hang and disk-write exception it records, and
     // until now they were written to disk and never read by anything. Surfacing them
@@ -1565,6 +1566,18 @@ struct PerfStatsView: View {
                     }
                 }
             }
+            // Separate group, because these are a different KIND of number. Above:
+            // one thing, once, how long it took. Here: something asked repeatedly
+            // during a single open, summed — where "four times, 210ms altogether" is
+            // the finding and any one of the four would look harmless on its own.
+            if !tallies.isEmpty {
+                SetUI.group("متكرّرة خلال الفتح") {
+                    ForEach(Array(tallies.enumerated()), id: \.element.id) { i, t in
+                        if i > 0 { SetUI.divider() }
+                        tallyRow(t)
+                    }
+                }
+            }
             HStack(spacing: 10) {
                 Button(action: copy) {
                     Text(copied ? "نُسخ ✓" : "نسخ الكل")
@@ -1575,7 +1588,7 @@ struct PerfStatsView: View {
                         .s8kMinTouch(2)
                 }
                 .buttonStyle(S8KButtonStyle())
-                Button(action: { S8KPerf.clear(); samples = [] }) {
+                Button(action: { S8KPerf.clear(); samples = []; tallies = [] }) {
                     Text("تصفير")
                         .font(S8KFont.callout.weight(.semibold)).foregroundColor(.s8kTextSecondary)
                         .frame(maxWidth: .infinity).padding(.vertical, 13)
@@ -1616,7 +1629,7 @@ struct PerfStatsView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.horizontal, S8KSpace.xl).padding(.top, 4)
         }
-        .onAppear { samples = S8KPerf.recent }
+        .onAppear { samples = S8KPerf.recent; tallies = S8KPerf.counted }
         .task {
             // Detached: opening the directory and parsing the payloads must not sit on
             // the main thread while this screen is appearing.
@@ -1635,6 +1648,23 @@ struct PerfStatsView: View {
                     Text(s.note).font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
                         .lineLimit(2).multilineTextAlignment(.trailing)
                 }
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .padding(.vertical, 8)
+    }
+
+    /// Total first, then how many calls made it. The thresholds are tighter than the
+    /// sample row's on purpose: 300ms spread over a dozen calls never shows up as a
+    /// slow anything, and is still 300ms the picture waited for.
+    private func tallyRow(_ t: S8KPerf.Tally) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text("\(t.ms) ms")
+                .font(.system(size: 14, weight: .bold, design: .monospaced))
+                .foregroundColor(t.ms > 300 ? .s8kRed : (t.ms > 100 ? .s8kGoldMid : .s8kTextSecondary))
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(t.name).font(S8KFont.footnote.weight(.semibold)).foregroundColor(.s8kTextPrimary)
+                Text("×\(t.calls)").font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
