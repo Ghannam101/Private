@@ -27,10 +27,36 @@ SRC = "BlankTV"
 PALETTE_HOME = "DesignSystem.swift"
 HOME_EXEMPT = {"raw colour", "product name", "logo asset"}
 
+def shipped_name():
+    """The product name as S8KBrand declares it, read at run time.
+
+    It was hard-coded here as "Blank Prime". That is the very decay this tool exists
+    to catch, occurring inside the tool: the identity moved to Trex TV and this check
+    went on hunting a name the app no longer wore, then reported CLEAN over a codebase
+    it was not really inspecting. A linter that quietly stops looking is worse than no
+    linter, because it is believed.
+    """
+    src = io.open(os.path.join(SRC, "DesignSystem.swift"), encoding="utf-8").read()
+    m = re.search(r'static let name\s*=\s*"([^"]+)"', src)
+    if not m:
+        print("brandlint: cannot find S8KBrand.name — refusing to report clean",
+              file=sys.stderr)
+        sys.exit(2)
+    return m.group(1)
+
+
+NAME = shipped_name()
+# The full name with flexible spacing, plus each word of it on its own — the wordmark
+# is rendered in two halves (shortName + markSuffix), so half of it hard-coded
+# somewhere is the same defect as the whole of it.
+_parts = [re.escape(w) for w in NAME.split() if len(w) > 2]
+_alts = [re.escape(NAME).replace(r"\ ", r"\s*")] + _parts
+NAME_PATTERN = r'"[^"\n]*(?:' + "|".join(_alts) + r')[^"\n]*"'
+
 CHECKS = [
     # (label, regex, why it matters)
     ("product name",
-     re.compile(r'"[^"\n]*Blank\s*Prime[^"\n]*"'),
+     re.compile(NAME_PATTERN),
      "the name must come from S8KBrand.name"),
     ("logo asset",
      re.compile(r'Image\(\s*"Logo"\s*\)'),
