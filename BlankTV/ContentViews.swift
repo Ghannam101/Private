@@ -2611,6 +2611,12 @@ struct MovieDetailView: View {
         S8KPlayCapsule(title: progress > 0.02 && progress < 0.98
                               ? L("detail.resume") : L("detail.play_movie"),
                        progress: progress) {
+            // Opens the chain that ends when the player VM exists. Everything before
+            // that point is OUR cost — presenting the cover, building PlayerView,
+            // choosing an engine — and none of it was measured: the first-frame chain
+            // starts inside the VM's initialiser, so it begins after this is over and
+            // would blame the provider's stream for time the app spent on itself.
+            S8KPerf.begin("اللمسة ← المشغّل")
             playItem = .movie(m)
         }
     }
@@ -2843,6 +2849,7 @@ struct SeriesDetailView: View {
             if let ep {
                 S8KPlayCapsule(title: "\(L("episode.number")) \(s8kEpisodeNumeral(ep.episodeNumber))",
                                progress: progress) {
+                    S8KPerf.begin("اللمسة ← المشغّل")   // see the movie capsule
                     playItem = .episode(ep, series)
                 }
             }
@@ -2926,7 +2933,7 @@ struct SeriesDetailView: View {
         let progress = hist.progress(for: ep.id)
         let watched  = progress >= 0.9
         return HStack(spacing: 8) {
-        Button(action: { playItem = .episode(ep, series) }) {
+        Button(action: { S8KPerf.begin("اللمسة ← المشغّل"); playItem = .episode(ep, series) }) {
             HStack(spacing: 14) {
                 // The row MIRRORS: in Arabic the numeral gutter is on the right and the
                 // thumbnail on the left, so the gutter always sits on the same side as

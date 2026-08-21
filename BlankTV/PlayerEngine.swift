@@ -109,6 +109,10 @@ class BasePlayerVM: NSObject, ObservableObject {
         // and channel zap. Marking only there measured everything except the thing the
         // owner reports as slow.
         S8KPerf.begin("التشغيل ← أول إطار")
+        // Closes the chain the tap opened. A no-op when nothing opened it — a failover
+        // builds a second VM through here and the mark is already spent, and the
+        // next-episode path never taps at all.
+        S8KPerf.end("اللمسة ← المشغّل")
     }
     func setItem(_ i: ContentItem) {
         item = i; hasFirstFrame = false
@@ -196,14 +200,26 @@ class BasePlayerVM: NSObject, ObservableObject {
     /// (movies/episodes), so the player + hybrid engine use the local file with
     /// no internet. Falls back to the network source.
     static func resolvedURL(for item: ContentItem) -> URL? {
-        switch item {
-        case .movie(let m):
-            if let local = DownloadService.completedFileURL(forContentID: m.id) { return local }
-        case .episode(let ep, _):
-            if let local = DownloadService.completedFileURL(forContentID: ep.id) { return local }
-        case .live: break
+        // MEASURED AS A TALLY, not a sample, because this is asked several times for
+        // one open — the engine router, the failover wrapper's body, and the engine's
+        // own setup each call it independently and none of them caches.
+        //
+        // And it is not free for the two kinds the owner reports as slow: `.live`
+        // returns straight to the network URL, while a movie or an episode first goes
+        // through `completedFileURL`, which creates the downloads folder if absent and
+        // then ENUMERATES it — a filesystem walk, on whichever thread asked, one of
+        // them being a SwiftUI body. Whether that matters is exactly what a count and
+        // a total answer and a guess does not.
+        return S8KPerf.measure("حلّ الرابط") { () -> URL? in
+            switch item {
+            case .movie(let m):
+                if let local = DownloadService.completedFileURL(forContentID: m.id) { return local }
+            case .episode(let ep, _):
+                if let local = DownloadService.completedFileURL(forContentID: ep.id) { return local }
+            case .live: break
+            }
+            return remoteURL(for: item)
         }
-        return remoteURL(for: item)
     }
 
     // Aspect label (overridden per engine — VLC has 5 crop modes, AVPlayer 3).
@@ -882,15 +898,21 @@ enum PlayerEngineSelector {
     ///     (see EngineDecisionCache), so a replay opens instantly on the right one,
     ///  3) the StreamRouter default (reliability-first: HLS → AVPlayer, else VLC).
     static func initialKind(for item: ContentItem) -> PlayerEngineKind {
-        switch Store.shared.playerEnginePref {
-        case "av":  EngineStats.shared.noteDecision(.forced); return .av
-        case "vlc": EngineStats.shared.noteDecision(.forced); return .vlc
-        default:
-            if let cached = EngineDecisionCache.shared.lastGood(for: item) {
-                EngineStats.shared.noteDecision(.cache); return cached
+        // Measured because it is NOT the trivial lookup it reads as. The first call
+        // decodes the whole persisted decision cache (up to 500 entries) out of
+        // UserDefaults, and the miss path runs `StreamRouter.defaultEngine`, which
+        // resolves the URL — the filesystem walk above, again.
+        return S8KPerf.measure("اختيار المحرّك") { () -> PlayerEngineKind in
+            switch Store.shared.playerEnginePref {
+            case "av":  EngineStats.shared.noteDecision(.forced); return .av
+            case "vlc": EngineStats.shared.noteDecision(.forced); return .vlc
+            default:
+                if let cached = EngineDecisionCache.shared.lastGood(for: item) {
+                    EngineStats.shared.noteDecision(.cache); return cached
+                }
+                EngineStats.shared.noteDecision(.defaultRoute)
+                return StreamRouter.defaultEngine(for: item)
             }
-            EngineStats.shared.noteDecision(.defaultRoute)
-            return StreamRouter.defaultEngine(for: item)
         }
     }
     /// Build a specific engine (used by the auto-failover wrapper).

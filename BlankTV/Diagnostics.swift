@@ -200,9 +200,24 @@ enum S8KPerf {
         let at:   Date
     }
 
+    /// A REPEATED operation, summed rather than listed.
+    ///
+    /// `Sample` answers "how long did this one thing take". It is the wrong shape for
+    /// something called several times per open — four entries for four calls to the
+    /// same function would push the four numbers that matter off a 40-deep list, and
+    /// still not show the total. A tally answers the question that actually decides
+    /// whether a hot path is worth fixing: how often, and how much altogether.
+    struct Tally: Identifiable {
+        let id = UUID()
+        let name:  String
+        let calls: Int
+        let ms:    Int
+    }
+
     private static let lock = NSLock()
     private static var open: [String: TimeInterval] = [:]
     private static var samples: [Sample] = []
+    private static var tallies: [String: (calls: Int, total: TimeInterval)] = [:]
     private static let cap = 40
 
     static func begin(_ name: String) {
@@ -218,13 +233,46 @@ enum S8KPerf {
         if samples.count > cap { samples.removeLast(samples.count - cap) }
     }
 
+    /// Time `work`, add it to `name`'s tally, and return whatever it returned.
+    ///
+    /// Returns `T` so it wraps an existing expression WITHOUT restructuring the call
+    /// site — `let x = f()` becomes `let x = S8KPerf.measure("f") { f() }`. A version
+    /// that returned nothing would force every measured call to be split into a
+    /// statement and a variable, and a measurement that edits the code around it is a
+    /// measurement that can change what it measures.
+    ///
+    /// `rethrows` is deliberate: nothing measured here throws today, but a throwing
+    /// call site would otherwise be unable to use this at all.
+    @discardableResult
+    static func measure<T>(_ name: String, _ work: () throws -> T) rethrows -> T {
+        let t0 = Date().timeIntervalSinceReferenceDate
+        defer { count(name, Date().timeIntervalSinceReferenceDate - t0) }
+        return try work()
+    }
+
+    /// Record one occurrence of `name` costing `elapsed` seconds.
+    static func count(_ name: String, _ elapsed: TimeInterval) {
+        lock.lock(); defer { lock.unlock() }
+        var t = tallies[name] ?? (calls: 0, total: 0)
+        t.calls += 1; t.total += elapsed
+        tallies[name] = t
+    }
+
     static var recent: [Sample] {
         lock.lock(); defer { lock.unlock() }
         return samples
     }
 
+    /// Tallies, dearest first — the order someone reading them wants.
+    static var counted: [Tally] {
+        lock.lock(); defer { lock.unlock() }
+        return tallies
+            .map { Tally(name: $0.key, calls: $0.value.calls, ms: Int($0.value.total * 1000)) }
+            .sorted { $0.ms > $1.ms }
+    }
+
     static func clear() {
-        lock.lock(); samples = []; open = [:]; lock.unlock()
+        lock.lock(); samples = []; open = [:]; tallies = [:]; lock.unlock()
     }
 
     /// One block of text to paste back into a conversation — the whole point of the
@@ -235,9 +283,23 @@ enum S8KPerf {
         // Arabic-Indic digits, and this text exists to be pasted back and read.
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "HH:mm:ss"
-        return recent.map { s in
+        // LEAD WITH THE BUILD. A pasted timing is worthless without knowing which
+        // binary produced it: a whole diagnosis was spent today on a delay reported
+        // against "150" that App Store Connect showed nobody had installed, and
+        // nothing in the pasted text could settle it. It can now.
+        let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let b = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        var out = ["app \(v) (\(b))", ""]
+        out += recent.map { s in
             let note = s.note.isEmpty ? "" : "  ·  \(s.note)"
             return "\(f.string(from: s.at))  \(s.name)  \(s.ms)ms\(note)"
-        }.joined(separator: "\n")
+        }
+        let t = counted
+        if !t.isEmpty {
+            out.append("")
+            out.append("— متكرّرة (المجموع) —")
+            out += t.map { "\($0.name)  ×\($0.calls)  \($0.ms)ms" }
+        }
+        return out.joined(separator: "\n")
     }
 }

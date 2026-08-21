@@ -12,7 +12,12 @@ Usage, from the repo root:
     python cm.py apps                 list apps and their workflow ids
     python cm.py builds [n]           the n most recent builds (default 8)
     python cm.py build <id>           one build in detail, with the failing step's log url
-    python cm.py start [branch]       START a build (default branch: main)
+    python cm.py start [branch] [workflow]   START a build (defaults: main, ios-release)
+
+`ios-test` is the free one: it runs the suite and never publishes, so it cannot spend
+a TestFlight upload slot. It had no way to be triggered from here, which meant the
+only reachable button was the one with the daily cap behind it. Prove a branch on
+`ios-test` first, then spend a slot on `ios-release`.
 
 `start` is the only command that changes anything, and it is deliberately explicit —
 Apple caps TestFlight uploads per day and this project has already hit that ceiling once.
@@ -114,14 +119,14 @@ def show_build(build_id):
     return 0
 
 
-def start(branch):
+def start(branch, workflow=WORKFLOW):
     app = find_app()
     if not app:
         print("no app found")
         return 1
-    print("starting %s on %s / branch %s" % (WORKFLOW, app.get("appName"), branch))
+    print("starting %s on %s / branch %s" % (workflow, app.get("appName"), branch))
     data = call("/builds", {"appId": app["_id"],
-                            "workflowId": WORKFLOW,
+                            "workflowId": workflow,
                             "branch": branch})
     if not data:
         return 1
@@ -150,7 +155,8 @@ def main():
     if cmd == "build":
         return show_build(sys.argv[2])
     if cmd == "start":
-        return start(sys.argv[2] if len(sys.argv) > 2 else "main")
+        return start(sys.argv[2] if len(sys.argv) > 2 else "main",
+                     sys.argv[3] if len(sys.argv) > 3 else WORKFLOW)
     print(__doc__)
     return 2
 

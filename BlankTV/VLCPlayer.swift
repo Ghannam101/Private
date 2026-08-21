@@ -62,6 +62,11 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
     private(set) var player = VLCMediaPlayer()
     private var lastVolume: Int32 = 100
     private var didResume = false
+    /// True between "we asked VLC to jump to the saved position" and "the clock came
+    /// back advancing at that position". It exists only to bound the measurement of
+    /// the resume jump, which is the one part of opening a half-watched movie that
+    /// nothing in this app has ever timed.
+    private var awaitingResumeLanding = false
     /// The live render surface — used to size the "fill" crop to the actual screen.
     private weak var surfaceView: UIView?
     /// Fires if playback never starts within a grace window (stuck on "buffering"),
@@ -134,6 +139,7 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
         lastTickTime = -1   // a stale tick from the previous item must not block "advanced"
         advancedTicks = 0
         didResume = false
+        awaitingResumeLanding = false   // a jump aimed at the OLD item must not be timed against the new one
         resumeTarget = BasePlayerVM.savedResume(for: newItem)
         currentTime = 0; duration = 0
         isLoading = true; buffering = false; errorMsg = nil
@@ -158,6 +164,18 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
         guard !didResume, !isLive, duration > 0,
               resumeTarget > 0.02, resumeTarget < 0.95 else { return }
         didResume = true
+        // A SEEK ON A NETWORK STREAM IS NOT FREE, AND THIS ONE HAPPENS AFTER THE
+        // PICTURE IS ALREADY UP. By the time we get here VLC has buffered from the
+        // start of the file and begun decoding; moving the position throws that away
+        // and costs a fresh HTTP range request plus a fresh demux. So a half-watched
+        // movie can pay the opening wait TWICE, while a live channel — which has no
+        // saved position and never reaches this line — pays it once.
+        //
+        // That is a hypothesis about the delay the owner reports on movies and series
+        // but not on channels. It is not a fix and nothing here changes behaviour:
+        // this is the number that will confirm it or kill it.
+        awaitingResumeLanding = true
+        S8KPerf.begin("قفزة الاستئناف")
         player.position = Float(resumeTarget)
     }
 
@@ -305,8 +323,15 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
         guard let url = streamURL else {
             errorMsg = L("player.err.no_url"); isLoading = false; return
         }
-        player.media = makeMedia(url)
-        player.play()
+        // This measures the SYNCHRONOUS cost of handing VLC the stream, and nothing
+        // more — `play()` returns at once and the decode happens on VLC's own threads.
+        // So a small number here does NOT mean playback started quickly; it means the
+        // main thread was not blocked doing it. Time-to-picture is the separate
+        // "التشغيل ← أول إطار" chain, and the two answer different questions.
+        S8KPerf.measure("بدء المحرّك") { () -> Void in
+            player.media = makeMedia(url)
+            player.play()
+        }
         isPlaying = true
         isLoading = true
         player.rate = rate
@@ -695,6 +720,14 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
         // the assignments also stops re-publishing unchanged @Published state every
         // tick (which re-rendered the whole controls tree — visible jank).
         if advanced {
+            // The resume jump has LANDED: the clock is moving again and it is moving
+            // at the position we asked for. Requiring both is what makes this honest —
+            // VLC can report one more tick of the OLD position before the seek takes,
+            // and ending the measurement there would record a jump that cost nothing.
+            if awaitingResumeLanding, duration > 0, t >= resumeTarget * duration - 2 {
+                awaitingResumeLanding = false
+                S8KPerf.end("قفزة الاستئناف", "إلى \(Int(resumeTarget * 100))٪")
+            }
             // `hasVideoOut` is the real answer to "is there a picture yet". The tick
             // count is a BOUND, not a second opinion: on an audio-only stream, or a
             // libvlc build that raises the flag late, it guarantees the artwork we hold
