@@ -395,6 +395,10 @@ final class AVPlayerVM: BasePlayerVM {
     }
 
     override func load(_ newItem: ContentItem) {
+        // A cached group describes ONE asset. Carrying it into the next episode would
+        // select a track index out of a playlist that no longer exists.
+        legibleGroup = nil; audibleGroup = nil
+
         // Save the OUTGOING item first. cleanup() saves on teardown, but load() is the
         // zap / next-episode path and never calls it: watching episode 1 then tapping
         // episode 2 discarded episode 1's position, so a back-to-back session recorded
@@ -693,11 +697,71 @@ final class AVPlayerVM: BasePlayerVM {
     }
 
     // MARK: Subtitles / audio via AVMediaSelectionGroup
-    override func loadSubtitles() {
-        guard let pItem = avPlayer.currentItem,
-              let group = pItem.asset.mediaSelectionGroup(forMediaCharacteristic: .legible) else {
-            subtitleTracks = []; currentSubtitle = -1; return
+    // MEDIA SELECTION IS LOADED ASYNCHRONOUSLY NOW, CACHED, AND REUSED.
+    //
+    // `asset.mediaSelectionGroup(forMediaCharacteristic:)` is synchronous and has been
+    // deprecated since iOS 16. Apple states the reason plainly: if the property has not
+    // already been loaded, the framework may need to do a significant amount of work to
+    // return a value, and doing that on the main thread can leave the interface
+    // unresponsive.
+    //
+    // For an HLS stream that work is a NETWORK FETCH of the master playlist media
+    // groups. Both loaders were called from the `.readyToPlay` handler, on the main
+    // actor, one line after `playImmediately(atRate: 1.0)` — so the app could block the
+    // main thread on I/O at the exact moment the first frame is due. In an IPTV player,
+    // time to first frame is the number a user judges everything else by.
+    //
+    // The groups are CACHED because `selectSubtitle` / `selectAudio` need the same
+    // object on a user tap. Re-fetching there would move the stall rather than remove
+    // it. The cache is cleared whenever the item changes.
+    private var legibleGroup: AVMediaSelectionGroup?
+    private var audibleGroup: AVMediaSelectionGroup?
+
+    /// Load one selection group off the main actor, then hand it back on it.
+    private func loadGroup(_ characteristic: AVMediaCharacteristic,
+                           _ apply: @escaping @MainActor (AVMediaSelectionGroup?, AVPlayerItem) -> Void) {
+        guard let pItem = avPlayer.currentItem else { return }
+        let asset = pItem.asset
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let group = try? await asset.loadMediaSelectionGroup(for: characteristic)
+            await MainActor.run {
+                // THE ITEM CAN CHANGE WHILE THIS IS IN FLIGHT — a zap, or the next
+                // episode. Without this guard the late result describes the PREVIOUS
+                // asset: it would list that asset's tracks against the new one, and
+                // refill the cache `load()` has just cleared with a group belonging to
+                // a playlist that is no longer playing. Dropping a stale answer is
+                // free; the live item's own load is already on its way.
+                guard let self, self.avPlayer.currentItem === pItem else { return }
+                apply(group, pItem)
+            }
         }
+    }
+
+    override func loadSubtitles() {
+        if let group = legibleGroup, let pItem = avPlayer.currentItem {
+            applyLegible(group, pItem); return
+        }
+        loadGroup(.legible) { [weak self] group, pItem in
+            guard let self else { return }
+            self.legibleGroup = group
+            guard let group else { self.subtitleTracks = []; self.currentSubtitle = -1; return }
+            self.applyLegible(group, pItem)
+        }
+    }
+
+    /// No `@MainActor` attribute, and that is deliberate rather than an omission.
+    ///
+    /// `BasePlayerVM` is a plain class in this build — Swift 5 language mode, no
+    /// default isolation — so `loadSubtitles()` overrides a nonisolated method and
+    /// cannot call a main-actor one synchronously. Marking these two produced exactly
+    /// that error on the CACHED path, which is the one that skips the await and is the
+    /// whole reason the cache exists.
+    ///
+    /// Isolation still holds where it matters: the async path applies inside
+    /// `MainActor.run`, and both callers of `loadSubtitles()` — the .readyToPlay
+    /// handler and a button tap — are already on the main actor. Under default
+    /// MainActor isolation this distinction disappears entirely.
+    private func applyLegible(_ group: AVMediaSelectionGroup, _ pItem: AVPlayerItem) {
         subtitleTracks = group.options.enumerated().map { (id: Int32($0.offset), name: $0.element.displayName) }
         if let sel = pItem.currentMediaSelection.selectedMediaOption(in: group),
            let idx = group.options.firstIndex(of: sel) {
@@ -710,9 +774,12 @@ final class AVPlayerVM: BasePlayerVM {
             selectSubtitle(match.id)
         }
     }
+
     override func selectSubtitle(_ id: Int32) {
-        guard let pItem = avPlayer.currentItem,
-              let group = pItem.asset.mediaSelectionGroup(forMediaCharacteristic: .legible) else { return }
+        // The CACHED group only. A tap can reach this only after `loadSubtitles` filled
+        // the sheet, so a miss means the item changed underneath us — and a synchronous
+        // re-fetch here would reinstate the very stall this change removes.
+        guard let pItem = avPlayer.currentItem, let group = legibleGroup else { return }
         if id < 0 {
             pItem.select(nil, in: group); currentSubtitle = -1; Store.shared.lastSubtitleName = nil; return
         }
@@ -724,10 +791,19 @@ final class AVPlayerVM: BasePlayerVM {
     }
 
     override func loadAudioTracks() {
-        guard let pItem = avPlayer.currentItem,
-              let group = pItem.asset.mediaSelectionGroup(forMediaCharacteristic: .audible) else {
-            audioTracks = []; currentAudio = -1; return
+        if let group = audibleGroup, let pItem = avPlayer.currentItem {
+            applyAudible(group, pItem); return
         }
+        loadGroup(.audible) { [weak self] group, pItem in
+            guard let self else { return }
+            self.audibleGroup = group
+            guard let group else { self.audioTracks = []; self.currentAudio = -1; return }
+            self.applyAudible(group, pItem)
+        }
+    }
+
+    /// Nonisolated for the same reason as `applyLegible` — see the note there.
+    private func applyAudible(_ group: AVMediaSelectionGroup, _ pItem: AVPlayerItem) {
         audioTracks = group.options.enumerated().map { (id: Int32($0.offset), name: $0.element.displayName) }
         if let sel = pItem.currentMediaSelection.selectedMediaOption(in: group),
            let idx = group.options.firstIndex(of: sel) {
@@ -740,9 +816,9 @@ final class AVPlayerVM: BasePlayerVM {
             selectAudio(match.id)
         }
     }
+
     override func selectAudio(_ id: Int32) {
-        guard let pItem = avPlayer.currentItem,
-              let group = pItem.asset.mediaSelectionGroup(forMediaCharacteristic: .audible) else { return }
+        guard let pItem = avPlayer.currentItem, let group = audibleGroup else { return }
         let i = Int(id)
         guard i >= 0, i < group.options.count else { return }
         pItem.select(group.options[i], in: group)
