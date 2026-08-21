@@ -635,7 +635,11 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
     // Safety net: if the VM is ever released without cleanup() (a SwiftUI
     // StateObject edge case), make sure VLC's background decode thread is torn
     // down rather than left running.
-    deinit {
+    /// `isolated deinit` — see the note on AVPlayerVM's. It matters more here: this
+    /// stops VLC's background decode thread and clears its delegate, and doing that
+    /// from an arbitrary releasing thread is exactly the shape of teardown race this
+    /// safety net exists to avoid.
+    isolated deinit {
         skipWork?.cancel()
         startWatchdog?.invalidate()
         retryTimer?.invalidate()

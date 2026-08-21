@@ -41,7 +41,19 @@
 
 import Foundation
 
-enum S8KFold {
+// `nonisolated` on every member, deliberately.
+//
+// Under `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` an unmarked enum becomes
+// @MainActor like everything else, and then passing `S8KFold.key` as a FUNCTION
+// VALUE — which `RegionClassifier` does, and `CatalogDB.save` does — is a
+// "converting function value loses global actor" diagnostic, an error in the Swift 6
+// language mode.
+//
+// Binding it to the main actor would also be wrong on its own terms: this is pure
+// text work with no state, it is called from a detached import task and from inside
+// a database write, and the whole point of folding once per name is to do it OFF the
+// main thread on a fifty-thousand-title catalogue.
+nonisolated enum S8KFold {
 
     private static let alef: Unicode.Scalar = "\u{0627}"
     private static let yeh:  Unicode.Scalar = "\u{064A}"

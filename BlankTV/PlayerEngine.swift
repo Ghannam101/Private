@@ -431,7 +431,14 @@ final class AVPlayerVM: BasePlayerVM {
         videoWatchdog?.invalidate(); videoWatchdog = nil
         stopStallMonitor()
     }
-    deinit { teardownObservers(); KeepAwake.relinquish(self) }
+    /// `isolated deinit` (SE-0371), and it is a correctness fix rather than an
+    /// appeasement. `BasePlayerVM` declares no deinit, so under default MainActor
+    /// isolation its synthesized one is main-actor-isolated while this explicit one
+    /// was nonisolated — the compiler refuses the mismatch. Aligning them the OTHER
+    /// way (forcing both nonisolated) would leave this teardown running on whichever
+    /// thread happened to release the object, and it invalidates KVO observers and a
+    /// time observer that were registered on the main actor.
+    isolated deinit { teardownObservers(); KeepAwake.relinquish(self) }
 
     /// Slow-failing HLS often never reaches `.status == .failed` — it sits in
     /// buffering forever, so the failover (which keys off `errorMsg`) never fires

@@ -120,6 +120,9 @@ workflows:
           echo "============ WARNINGS BY KIND ================"
           grep -E "^/Users/builder/clone/BlankTV.*warning: " build/survey.log             | sed "s|.*warning: ||"             | sed -E "s/'[^']*'/'X'/g; s/[0-9]+/N/g"             | sort | uniq -c | sort -rn | head -40
           echo
+          echo "=========== EVERY DIAGNOSTIC, IN FULL ========"
+          grep -E "^/Users/builder/clone/BlankTV.*(error|warning): " build/survey.log             | sed "s|/Users/builder/clone/||" | sort -u
+          echo
           echo "==== DID DEFAULT ISOLATION TAKE EFFECT? ======"
           grep -m3 -E "default-isolation|defaultIsolation" build/survey.log || echo "(flag not echoed in log — infer from the warning mix above)"
           exit 0
