@@ -740,7 +740,18 @@ final class AVPlayerVM: BasePlayerVM {
         }
     }
 
-    @MainActor
+    /// No `@MainActor` attribute, and that is deliberate rather than an omission.
+    ///
+    /// `BasePlayerVM` is a plain class in this build — Swift 5 language mode, no
+    /// default isolation — so `loadSubtitles()` overrides a nonisolated method and
+    /// cannot call a main-actor one synchronously. Marking these two produced exactly
+    /// that error on the CACHED path, which is the one that skips the await and is the
+    /// whole reason the cache exists.
+    ///
+    /// Isolation still holds where it matters: the async path applies inside
+    /// `MainActor.run`, and both callers of `loadSubtitles()` — the .readyToPlay
+    /// handler and a button tap — are already on the main actor. Under default
+    /// MainActor isolation this distinction disappears entirely.
     private func applyLegible(_ group: AVMediaSelectionGroup, _ pItem: AVPlayerItem) {
         subtitleTracks = group.options.enumerated().map { (id: Int32($0.offset), name: $0.element.displayName) }
         if let sel = pItem.currentMediaSelection.selectedMediaOption(in: group),
@@ -782,7 +793,7 @@ final class AVPlayerVM: BasePlayerVM {
         }
     }
 
-    @MainActor
+    /// Nonisolated for the same reason as `applyLegible` — see the note there.
     private func applyAudible(_ group: AVMediaSelectionGroup, _ pItem: AVPlayerItem) {
         audioTracks = group.options.enumerated().map { (id: Int32($0.offset), name: $0.element.displayName) }
         if let sel = pItem.currentMediaSelection.selectedMediaOption(in: group),
