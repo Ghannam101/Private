@@ -106,7 +106,7 @@ workflows:
           # `build/` does not exist yet — the test step below is what creates it.
           # Redirecting into a missing directory made the first attempt survey nothing.
           mkdir -p build
-          xcodebuild build           -workspace "$XCODE_WORKSPACE"             -scheme "$XCODE_SCHEME"             -configuration Debug             -destination "id=$SIM_UDID"             -derivedDataPath build/survey-dd             CODE_SIGNING_ALLOWED=NO             SWIFT_STRICT_CONCURRENCY=complete             SWIFT_APPROACHABLE_CONCURRENCY=YES             SWIFT_DEFAULT_ACTOR_ISOLATION=MainActor             > build/survey.log 2>&1
+          xcodebuild build           -workspace "$XCODE_WORKSPACE"             -scheme "$XCODE_SCHEME"             -configuration Debug             -destination "id=$SIM_UDID"             -derivedDataPath build/survey-dd             CODE_SIGNING_ALLOWED=NO > build/survey.log 2>&1
           echo "xcodebuild exit: $?"
           echo
           echo "=================== ERRORS ==================="
