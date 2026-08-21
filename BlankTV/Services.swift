@@ -350,7 +350,14 @@ final class AuthService: ObservableObject {
     }
 
     // MARK: - Delete Account (Apple Required)
-    func deleteAccount() async throws {
+    /// No longer `throws`, and that is a promise being made honest.
+    ///
+    /// It threw only for the backend DELETE, which is deleted — there is no server
+    /// holding an account. Every step is local now and none of them can throw, so the
+    /// `try?` at the call site was swallowing an error that could not occur while
+    /// looking like it was swallowing one that could. Guideline 5.1.1(v) asks that the
+    /// deletion actually happen; with no network in the path, it cannot half-happen.
+    func deleteAccount() async {
         // The guard `logout()` always had, which this was missing. `enterDemo()` never
         // sets `mode`, so it kept the .xtream DEFAULT — and with no token the DELETE
         // threw `invalidCredentials` before reaching the network, the caller's `try?`
