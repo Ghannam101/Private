@@ -11,7 +11,13 @@
 		<string>audio</string>
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>يستخدم التطبيق الشبكة المحلية للعثور على شاشات AirPlay القريبة وبثّ ما تشاهده إليها. لا يُجمع أي شيء عن شبكتك.</string>
+	<!-- ENGLISH, and accurate. It was Arabic-only, so an English-speaking reviewer met
+	     an Arabic system dialog; and it named AirPlay as the trigger, which is not what
+	     fires this prompt here. The app declares no NSBonjourServices and browses no
+	     mDNS. What can reach the LAN is a DIRECT connection to whatever host the user
+	     typed — an IPTV server on the same network is an ordinary setup — plus AirPlay
+	     route discovery. The string now says exactly that. -->
+	<string>Your media server may be on this network. This app connects only to the address you enter and to AirPlay receivers you choose. It never scans the network and collects nothing about it.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

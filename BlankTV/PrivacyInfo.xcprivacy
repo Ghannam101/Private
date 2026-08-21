@@ -22,8 +22,12 @@
 			<key>NSPrivacyAccessedAPIType</key>
 			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
 			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<!-- C617.1 = metadata of files inside the app's OWN container. Was 3B52.1,
+			     which is for files the user hands over through a document picker — this
+			     app has no picker. The two real readers are Diagnostics, sorting log
+			     files it wrote itself, and Downloads, sizing a temp file it created. -->
 			<array>
-				<string>3B52.1</string>
+				<string>C617.1</string>
 			</array>
 		</dict>
 		<dict>

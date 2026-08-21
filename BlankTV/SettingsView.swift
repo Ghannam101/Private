@@ -128,7 +128,11 @@ struct SettingsProV2: View {
         return L("settings.user")
     }
     private var initials: String { String(displayName.prefix(2).uppercased()) }
-    private var planText: String { (auth.user?.plan ?? (auth.mode == .m3u ? "M3U" : "basic")).uppercased() }
+    /// In demo mode this said "BASIC", which is a plan nobody is on.
+    private var planText: String {
+        if Store.shared.demoMode { return L("settings.demo_plan") }
+        return (auth.user?.plan ?? (auth.mode == .m3u ? "M3U" : "basic")).uppercased()
+    }
     private var appVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0" }
 
     var body: some View {
@@ -200,8 +204,14 @@ struct SettingsProV2: View {
                     .padding(.horizontal, 11).padding(.vertical, 4)
                     .background(Capsule().fill(S8KGradient.goldFlat))
                 HStack(spacing: 5) {
-                    Circle().fill(Color.s8kGreen).frame(width: 6, height: 6)
-                    Text("\(L("common.connected")) · \(theme.serverName)")
+                    // A GREEN dot means a live provider. In demo mode there is none —
+                    // `theme.serverName` falls back to the app's own name, so this row
+                    // used to read "Connected · Blank Prime" over nothing at all.
+                    Circle().fill(Store.shared.demoMode ? Color.s8kTextDisabled : Color.s8kGreen)
+                        .frame(width: 6, height: 6)
+                    Text(Store.shared.demoMode
+                         ? L("settings.demo_state")
+                         : "\(L("common.connected")) · \(theme.serverName)")
                         .font(S8KFont.caption1).foregroundColor(.s8kTextTertiary).lineLimit(1)
                 }
             }
@@ -556,7 +566,7 @@ struct SetAboutPage: View {
                 S8KConfirm(icon: "person.crop.circle.badge.minus", iconColor: .s8kRed,
                            title: L("set.delete"), message: L("alert.delete.msg"),
                            confirmTitle: L("alert.delete.confirm"), destructive: true,
-                           onConfirm: { showDeleteAlert = false; Task { try? await auth.deleteAccount() } },
+                           onConfirm: { showDeleteAlert = false; Task { await auth.deleteAccount() } },
                            onCancel: { withAnimation { showDeleteAlert = false } }).zIndex(10)
             }
         }

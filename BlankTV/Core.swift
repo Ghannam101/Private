@@ -86,6 +86,12 @@ enum L10n {
         "common.details": [.ar: "التفاصيل",.en: "Details",  .fr: "Détails",  .tr: "Detaylar",.es: "Detalles"],
         "common.all":     [.ar: "الكل",    .en: "See all",  .fr: "Voir tout",.tr: "Hepsini gör",    .es: "Ver todo"],
         "common.retry":   [.ar: "حاول ثانيةً", .en: "Try again", .fr: "Réessayer", .tr: "Tekrar dene", .es: "Reintentar"],
+        // Offline is a DIFFERENT failure from a server that answered badly, and until
+        // now the app could not tell the user which one had happened. It showed the
+        // same generic message for a dead line, a wrong password and a plane in
+        // airplane mode.
+        "error.offline":       [.ar: "لا يوجد اتصال بالإنترنت",  .en: "No internet connection",  .fr: "Aucune connexion Internet", .tr: "İnternet bağlantısı yok", .es: "Sin conexión a Internet"],
+        "error.offline.hint":  [.ar: "سيُعاد التحميل تلقائياً عند عودة الاتصال", .en: "This will reload by itself when the connection returns", .fr: "Le contenu se rechargera dès le retour de la connexion", .tr: "Bağlantı döndüğünde kendiliğinden yeniden yüklenecek", .es: "Se recargará solo cuando vuelva la conexión"],
         "common.close":   [.ar: "إغلاق",   .en: "Close",    .fr: "Fermer",   .tr: "Kapat",   .es: "Cerrar"],
         "common.cancel":  [.ar: "إلغاء",   .en: "Cancel",   .fr: "Annuler",  .tr: "İptal",   .es: "Cancelar"],
         "common.save":    [.ar: "حفظ",     .en: "Save",     .fr: "Enregistrer", .tr: "Kaydet", .es: "Guardar"],
@@ -260,6 +266,11 @@ enum L10n {
         "common.activate": [.ar: "تفعيل",    .en: "Activate",   .fr: "Activer",   .tr: "Etkinleştir",.es: "Activar"],
         "common.done":     [.ar: "تم",       .en: "Done",       .fr: "Terminé",   .tr: "Tamam",     .es: "Listo"],
         "common.connected":[.ar: "متصل",     .en: "Connected",  .fr: "Connecté",  .tr: "Bağlı",     .es: "Conectado"],
+        // Demo mode must not claim a connection it does not have (Guideline 2.3.1).
+        // The Settings header showed a green dot and "Connected · <app name>" with no
+        // provider attached, because `serverName` defaults to the app's own name.
+        "settings.demo_state": [.ar: "وضع العرض — بلا مزوّد",   .en: "Demo mode — no provider", .fr: "Mode démo — sans fournisseur", .tr: "Demo modu — sağlayıcı yok", .es: "Modo demo — sin proveedor"],
+        "settings.demo_plan":  [.ar: "عرض",                    .en: "DEMO",                    .fr: "DÉMO",                       .tr: "DEMO",                     .es: "DEMO"],
         "common.search_in":[.ar: "ابحث داخل",  .en: "Search inside",  .fr: "Chercher dans", .tr: "İçinde ara", .es: "Buscar dentro de"],
 
         // Units / time

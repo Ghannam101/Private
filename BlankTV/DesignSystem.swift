@@ -2096,23 +2096,52 @@ struct ErrorView: View {
     let message: String
     let retry: () -> Void
 
+    /// OBSERVED, not read once. The whole value of this is that the screen changes by
+    /// itself the moment the connection returns — the user should not have to guess
+    /// whether tapping retry is worth it.
+    @ObservedObject private var net = Reachability.shared
+    @State private var reconnectToken: UUID?
+
+    /// Offline is a different failure from a server that answered badly, and the app
+    /// used to show one message for both. When the path is down that IS the reason,
+    /// whatever the underlying error object happened to say, so it wins.
+    private var offline: Bool { !net.isOnline }
+
     var body: some View {
         VStack(spacing: S8KSpace.xxl) {
-            Image(systemName: "wifi.exclamationmark")
+            Image(systemName: offline ? "wifi.slash" : "wifi.exclamationmark")
                 .font(.system(size: 48, weight: .ultraLight))
                 .foregroundColor(.s8kTextDisabled)
 
-            Text(message)
-                .font(S8KFont.subhead)
-                .foregroundColor(.s8kTextSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, S8KSpace.h)
+            VStack(spacing: S8KSpace.sm) {
+                Text(offline ? L("error.offline") : message)
+                    .font(S8KFont.subhead)
+                    .foregroundColor(.s8kTextSecondary)
+                    .multilineTextAlignment(.center)
+                if offline {
+                    Text(L("error.offline.hint"))
+                        .font(S8KFont.caption1)
+                        .foregroundColor(.s8kTextDisabled)
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .padding(.horizontal, S8KSpace.h)
 
+            // The button STAYS while offline. It is honest — a path can come back
+            // between the banner appearing and the user reaching for it — and hiding
+            // the only control on an error screen reads as a dead end.
             GoldButton(title: L("common.retry"), icon: "arrow.clockwise", action: retry)
                 .frame(width: 200)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.s8kBlack)
+        .animation(.easeInOut(duration: 0.2), value: offline)
+        .onAppear  { reconnectToken = net.onReconnect(retry) }
+        .onDisappear {
+            // Without this the closure — and the view it captures — outlives the
+            // screen, and every dismissed error page keeps reloading forever.
+            if let t = reconnectToken { net.stopWatching(t); reconnectToken = nil }
+        }
     }
 }
 
