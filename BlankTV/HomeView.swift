@@ -280,7 +280,6 @@ final class HomeVM: ObservableObject {
 
 struct HomeView: View {
     @StateObject private var vm     = HomeVM.shared
-    @StateObject private var config = ConfigService.shared
     @StateObject private var theme  = AppTheme.shared
     @StateObject private var auth   = AuthService.shared
     @StateObject private var activation = ActivationService.shared
@@ -764,57 +763,22 @@ private extension HomeView {
     @ViewBuilder
     var contactRow: some View {
         VStack(spacing: 10) {
-            // Renew links to an external store → only on platforms where Apple's
-            // 3.1.1 rule does not apply (never shown in the iOS build).
-            if AppCompliance.allowsExternalPurchaseLinks, let store = config.appConfig.storeURL {
-                Button(action: { if let u = URL(string: store) { UIApplication.shared.open(u) } }) {
-                    HStack {
-                        Image(systemName: "arrow.clockwise.circle.fill").font(.system(size: 15))
-                        Text(L("sub.renew"))
-                            .font(S8KFont.headline)
-                        Spacer()
-                        Image(systemName: "chevron.left").font(.system(size: 12))
-                    }
-                    .foregroundColor(.s8kGoldHigh)
-                    .padding(.horizontal, S8KSpace.xl).padding(.vertical, 15)
-                    .background(Color.s8kGoldMid.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md))
-                    .overlay(RoundedRectangle(cornerRadius: S8KRadius.md)
-                        .strokeBorder(Color.s8kBorderGold, lineWidth: 1))
-                }
-                .buttonStyle(S8KButtonStyle())
-            }
-            HStack(spacing: 10) {
-                if let wa = config.appConfig.supportWhatsApp {
-                    contactButton(L("home.whatsapp"), icon: "message.fill", color: .s8kGreen) {
-                        if let u = URL(string: "https://wa.me/\(wa)") { UIApplication.shared.open(u) }
-                    }
-                }
-                if let tg = config.appConfig.supportTelegram {
-                    contactButton(L("home.telegram"), icon: "paperplane.fill", color: .s8kBlue) {
-                        if let u = URL(string: tg) { UIApplication.shared.open(u) }
-                    }
-                }
-            }
+            // THE RENEW / WHATSAPP / TELEGRAM BRANCHES ARE GONE.
+            //
+            // Each was dead twice over. `AppCompliance.allowsExternalPurchaseLinks` is
+            // a `let false` on iOS, so the renew button could not render on any device
+            // this ships to — and `storeURL`, `supportWhatsApp` and `supportTelegram`
+            // all come from `appConfig`, which has had no writer since the backend was
+            // severed and is permanently `.defaults`, where all three are nil.
+            //
+            // They were also the shape of Guideline 3.1.1: a renewal prompt beside two
+            // messaging buttons is a purchase route out of the app. Support reaches a
+            // human through Settings, where it has no price beside it.
         }
         .padding(.horizontal, S8KSpace.xl)
     }
 
-    func contactButton(_ title: String, icon: String, color: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: icon).font(.system(size: 13))
-                Text(title).font(S8KFont.subhead)
-            }
-            .foregroundColor(color)
-            .frame(maxWidth: .infinity).padding(.vertical, 13)
-            .background(color.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md))
-            .overlay(RoundedRectangle(cornerRadius: S8KRadius.md)
-                .strokeBorder(color.opacity(0.2), lineWidth: 1))
-        }
-        .buttonStyle(S8KButtonStyle())
-    }
+    // `contactButton` is deleted with its only two callers.
 }
 
 // MARK: - Home · the pinned identity bar
@@ -1578,7 +1542,6 @@ private struct HomeSearchOverlay: View {
 struct AlertsView: View {
     @Environment(\.s8kMetrics) private var metrics
     var onClose: (() -> Void)? = nil
-    @StateObject private var config = ConfigService.shared
     @StateObject private var auth   = AuthService.shared
     @StateObject private var activation = ActivationService.shared
     @Environment(\.dismiss) var dismiss
@@ -1591,7 +1554,7 @@ struct AlertsView: View {
         }
     }
     private var hasNothingToShow: Bool {
-        activation.notifications.isEmpty && config.appConfig.announcement == nil && auth.user == nil
+        activation.notifications.isEmpty && auth.user == nil
     }
 
     var body: some View {
@@ -1606,10 +1569,9 @@ struct AlertsView: View {
                             noticeCard(icon: s.0, color: s.1, title: n.title,
                                        message: n.body.isEmpty ? " " : n.body)
                         }
-                        if let text = config.appConfig.announcement {
-                            noticeCard(icon: "megaphone.fill", color: .s8kGoldHigh,
-                                       title: L("alerts.announcement"), message: text)
-                        }
+                        // The remote announcement card is gone with `appConfig`. It
+                        // was also the clearest example of what 2.5.2 is about: a panel
+                        // pushing arbitrary text into the app after review.
                         if let user = auth.user {
                             if user.daysRemaining <= 7 {
                                 noticeCard(icon: "exclamationmark.triangle.fill", color: .s8kOrange,

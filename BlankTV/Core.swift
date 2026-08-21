@@ -294,7 +294,6 @@ enum L10n {
         "settings.device_id":       [.ar: "معرّف الجهاز",   .en: "Device ID",       .fr: "ID de l'appareil",.tr: "Cihaz Kimliği",   .es: "ID del dispositivo"],
 
         // Subscription card
-        "sub.renew":        [.ar: "جدّد الاشتراك",        .en: "Renew now", .fr: "Renouveler maintenant", .tr: "Şimdi yenile", .es: "Renovar ahora"],
 
         // Activation status
 
@@ -371,6 +370,8 @@ enum L10n {
         "subs.add_first":   [.ar: "أضف اشتراكك الأول",    .en: "Add your first subscription", .fr: "Ajoutez votre premier abonnement", .tr: "İlk aboneliğinizi ekleyin", .es: "Añade tu primera suscripción"],
         "subs.welcome":     [.ar: "مرحباً بك في %@", .en: "Welcome to %@", .fr: "Bienvenue sur %@", .tr: "Hoş geldiniz — %@", .es: "Bienvenido a %@"],
 
+        // Four keys went with ConfigService: sub.renew, home.whatsapp, home.telegram
+        // and alerts.announcement. Every one fed a branch that could not render.
         // About
         // NO "Premium" here. The About screen draws S8KBrand.name and then this line
         // directly under it, so with the brand at "Blank Premium" it read
@@ -433,12 +434,9 @@ enum L10n {
         "home.content_error.title":[.ar: "تعذّر تحميل المحتوى", .en: "Couldn't load content", .fr: "Le contenu n'a pas pu être chargé", .tr: "İçerik getirilemedi", .es: "No hemos podido cargar el contenido"],
         "home.content_error.sub":[.ar: "تحقّق من اتصالك أو من صلاحية اشتراكك لدى المزوّد، ثم أعد المحاولة", .en: "Check your connection or that your provider subscription is active, then try again", .fr: "Contrôlez votre connexion ou la validité de votre abonnement chez le fournisseur, puis réessayez", .tr: "Bağlantınızı ya da sağlayıcınızdaki aboneliğinizin geçerliliğini kontrol edip yeniden deneyin", .es: "Revisa tu conexión o si tu suscripción con el proveedor sigue activa, y vuelve a intentarlo"],
         "home.percent_done":[.ar: "شوهد",             .en: "watched",        .fr: "vu",         .tr: "izlendi",      .es: "visto"],
-        "home.whatsapp":    [.ar: "واتساب",             .en: "WhatsApp",        .fr: "WhatsApp",        .tr: "WhatsApp",        .es: "WhatsApp"],
-        "home.telegram":    [.ar: "تيليغرام",           .en: "Telegram",        .fr: "Telegram",        .tr: "Telegram",        .es: "Telegram"],
 
         // Alerts / notifications
         "alerts.title":       [.ar: "التنبيهات", .en: "Notifications", .fr: "Notifications", .tr: "Bildirimler", .es: "Notificaciones"],
-        "alerts.announcement":[.ar: "إعلان",            .en: "Announcement",    .fr: "Annonce",         .tr: "Duyuru",          .es: "Anuncio"],
         "alerts.sub_warning": [.ar: "تنبيه الاشتراك",   .en: "Subscription Alert", .fr: "Alerte d'abonnement", .tr: "Abonelik Uyarısı", .es: "Alerta de suscripción"],
         "alerts.sub_active":  [.ar: "اشتراكك نشط",      .en: "Your subscription is active", .fr: "Votre abonnement est actif", .tr: "Aboneliğiniz aktif", .es: "Tu suscripción está activa"],
         "alerts.empty.title": [.ar: "لا توجد إشعارات",  .en: "No notifications", .fr: "Aucune notification", .tr: "Bildirim yok", .es: "Sin notificaciones"],
