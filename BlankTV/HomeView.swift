@@ -54,7 +54,6 @@ final class HomeVM: ObservableObject {
 
     // MARK: Collaborators
     private let hist    = HistoryService.shared
-    private let config  = ConfigService.shared
     private var loaded = false
     // Provider category NAMES — the raw material the curated-rail classifier works from.
     private var movieCats:  [Category] = []
@@ -100,7 +99,6 @@ final class HomeVM: ObservableObject {
         if loaded && !force { return }
         isLoading = true; error = nil
         doneChannels = false; doneMovies = false; doneSeries = false
-        await config.fetchIfStale()
         await withTaskGroup(of: Void.self) { g in
             g.addTask { await self.loadChannels() }
             g.addTask { await self.loadMovies() }
@@ -229,7 +227,6 @@ final class HomeVM: ObservableObject {
     /// placeholder. This page's `.task` calls `load()`, so nothing calls this.
     func bootLoad() async {
         if loaded { doneChannels = true; doneMovies = true; doneSeries = true; return }
-        await config.fetchIfStale()
         async let c: Void = loadChannels()
         async let m: Void = loadMovies()
         async let s: Void = loadSeries()

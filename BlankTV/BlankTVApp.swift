@@ -192,11 +192,12 @@ struct BlankTVApp: App {
                 // language, calendar, sorting and plural rules exactly as they were. It
                 // is a no-op for the Latin-script languages.
                 .environment(\.locale, Locale(identifier: loc.lang.rawValue + "-u-nu-latn"))
-                // Re-check entitlement + remote app-control on foreground so
-                // maintenance / forced-update take effect without a cold launch.
+                // Re-check entitlement on foreground. `validateSession()` used to run
+                // here too; it asked a backend about a token that was never issued, so
+                // it did nothing but occupy a suspension point on every foreground.
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active, splashDone, !Store.shared.demoMode {
-                        Task { await AuthService.shared.validateSession(); await ActivationService.shared.check() }
+                        Task { await ActivationService.shared.check() }
                     }
                 }
         }
@@ -321,11 +322,6 @@ struct BlankTVApp: App {
             case .search:    SearchView()
             case .alerts:    AlertsView()
             case .downloads: DownloadsView()
-            }
-        }
-        .task {
-            if auth.loggedIn {
-                await auth.validateSession()
             }
         }
         }

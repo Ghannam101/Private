@@ -584,173 +584,23 @@ enum L10n {
 // MARK: ════════════════════════════════════════
 // NETWORK — API CLIENT
 // ════════════════════════════════════════════
-enum APIConfig {
-    // UNREACHABLE, and the address says so on purpose.
-    //
-    // Every caller of `APIClient.request` passes requiresAuth: true except
-    // `AuthService.login`, which throws on a nil Keychain token — and `login` is
-    // itself dead: the UI only ever calls loginXtream / loginM3U, which go DIRECT to
-    // the user's own provider. So `Keychain.shared.token` is never written anywhere
-    // in the app, and no request here can reach the network. Verified by tracing
-    // every call site, not assumed.
-    //
-    // It used to read another vendor's live API host, and that shipped as a literal in
-    // the binary. `strings` on the IPA showed that domain sitting
-    // inside an app we are arguing is independent — which is precisely the kind of
-    // evidence that makes a Guideline 4.3 rejection stick. `.invalid` is reserved by
-    // RFC 2606 and can never resolve, so it also documents the truth: there is no
-    // endpoint. The right end state is deleting this subsystem outright; that is a
-    // wide change across ~15 call sites and wants its own reviewed commit.
-    static let primary  = "https://api.invalid/v1"
-    static let fallback = "https://api.invalid/v1"
-    static let timeout: TimeInterval = 25
-    static var version: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
-    }
-}
-
-enum HTTPMethod: String { case GET, POST, PUT, DELETE }
-
-actor APIClient {
-    static let shared = APIClient()
-    private let session: URLSession
-    private var baseURL = APIConfig.primary
-    private var failCount = 0
-
-    private init() {
-        let cfg = URLSessionConfiguration.default
-        cfg.timeoutIntervalForRequest  = APIConfig.timeout
-        cfg.timeoutIntervalForResource = 60
-        cfg.requestCachePolicy         = .reloadIgnoringLocalCacheData
-        cfg.httpAdditionalHeaders = [
-            "Content-Type": "application/json",
-            "Accept":       "application/json",
-            "X-App-Version": APIConfig.version,
-            "X-Platform":    "iOS"
-        ]
-        self.session = URLSession(configuration: cfg)
-    }
-
-    // MARK: - Generic Request
-    func request<T: Decodable>(
-        path: String,
-        method: HTTPMethod = .GET,
-        body: (any Encodable)? = nil,
-        query: [String: String]? = nil,
-        requiresAuth: Bool = true
-    ) async throws -> T {
-
-        var urlStr = baseURL + path
-        if let q = query, !q.isEmpty {
-            let items = q.map { "\($0.key)=\($0.value)" }.joined(separator: "&")
-            urlStr += "?\(items)"
-        }
-
-        guard let url = URL(string: urlStr) else {
-            throw AppError.server("رابط غير صالح")
-        }
-
-        var req = URLRequest(url: url)
-        req.httpMethod = method.rawValue
-
-        if requiresAuth {
-            guard let token = Keychain.shared.token else {
-                throw AppError.invalidCredentials
-            }
-            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
-
-        if let body {
-            req.httpBody = try JSONEncoder().encode(body)
-        }
-
-        addSignature(&req)
-
-        let data = try await executeWithFallback(req)
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .secondsSince1970
-
-        do {
-            return try decoder.decode(T.self, from: data)
-        } catch {
-            throw AppError.server("خطأ في معالجة البيانات")
-        }
-    }
-
-    // MARK: - Execute + Fallback
-    private func executeWithFallback(_ req: URLRequest) async throws -> Data {
-        do {
-            let data = try await execute(req)
-            failCount = 0
-            return data
-        } catch {
-            failCount += 1
-            if failCount >= 3 {
-                baseURL  = APIConfig.fallback
-                failCount = 0
-            }
-            throw error
-        }
-    }
-
-    private func execute(_ req: URLRequest) async throws -> Data {
-        let (data, response) = try await session.data(for: req)
-        guard let http = response as? HTTPURLResponse else {
-            throw AppError.server("استجابة غير صالحة")
-        }
-        try handle(statusCode: http.statusCode, data: data)
-        return data
-    }
-
-    // MARK: - Status Code Handler
-    private func handle(statusCode: Int, data: Data) throws {
-        switch statusCode {
-        case 200...299: return
-        case 401: throw AppError.invalidCredentials
-        case 403:
-            if let err = try? JSONDecoder().decode(ServerError.self, from: data) {
-                switch err.error {
-                case "ACCOUNT_SUSPENDED":  throw AppError.accountSuspended
-                case "ACCOUNT_EXPIRED":    throw AppError.accountExpired
-                case "MAX_CONNECTIONS":    throw AppError.maxConnections(err.max ?? 1)
-                case "MAINTENANCE":        throw AppError.maintenance(err.message)
-                case "VERSION_OUTDATED":   throw AppError.versionOutdated(err.minVersion ?? "1.0.0")
-                default:                   throw AppError.server(err.message ?? "خطأ")
-                }
-            }
-            throw AppError.server("غير مصرح")
-        case 503: throw AppError.server("السيرفر غير متاح")
-        default:  throw AppError.server("خطأ (\(statusCode))")
-        }
-    }
-
-    // MARK: - Request Signing
-    private func addSignature(_ req: inout URLRequest) {
-        let ts     = "\(Int(Date().timeIntervalSince1970))"
-        let device = UIDevice.current.identifierForVendor?.uuidString ?? "unknown"
-        let path   = req.url?.path ?? ""
-        let msg    = "\(ts):\(device):\(path)"
-        let sig    = msg.hmac256(key: "S8K_2025_SIGN")
-        req.setValue(ts,     forHTTPHeaderField: "X-Timestamp")
-        req.setValue(sig,    forHTTPHeaderField: "X-Signature")
-        req.setValue(device, forHTTPHeaderField: "X-Device-ID")
-    }
-}
-
-private struct ServerError: Decodable {
-    let error:      String?
-    let message:    String?
-    let minVersion: String?
-    let max:        Int?
-}
-
-extension String {
-    func hmac256(key: String) -> String {
-        let k = SymmetricKey(data: Data(key.utf8))
-        let m = HMAC<SHA256>.authenticationCode(for: Data(self.utf8), using: k)
-        return Data(m).map { String(format: "%02hhx", $0) }.joined()
-    }
-}
+// THE BACKEND PROXY IS GONE — APIConfig, HTTPMethod, APIClient, ServerError and
+// String.hmac256 are deleted, not disabled.
+//
+// It was PROVABLY unreachable, and the proof is short enough to restate. Nothing in
+// the app ever wrote `Keychain.token`. Every call went through `APIClient.request`,
+// whose default `requiresAuth: true` throws `invalidCredentials` on a nil token
+// before it opens a connection. Thirteen of the fourteen call sites took that
+// default; the fourteenth was `AuthService.login`, which no screen ever called.
+//
+// So this subsystem could not send a request, and had not been able to for some
+// time. What it COULD still do was ship another vendor's API host as a literal in
+// our binary — `strings` on the IPA found it — inside an app whose whole argument is
+// that it is independent. The address was changed to `api.invalid` as a stopgap; the
+// stopgap left ~15 unreachable call sites reading like a live network layer.
+//
+// This completes the severance the owner asked for: the app now talks to the user's
+// own Xtream/M3U provider and to nothing else.
 
 // MARK: ════════════════════════════════════════
 // STORAGE — KEYCHAIN
@@ -799,10 +649,6 @@ final class Keychain {
     /// this, the same line `deviceID` walks.
     func deleteSavedPlaylists() { delete(.playlists) }
 
-    var token: String? {
-        get { load(.token) }
-        set { newValue == nil ? delete(.token) : save(.token, value: newValue!) }
-    }
     var host: String?  {
         get { load(.host) }
         set { newValue == nil ? delete(.host)  : save(.host, value: newValue!) }
@@ -815,19 +661,7 @@ final class Keychain {
         get { load(.pass) }
         set { newValue == nil ? delete(.pass)  : save(.pass, value: newValue!) }
     }
-    var userID: String? {
-        get { load(.userID) }
-        set { newValue == nil ? delete(.userID) : save(.userID, value: newValue!) }
-    }
-    var tokenExpiry: TimeInterval? {
-        get { load(.tokenExpiry).flatMap { Double($0) } }
-        set { newValue == nil ? delete(.tokenExpiry) : save(.tokenExpiry, value: "\(newValue!)") }
-    }
 
-    var tokenValid: Bool {
-        guard let t = token, !t.isEmpty, let exp = tokenExpiry else { return false }
-        return Date().timeIntervalSince1970 < (exp - 300) // 5 min buffer
-    }
 
     func saveServerCredentials(host: String, user: String, pass: String) {
         self.host = host; self.xtreamUser = user; self.xtreamPass = pass
@@ -1246,7 +1080,6 @@ final class Store {
         return try? JSONDecoder().decode(type, from: data)
     }
 
-    func saveTheme(_ t: ThemeConfig)      { save(t, key: .theme) }
     func loadTheme() -> ThemeConfig?      { load(ThemeConfig.self, key: .theme) }
     func saveFeatures(_ f: FeaturesConfig){ save(f, key: .features) }
     func loadFeatures() -> FeaturesConfig?{ load(FeaturesConfig.self, key: .features) }
@@ -1257,17 +1090,6 @@ final class Store {
     func saveServerInfo(_ s: ServerInfo)  { save(s, key: .serverInfo) }
     func loadServerInfo() -> ServerInfo?  { load(ServerInfo.self, key: .serverInfo) }
 
-    var lastConfigFetch: Date? {
-        get {
-            let t = ud.double(forKey: K.lastConfigFetch.rawValue)
-            return t > 0 ? Date(timeIntervalSince1970: t) : nil
-        }
-        set { ud.set(newValue?.timeIntervalSince1970 ?? 0, forKey: K.lastConfigFetch.rawValue) }
-    }
-    var configStale: Bool {
-        guard let last = lastConfigFetch else { return true }
-        return Date().timeIntervalSince(last) > 1800 // 30 min
-    }
 
     // MARK: - Settings
     var parentalEnabled: Bool {
@@ -1494,39 +1316,9 @@ actor XtreamService {
     }
 
     // MARK: - Fetch Methods
-    func fetchLiveCategories() async throws -> [Category] {
-        try await APIClient.shared.request(path: "/xtream/live/categories")
-    }
-    func fetchLiveStreams(categoryID: String? = nil) async throws -> [Channel] {
-        var q: [String: String] = [:]
-        if let cat = categoryID { q["category_id"] = cat }
-        return try await APIClient.shared.request(path: "/xtream/live/streams", query: q)
-    }
-    func fetchVODCategories() async throws -> [Category] {
-        try await APIClient.shared.request(path: "/xtream/vod/categories")
-    }
-    func fetchMovies(categoryID: String? = nil) async throws -> [Movie] {
-        var q: [String: String] = [:]
-        if let cat = categoryID { q["category_id"] = cat }
-        return try await APIClient.shared.request(path: "/xtream/vod/streams", query: q)
-    }
-    func fetchSeriesCategories() async throws -> [Category] {
-        try await APIClient.shared.request(path: "/xtream/series/categories")
-    }
-    func fetchSeries(categoryID: String? = nil) async throws -> [Series] {
-        var q: [String: String] = [:]
-        if let cat = categoryID { q["category_id"] = cat }
-        return try await APIClient.shared.request(path: "/xtream/series", query: q)
-    }
-    func fetchSeriesDetail(id: String) async throws -> SeriesDetailResponse {
-        try await APIClient.shared.request(path: "/xtream/series/\(id)")
-    }
-    func fetchMovieDetail(id: String) async throws -> Movie {
-        try await APIClient.shared.request(path: "/xtream/vod/\(id)")
-    }
-    func fetchEPG(channelID: String) async throws -> [EPGProgram] {
-        try await APIClient.shared.request(path: "/xtream/epg/\(channelID)")
-    }
+    // The fetch methods are gone with APIClient. What remains is the only part of
+    // this type anything ever used: the three URL builders, which are pure string
+    // work over the user's OWN credentials and are how the player resolves a stream.
 }
 
 // MARK: ════════════════════════════════════════

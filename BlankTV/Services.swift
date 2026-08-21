@@ -26,63 +26,10 @@ final class AuthService: ObservableObject {
     @Published var serverInfo: ServerInfo? = nil
     @Published var mode:       LoginMode = .xtream
 
-    // MARK: - Login (Xtream Codes)
-    func login(username: String, password: String, customURL: String? = nil) async {
-        guard !isLoading else { return }
-        isLoading = true; error = nil
-
-        if SecurityCheck.isJailbroken() {
-            error = .server("هذا الجهاز لا يدعم تشغيل التطبيق لأسباب أمنية")
-            isLoading = false; return
-        }
-
-        let req = LoginRequest(
-            username:    username.trimmingCharacters(in: .whitespaces).lowercased(),
-            password:    password,
-            deviceID:    UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString,
-            deviceModel: UIDevice.current.model,
-            appVersion:  Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
-        )
-
-        do {
-            let resp: LoginResponse = try await APIClient.shared.request(
-                path: "/auth/login", method: .POST, body: req, requiresAuth: false
-            )
-            // Save credentials
-            Keychain.shared.token       = resp.token
-            Keychain.shared.tokenExpiry = resp.expiresAt
-            Keychain.shared.userID      = resp.user.id
-            Keychain.shared.saveServerCredentials(
-                host: customURL ?? resp.server.host,
-                user: resp.server.username,
-                pass: resp.server.password
-            )
-            // Save to store
-            Store.shared.saveUserInfo(resp.user)
-            Store.shared.saveServerInfo(resp.server)
-            Store.shared.saveTheme(resp.theme)
-            Store.shared.saveFeatures(resp.features)
-            Store.shared.saveAppConfig(resp.config)
-            Store.shared.lastConfigFetch = Date()
-            // Apply theme + config
-            AppTheme.shared.apply(resp.theme)
-            ConfigService.shared.apply(features: resp.features, config: resp.config)
-            // Update state
-            Store.shared.loginMode = .xtream
-            mode = .xtream
-            let p = SavedPlaylist(name: resp.user.username, kind: .xtream,
-                                  url: customURL ?? resp.server.host,
-                                  username: resp.server.username, password: resp.server.password)
-            activate(playlistID: Store.shared.upsertPlaylist(p))   // stable scope id, leaves demo
-            user = resp.user; serverInfo = resp.server; loggedIn = true
-        } catch let e as AppError {
-            error = e
-        } catch {
-            self.error = .network(error)
-        }
-        isLoading = false
-    }
-
+    // `login(username:password:)` is deleted with the backend it spoke to. It was the
+    // one call that passed `requiresAuth: false`, and no screen ever invoked it —
+    // `loginXtream` and `loginM3U` are the real doors, and both talk to the user's own
+    // provider with no proxy in between.
     // MARK: - Login (Xtream Codes — DIRECT to the user's provider)
     // Connects straight to the provider's player_api.php (same proven engine as
     // M3U via XtreamDirect/PlaylistService) instead of proxying content through
@@ -386,12 +333,10 @@ final class AuthService: ObservableObject {
 
     // MARK: - Logout
     func logout() async {
-        // Only call the account backend when we actually HOLD a session to end.
-        // Without a token APIClient throws before connecting, so the old form bought
-        // nothing but a swallowed error.
-        if mode == .xtream, !Store.shared.demoMode, Keychain.shared.token != nil {
-            _ = try? await APIClient.shared.request(path: "/auth/logout", method: .POST) as EmptyResp
-        }
+        // No backend call. There is no backend, and there was no session to end:
+        // `Keychain.token` was never written by anything, so the guard this replaces
+        // could not be true. Logout is entirely local, which is the honest shape for
+        // an app that only ever held the user's own provider credentials.
         await PlaylistService.shared.reset()
         Store.shared.demoMode = false
         Keychain.shared.clearAll()
@@ -412,11 +357,9 @@ final class AuthService: ObservableObject {
         // swallowed it, and EVERY line below was skipped. Nothing was deleted, no error
         // was shown, the sheet just closed. Three taps from a fresh install, and demo
         // mode is exactly where an App Store reviewer is: App Store Guideline 5.1.1(v).
-        // `try` stays deliberate — a genuine backend failure must still abort a genuine
-        // deletion rather than wipe the device half-way.
-        if mode == .xtream, !Store.shared.demoMode, Keychain.shared.token != nil {
-            _ = try await APIClient.shared.request(path: "/auth/account", method: .DELETE) as EmptyResp
-        }
+        // No backend call — see logout(). Everything 5.1.1(v) requires happens below
+        // and locally: Keychain, saved playlists, downloads, both catalogue stores,
+        // the whole UserDefaults domain, and the parental PIN.
         await PlaylistService.shared.reset()
         Store.shared.demoMode = false
         Keychain.shared.clearAll()
@@ -450,25 +393,9 @@ final class AuthService: ObservableObject {
         user = nil; serverInfo = nil; loggedIn = false; error = nil
     }
 
-    // MARK: - Validate + Refresh
-    func validateSession() async {
-        if Store.shared.demoMode { return }   // demo never talks to the backend
-        guard mode == .xtream else { return } // M3U sessions are local-only
-        // NO TOKEN AT ALL means there was never a backend session to validate. Falling
-        // through to logout() was not harmless: `mode` DEFAULTS to .xtream and this
-        // runs from a scenePhase handler that is NOT gated on `loggedIn`, so on a fresh
-        // install it fired on every foreground while the user sat on the gateway —
-        // a full local teardown (caches, theme, config, contentReady) of already-empty
-        // state, plus a swallowed throw. No network request was ever sent: APIClient
-        // rejects a token-less authenticated call before it opens a connection.
-        guard Keychain.shared.token != nil else { return }
-        // A token that EXPIRED is a real dead session: tear it down locally.
-        guard Keychain.shared.tokenValid else { await logout(); return }
-        do {
-            let u: UserInfo = try await APIClient.shared.request(path: "/auth/validate")
-            user = u; Store.shared.saveUserInfo(u)
-        } catch { await logout() }
-    }
+    // `validateSession()` is deleted. It existed to ask a backend whether a token was
+    // still good; there is no backend and there was never a token. Its callers went
+    // with it — a foreground handler that did nothing and a `.task` that awaited it.
 
     // MARK: - Restore Session
     private func restore() {
@@ -480,22 +407,28 @@ final class AuthService: ObservableObject {
             loggedIn = true
             return
         }
-        guard Keychain.shared.tokenValid,
-              let u = Store.shared.loadUserInfo(),
-              let s = Store.shared.loadServerInfo(),
-              !u.isExpired else { return }
-        mode = .xtream
-        user = u; serverInfo = s
-        if let theme = Store.shared.loadTheme() { AppTheme.shared.apply(theme) }
-        if let feat  = Store.shared.loadFeatures(),
-           let conf  = Store.shared.loadAppConfig() {
-            ConfigService.shared.apply(features: feat, config: conf)
-        }
-        loggedIn = true
+        // NOTHING ELSE RESTORES, and that is not a change.
+        //
+        // What stood here was a second branch that required `Keychain.tokenValid`.
+        // No code ever wrote a token, so the guard could not pass and this branch had
+        // never restored a session — it returned early on every launch. Deleting it
+        // preserves behaviour exactly; keeping it would have preserved the appearance
+        // of a second login path instead.
+        //
+        // Every real session comes back through the branch above. `loginXtream` stores
+        // its `player_api.php` URL in `m3uURL` and sets `loginMode = .m3u` on purpose,
+        // because the Xtream-credentials and raw-M3U paths share one pipeline from
+        // that point on. So an Xtream user is restored by the M3U branch — verified by
+        // reading `loginXtream`, not assumed from the names.
+        //
+        // CONSEQUENCE, recorded rather than acted on here: `ConfigService.apply` and
+        // `Store.loadTheme/loadFeatures/loadAppConfig` were called ONLY from the dead
+        // branch. They now have no caller, which means `ConfigService.features` is
+        // permanently `.defaults` — as it already was in practice. Removing that
+        // subsystem touches three views and belongs in its own change.
     }
 }
 
-struct EmptyResp: Decodable {}
 
 // MARK: ════════════════════════════════════════
 // REMOTE CONFIG SERVICE
@@ -517,18 +450,10 @@ final class ConfigService: ObservableObject {
         Store.shared.saveAppConfig(config)
     }
 
-    func fetchIfStale() async {
-        if Store.shared.demoMode { return }                     // no backend in demo
-        guard Store.shared.loginMode == .xtream else { return } // remote config is Xtream-only
-        guard Store.shared.configStale else { return }
-        do {
-            let resp: RemoteConfigResponse = try await APIClient.shared.request(path: "/config/remote")
-            apply(features: resp.features, config: resp.config)
-            AppTheme.shared.apply(resp.theme)
-            Store.shared.saveTheme(resp.theme)
-            Store.shared.lastConfigFetch = Date()
-        } catch { /* use cached */ }
-    }
+    // `fetchIfStale()` is deleted with the endpoint it called. It pulled remote
+    // feature flags, remote app config and a remote THEME — a runtime re-skin, which
+    // is the exact shape Guideline 4.2.6 is written about. What survives is `apply`,
+    // called by `restore()` from what is already on disk.
 
     func reset() {
         features = .defaults; appConfig = .defaults; maintenance = false
