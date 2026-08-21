@@ -53,6 +53,14 @@ enum CatalogDB {
         SHA256.hash(data: Data(scope.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
+    /// The same hash, exposed for tests only.
+    ///
+    /// A store test that writes SQL by hand has to name rows the way the store names
+    /// them. Without this it would either hard-code a hex string — which stops being
+    /// true the moment the hash changes — or reimplement `key`, which tests the copy
+    /// rather than the original.
+    static func scopeKeyForTesting(_ scope: String) -> String { key(scope) }
+
     // MARK: - The store
     //
     // A POOL, NOT A QUEUE, and the difference is the whole reason this changed.
@@ -315,18 +323,27 @@ enum CatalogDB {
     /// revalidate needs the age, not a verdict — serve what is on disk NOW, refresh
     /// behind it. Mirrors `CatalogDiskCache.read`, which is the API this replaces.
     static func read(scope: String) -> (content: M3UContent, age: TimeInterval)? {
-        let scope = key(scope)   // hash at the door — see `key(_:)`
-        guard let c = load(scope: scope, ttl: .greatestFiniteMagnitude),
+        // HASHED EXACTLY ONCE. This used to hash and then call `load`, which hashes
+        // again — a double hash matches nothing, and every read came back nil. The
+        // rule is that `key(_:)` is applied at the PUBLIC door and nowhere inside, so
+        // one public function must never call another. `read` reaches the shared body
+        // directly instead. Caught by the store tests, not by reading the diff.
+        let hashed = key(scope)
+        guard let c = loadHashed(hashed, ttl: .greatestFiniteMagnitude),
               let q = dbPool else { return nil }
         let savedAt = (try? q.read { db in
             try Double.fetchOne(db, sql: "SELECT savedAt FROM catalog_meta WHERE scope = ?",
-                                arguments: [scope])
+                                arguments: [hashed])
         }) ?? nil
         return (c, max(0, Date().timeIntervalSince1970 - (savedAt ?? 0)))
     }
 
     static func load(scope: String, ttl: TimeInterval = CatalogDB.ttl) -> M3UContent? {
-        let scope = key(scope)   // hash at the door — see `key(_:)`
+        loadHashed(key(scope), ttl: ttl)   // hash at the door — see `key(_:)`
+    }
+
+    /// The shared body. Takes an ALREADY-hashed key and must never hash again.
+    private static func loadHashed(_ scope: String, ttl: TimeInterval) -> M3UContent? {
         guard let q = dbPool else { return nil }
         return try? q.read { db -> M3UContent? in
             guard let savedAt = try Double.fetchOne(db,
