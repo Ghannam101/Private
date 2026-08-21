@@ -16,6 +16,7 @@ Usage, from the repo root:
     python ascbeta.py <ISSUER_ID> show                    groups, links, and their builds
     python ascbeta.py <ISSUER_ID> add <GROUP> <BUILD_NO>  add one build to one group
     python ascbeta.py <ISSUER_ID> add <GROUP> latest      ... or whatever is newest
+    python ascbeta.py <ISSUER_ID> notes <BUILD_NO|latest>  the TestFlight page copy
 
 GROUP is matched on the group's name, exactly as App Store Connect spells it.
 
@@ -71,12 +72,82 @@ def call(path, tok, payload=None, method="GET"):
         raise SystemExit(1)
 
 
+# ── What a tester reads on the TestFlight page. One place, reviewable as a diff. ──
+#
+# The description was literally "dfffffddddddddddddddddd" — placeholder keyboard
+# noise, on the first screen anyone opening the public link sees. "What to Test" was
+# empty. Both are free to fix and neither touches the binary.
+
+# The owner's call: the TestFlight page carries the app NAME and nothing else.
+# Both fields are set to it deliberately, not left blank — App Store Connect will
+# not accept an empty description, and a blank "What to Test" reads as unfinished.
+BETA_DESC  = {"ar-SA": "Blank Premium", "en-US": "Blank Premium"}
+WHATS_NEW  = {"ar-SA": "Blank Premium", "en-US": "Blank Premium"}
+
+
+def notes(tok, want):
+    """Write the TestFlight page copy, then read it back."""
+    app_locs = {l["attributes"]["locale"]: l["id"]
+                for l in call("apps/%s/betaAppLocalizations?limit=20" % APP_ID, tok)["data"]}
+    for loc, text in BETA_DESC.items():
+        if loc in app_locs:
+            call("betaAppLocalizations/%s" % app_locs[loc], tok, method="PATCH",
+                 payload={"data": {"type": "betaAppLocalizations", "id": app_locs[loc],
+                                   "attributes": {"description": text}}})
+            print("  updated app description", loc)
+        else:
+            call("betaAppLocalizations", tok, method="POST", payload={"data": {
+                "type": "betaAppLocalizations",
+                "attributes": {"locale": loc, "description": text},
+                "relationships": {"app": {"data": {"type": "apps", "id": APP_ID}}}}})
+            print("  created app description", loc)
+
+    bs = builds(tok)
+    b = bs[0] if want == "latest" else next((x for x in bs
+             if x["attributes"].get("version") == str(want)), None)
+    if b is None:
+        print("no such build:", want); raise SystemExit(1)
+    ver = b["attributes"].get("version")
+    have = {l["attributes"]["locale"]: l["id"]
+            for l in call("builds/%s/betaBuildLocalizations?limit=20" % b["id"], tok)["data"]}
+    for loc, text in WHATS_NEW.items():
+        if loc in have:
+            call("betaBuildLocalizations/%s" % have[loc], tok, method="PATCH",
+                 payload={"data": {"type": "betaBuildLocalizations", "id": have[loc],
+                                   "attributes": {"whatsNew": text}}})
+            print("  updated what's-new", loc, "on build", ver)
+        else:
+            call("betaBuildLocalizations", tok, method="POST", payload={"data": {
+                "type": "betaBuildLocalizations",
+                "attributes": {"locale": loc, "whatsNew": text},
+                "relationships": {"build": {"data": {"type": "builds", "id": b["id"]}}}}})
+            print("  created what's-new", loc, "on build", ver)
+
+    print()
+    print("reading back:")
+    for l in call("apps/%s/betaAppLocalizations?limit=20" % APP_ID, tok)["data"]:
+        a = l["attributes"]
+        print("   %-6s description %d chars | feedback %s"
+              % (a.get("locale"), len(a.get("description") or ""), a.get("feedbackEmail")))
+    for l in call("builds/%s/betaBuildLocalizations?limit=20" % b["id"], tok)["data"]:
+        a = l["attributes"]
+        print("   %-6s what's-new  %d chars" % (a.get("locale"), len(a.get("whatsNew") or "")))
+
+
 def groups(tok):
     return call("apps/%s/betaGroups?limit=50" % APP_ID, tok)["data"]
 
 
 def builds(tok, limit=25):
-    return call("apps/%s/builds?limit=%d&sort=-version" % (APP_ID, limit), tok)["data"]
+    # NO `sort` PARAMETER. Apple rejects it on this relationship with
+    # "The parameter 'sort' can not be used with this request" — the app->builds
+    # relationship is not sortable even though /v1/builds is. Sorted here instead,
+    # numerically: `version` is a STRING, so a lexical sort puts build 99 above 134.
+    data = call("apps/%s/builds?limit=%d" % (APP_ID, limit), tok)["data"]
+    return sorted(data,
+                  key=lambda b: int(b["attributes"].get("version") or 0)
+                  if str(b["attributes"].get("version") or "").isdigit() else -1,
+                  reverse=True)
 
 
 def group_builds(tok, gid):
@@ -148,6 +219,9 @@ def main():
     tok = token(issuer)
     if cmd == "show":
         show(tok)
+        return 0
+    if cmd == "notes" and len(sys.argv) == 4:
+        notes(tok, sys.argv[3])
         return 0
     if cmd == "add" and len(sys.argv) == 5:
         add(tok, sys.argv[3], sys.argv[4])
