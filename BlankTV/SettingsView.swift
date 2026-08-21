@@ -1538,6 +1538,12 @@ struct LockedCategoriesView: View {
 struct PerfStatsView: View {
     @State private var samples = S8KPerf.recent
     @State private var copied  = false
+    // iOS hands this app every crash, hang and disk-write exception it records, and
+    // until now they were written to disk and never read by anything. Surfacing them
+    // HERE, rather than building a new screen, because this is already where someone
+    // comes looking for numbers about the app itself.
+    @State private var crashes = Diagnostics.crashNotes()
+    @State private var crashCopied = false
 
     var body: some View {
         SetScaffold(title: "قياس السرعة") {
@@ -1575,6 +1581,31 @@ struct PerfStatsView: View {
                 .buttonStyle(S8KButtonStyle())
             }
             .padding(.horizontal, S8KSpace.xl)
+            SetUI.group("تقارير الأعطال") {
+                if crashes.isEmpty {
+                    Text("لا توجد أعطال مسجَّلة. يسجّلها النظام تلقائياً بعد انهيار أو تجمّد، وقد تصل متأخّرة يوماً.")
+                        .font(S8KFont.footnote).foregroundColor(.s8kTextTertiary)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .padding(.vertical, 10)
+                } else {
+                    ForEach(Array(crashes.prefix(6).enumerated()), id: \.element.id) { i, c in
+                        if i > 0 { SetUI.divider() }
+                        crashRow(c)
+                    }
+                }
+            }
+            if !crashes.isEmpty {
+                Button(action: copyCrashes) {
+                    Text(crashCopied ? "نُسخ ✓" : "نسخ تقرير الأعطال")
+                        .font(S8KFont.callout.weight(.semibold)).foregroundColor(.s8kOrange)
+                        .frame(maxWidth: .infinity).padding(.vertical, 13)
+                        .background(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
+                            .fill(Color.s8kOrange.opacity(0.10)))
+                        .s8kMinTouch(2)
+                }
+                .buttonStyle(S8KButtonStyle())
+                .padding(.horizontal, S8KSpace.xl)
+            }
             Text("كل شيء هنا محلي على جهازك. لا يُرسَل أي قياس إلى أي خادم.")
                 .font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -1598,6 +1629,28 @@ struct PerfStatsView: View {
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private func crashRow(_ c: Diagnostics.CrashNote) -> some View {
+        // Two facts and a date. The full payload goes out through the copy button —
+        // a wall of unsymbolicated offsets on screen helps nobody.
+        let headline = c.facts.first(where: { $0.0 == "exceptionType" || $0.0 == "terminationReason" })
+        VStack(alignment: .trailing, spacing: 3) {
+            Text(headline.map { "\($0.0): \($0.1)" } ?? c.file)
+                .font(S8KFont.callout.weight(.semibold)).foregroundColor(.s8kTextPrimary)
+                .lineLimit(1)
+            Text(c.date.formatted(date: .abbreviated, time: .shortened))
+                .font(S8KFont.caption2).foregroundColor(.s8kTextDisabled)
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .padding(.horizontal, S8KSpace.lg).padding(.vertical, 12)
+    }
+
+    private func copyCrashes() {
+        UIPasteboard.general.string = Diagnostics.crashReport()
+        withAnimation { crashCopied = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { withAnimation { crashCopied = false } }
     }
 
     private func copy() {

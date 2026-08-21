@@ -37,13 +37,131 @@ final class Diagnostics: NSObject, MXMetricManagerSubscriber {
         trim(dir, keep: 24)
     }
 
-    private static func dir() -> URL? {
-        guard let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else { return nil }
+    /// APPLICATION SUPPORT, not Caches — and the move is the whole point of this file
+    /// being worth anything.
+    ///
+    /// Apple documents Caches as the place for content that can be discarded when the
+    /// device is low on space, and iOS acts on that. Crash reports were being written
+    /// there: the one file you need after a bad launch is the one the system is
+    /// entitled to delete, and it deletes it exactly when the device is under the kind
+    /// of pressure that also causes crashes.
+    ///
+    /// Application Support persists, is invisible to the user, and is what Apple names
+    /// for files an app needs and the user would never open. `isExcludedFromBackup` is
+    /// deliberately NOT set: a crash report surviving a device restore is a feature.
+    static func dir() -> URL? {
+        let fm = FileManager.default
+        guard let base = try? fm.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                                     appropriateFor: nil, create: true) else { return nil }
         let d = base.appendingPathComponent("Diagnostics", isDirectory: true)
-        if !FileManager.default.fileExists(atPath: d.path) {
-            try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        if !fm.fileExists(atPath: d.path) {
+            try? fm.createDirectory(at: d, withIntermediateDirectories: true)
         }
+        migrateFromCaches(into: d)
         return d
+    }
+
+    /// Move anything an older build left in Caches, once.
+    ///
+    /// Without this the change only protects reports from here on and abandons the
+    /// ones already collected — which are the reports about the builds that have
+    /// actually shipped.
+    private static var migrated = false
+    private static func migrateFromCaches(into dest: URL) {
+        guard !migrated else { return }
+        migrated = true
+        let fm = FileManager.default
+        guard let old = fm.urls(for: .cachesDirectory, in: .userDomainMask).first?
+                .appendingPathComponent("Diagnostics", isDirectory: true),
+              let files = try? fm.contentsOfDirectory(at: old, includingPropertiesForKeys: nil)
+        else { return }
+        for f in files {
+            let target = dest.appendingPathComponent(f.lastPathComponent)
+            if !fm.fileExists(atPath: target.path) { try? fm.moveItem(at: f, to: target) }
+        }
+        try? fm.removeItem(at: old)
+    }
+
+    // MARK: - Reading them back
+    //
+    // THEY WERE WRITTEN AND NEVER READ. Every crash, hang and disk-write exception iOS
+    // handed this app was serialised to disk and then abandoned — collected, and
+    // thrown away, which is the same defect as not collecting at all but more
+    // expensive. What follows turns the pile into something a person can paste into a
+    // message.
+    //
+    // HONEST ABOUT THE LIMIT: MetricKit call stacks are NOT symbolicated. The frames
+    // are binary offsets, and turning them into function names needs the dSYM for that
+    // exact build, off the device. So the summary leads with the app VERSION and BUILD
+    // — without those the offsets cannot be resolved by anyone, and with them they can.
+
+    struct CrashNote: Identifiable {
+        let id = UUID()
+        let file: String
+        let date: Date
+        /// `diagnosticMetaData` flattened to readable lines.
+        let facts: [(String, String)]
+    }
+
+    /// Every persisted diagnostic, newest first.
+    ///
+    /// Schema-agnostic ON PURPOSE. Rather than reaching for `crashDiagnostics[0].
+    /// diagnosticMetaData.exceptionType` — a path that is undocumented as JSON and has
+    /// changed across releases — this walks the tree and collects every
+    /// `diagnosticMetaData` object it finds, wherever it sits. A payload shape we have
+    /// never seen still reports something useful instead of nothing.
+    static func crashNotes() -> [CrashNote] {
+        guard let dir = dir(),
+              let files = try? FileManager.default.contentsOfDirectory(
+                at: dir, includingPropertiesForKeys: [.contentModificationDateKey])
+        else { return [] }
+        return files
+            .filter { $0.lastPathComponent.hasPrefix("diag") }
+            .compactMap { url -> CrashNote? in
+                guard let data = try? Data(contentsOf: url),
+                      let json = try? JSONSerialization.jsonObject(with: data) else { return nil }
+                var facts: [(String, String)] = []
+                collectMeta(json, into: &facts)
+                guard !facts.isEmpty else { return nil }
+                let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?
+                    .contentModificationDate ?? .distantPast
+                return CrashNote(file: url.lastPathComponent, date: date, facts: facts)
+            }
+            .sorted { $0.date > $1.date }
+    }
+
+    private static func collectMeta(_ node: Any, into out: inout [(String, String)]) {
+        if let dict = node as? [String: Any] {
+            if let meta = dict["diagnosticMetaData"] as? [String: Any] {
+                for k in meta.keys.sorted() {
+                    out.append((k, String(describing: meta[k] ?? "")))
+                }
+            }
+            for v in dict.values { collectMeta(v, into: &out) }
+        } else if let arr = node as? [Any] {
+            for v in arr { collectMeta(v, into: &out) }
+        }
+    }
+
+    /// One block of text to paste back. Leads with the build, because without it the
+    /// unsymbolicated offsets below are unusable by anyone.
+    static func crashReport() -> String {
+        let notes = crashNotes()
+        guard !notes.isEmpty else { return "لا توجد تقارير أعطال محفوظة." }
+        let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let b = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd HH:mm"
+        var out = ["app \(v) (\(b))  ·  \(notes.count) diagnostic payload(s)",
+                   "NOTE: MetricKit stacks are not symbolicated; resolve offsets with the dSYM for this build.",
+                   ""]
+        for n in notes.prefix(6) {
+            out.append("— \(f.string(from: n.date))  \(n.file)")
+            for (k, val) in n.facts.prefix(24) { out.append("    \(k): \(val)") }
+            out.append("")
+        }
+        return out.joined(separator: "\n")
     }
 
     private func trim(_ dir: URL, keep: Int) {
