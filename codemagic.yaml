@@ -67,9 +67,38 @@ workflows:
           fi
           echo "Using simulator $UDID"
           echo "SIM_UDID=$UDID" >> "$CM_ENV"
+      - name: Report the architectures MobileVLCKit actually ships
+        script: |
+          # Diagnostic, and it runs BEFORE the tests on purpose: whether this whole
+          # approach can work comes down to one fact — does the VLC binary carry an
+          # arm64 SIMULATOR slice? Printing it means the answer is in the log no
+          # matter which way the build below goes, instead of being inferred from a
+          # linker error.
+          echo "--- xcframeworks ---"
+          find Pods -maxdepth 3 -name "*.xcframework" -print 2>/dev/null || true
+          echo "--- slices ---"
+          find Pods -name "MobileVLCKit" -type f -perm +111 2>/dev/null | while read -r bin; do
+            echo "== $bin"
+            lipo -info "$bin" 2>/dev/null || file "$bin"
+          done
+          find Pods -name "*.xcframework" -maxdepth 3 2>/dev/null | while read -r xc; do
+            echo "== $xc"
+            ls -1 "$xc"
+          done
       - name: Run unit tests
         script: |
           set -o pipefail
+          # EXCLUDED_ARCHS is emptied for THIS invocation only. The Podfile sets
+          # `EXCLUDED_ARCHS[sdk=iphonesimulator*] = arm64`, which is an Intel-era
+          # workaround: it exists so a fat framework carrying device-arm64 does not
+          # collide with an arm64 simulator build. On an Apple Silicon machine with
+          # Xcode 26 that workaround is fatal rather than helpful — every available
+          # simulator runtime is arm64-only, so excluding arm64 leaves the test
+          # bundle with no architecture at all. That is the exact error the previous
+          # run gave, in those words.
+          #
+          # A command-line build setting overrides every target, Pods included, and
+          # touches no file — so the release workflow keeps the exclusion untouched.
           xcodebuild test \
             -workspace "$XCODE_WORKSPACE" \
             -scheme "$XCODE_SCHEME" \
@@ -77,8 +106,8 @@ workflows:
             -destination "id=$SIM_UDID" \
             -derivedDataPath build/dd \
             -resultBundlePath build/tests.xcresult \
-            ARCHS=x86_64 \
-            ONLY_ACTIVE_ARCH=NO \
+            EXCLUDED_ARCHS="" \
+            ONLY_ACTIVE_ARCH=YES \
             CODE_SIGNING_ALLOWED=NO
     artifacts:
       - build/tests.xcresult
