@@ -498,6 +498,18 @@ struct LicensesView: View {
                     entry("ThumbHash",
                           "MIT License · Copyright (c) 2023 Evan Wallace",
                           Self.mit, nil, "https://github.com/evanw/thumbhash")
+
+                    // NOT A LIBRARY — and that is why it was missing. Every entry above
+                    // is code; this screen was built for code, so the CONTENT we ship
+                    // under the same kind of licence never got an entry. CC BY grants
+                    // the use and obliges the credit in the same sentence, and we were
+                    // taking one half of that on artwork shown full-screen on the first
+                    // screen anyone sees.
+                    entry(L("licenses.films"),
+                          "Creative Commons Attribution (CC BY) · Blender Foundation / Blender Studio",
+                          L("licenses.content"),
+                          "https://creativecommons.org/licenses/by/4.0/",
+                          "https://studio.blender.org/films/")
                 }
                 .padding(20)
             }
