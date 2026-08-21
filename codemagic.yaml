@@ -88,6 +88,38 @@ workflows:
             echo "== $xc"
             ls -1 "$xc"
           done
+      # TEMPORARY — a survey, not a gate. This branch exists to answer one question
+      # and is not meant to be merged.
+      #
+      # The project is on SWIFT_VERSION 5.0 while Xcode 26 defaults to 6.2. Flipping
+      # the language mode blind would mean an unknown number of hard errors and a
+      # five-minute CI round trip per guess. In Swift 5 mode `complete` checking
+      # reports WARNINGS instead, so one build yields the entire diagnosis at zero
+      # risk: nothing here can fail the workflow, and nothing is committed to the
+      # project settings.
+      #
+      # It also settles empirically what the documentation would not: whether
+      # SWIFT_DEFAULT_ACTOR_ISOLATION is honoured in Swift 5 language mode at all.
+      - name: SURVEY concurrency diagnostics
+        script: |
+          set +e
+          xcodebuild build             -workspace "$XCODE_WORKSPACE"             -scheme "$XCODE_SCHEME"             -configuration Debug             -destination "id=$SIM_UDID"             -derivedDataPath build/survey-dd             CODE_SIGNING_ALLOWED=NO             SWIFT_STRICT_CONCURRENCY=complete             SWIFT_APPROACHABLE_CONCURRENCY=YES             SWIFT_DEFAULT_ACTOR_ISOLATION=MainActor             > build/survey.log 2>&1
+          echo "xcodebuild exit: $?"
+          echo
+          echo "=================== ERRORS ==================="
+          grep -E "^/Users/builder/clone/BlankTV.*error: " build/survey.log | sed "s|/Users/builder/clone/||" | sort | uniq -c | sort -rn
+          echo "(error count: $(grep -cE '^/Users/builder/clone/BlankTV.*error: ' build/survey.log))"
+          echo
+          echo "============ WARNINGS BY FILE ================"
+          grep -E "^/Users/builder/clone/BlankTV.*warning: " build/survey.log             | sed "s|/Users/builder/clone/||" | cut -d: -f1 | sort | uniq -c | sort -rn
+          echo "(warning count: $(grep -cE '^/Users/builder/clone/BlankTV.*warning: ' build/survey.log))"
+          echo
+          echo "============ WARNINGS BY KIND ================"
+          grep -E "^/Users/builder/clone/BlankTV.*warning: " build/survey.log             | sed "s|.*warning: ||"             | sed -E "s/'[^']*'/'X'/g; s/[0-9]+/N/g"             | sort | uniq -c | sort -rn | head -40
+          echo
+          echo "==== DID DEFAULT ISOLATION TAKE EFFECT? ======"
+          grep -m3 -E "default-isolation|defaultIsolation" build/survey.log || echo "(flag not echoed in log — infer from the warning mix above)"
+          exit 0
       - name: Run unit tests
         script: |
           set -o pipefail
@@ -104,6 +136,7 @@ workflows:
             CODE_SIGNING_ALLOWED=NO
     artifacts:
       - build/tests.xcresult
+      - build/survey.log
 
   ios-release:
     name: BLANK TV iOS
