@@ -186,9 +186,12 @@ struct CatalogDBStoreTests {
         CatalogDB.save(content(movies: [Fx.movie("m1", cat: "c", name: "Old")]), scope: s)
         let pool = try #require(CatalogDB.dbPool)
         let longAgo = Date().timeIntervalSince1970 - (CatalogDB.ttl + 3600)
+        // The scope column holds a HASH now — the raw URL carried the subscriber's
+        // password, so it never reaches the database. A test that pokes SQL directly
+        // has to hash too, or it updates nothing and silently proves nothing.
         try pool.write { db in
             try db.execute(sql: "UPDATE catalog_meta SET savedAt = ? WHERE scope = ?",
-                           arguments: [longAgo, s])
+                           arguments: [longAgo, CatalogDB.scopeKeyForTesting(s)])
         }
         #expect(CatalogDB.load(scope: s) == nil, "load must still enforce its TTL")
         let hit = try #require(CatalogDB.read(scope: s), "read must serve it anyway")
@@ -312,7 +315,10 @@ struct CatalogDBMigrationTests {
         }
         #expect(beforeHits.isEmpty, "the pre-migration index was expected to be unsearchable")
 
-        try CatalogDB.migrator.migrate(pool)
+        // UP TO v3 ONLY. v4 empties the store to purge plaintext scopes, so
+        // migrating all the way would delete exactly what v3 just rebuilt and this
+        // test would fail for the wrong reason.
+        try CatalogDB.migrator.migrate(pool, upTo: "v3_fold_fts")
 
         let afterHits = try pool.read { db in
             try String.fetchAll(db, sql: "SELECT itemId FROM catalog_fts WHERE catalog_fts MATCH ?",
@@ -334,7 +340,7 @@ struct CatalogDBMigrationTests {
                 VALUES ('s', 'm1', 'Title', 'Drama', 'Emma Watson', 'A plot line', 'Some Director', 'c', 'mp4', 0)
                 """)
         }
-        try CatalogDB.migrator.migrate(pool)
+        try CatalogDB.migrator.migrate(pool, upTo: "v3_fold_fts")   // see the note above
         let row = try pool.read { db in
             try Row.fetchOne(db, sql: "SELECT name, genre, actors, plot, director FROM catalog_fts WHERE itemId = 'm1'")
         }
@@ -350,7 +356,7 @@ struct CatalogDBMigrationTests {
     func v3OnEmptyStore() throws {
         let pool = try DatabasePool(path: tempStorePath("v3-empty"))
         try CatalogDB.migrator.migrate(pool, upTo: "v2_imagehash")
-        try CatalogDB.migrator.migrate(pool)      // must not throw
+        try CatalogDB.migrator.migrate(pool)      // must not throw — all the way, incl. v4
         let n = try pool.read { db in try Int.fetchOne(db, sql: "SELECT count(*) FROM catalog_fts") }
         #expect(n == 0)
     }

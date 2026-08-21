@@ -480,7 +480,16 @@ enum L10n {
 
         // Privacy policy
         "privacy.collect.t": [.ar: "ما نجمعه", .en: "What we collect", .fr: "Ce que nous collectons", .tr: "Neleri topluyoruz", .es: "Qué recopilamos"],
-        "privacy.collect.b": [.ar: "بيانات دخول مزوّدك، وهي محفوظة على جهازك وحده. لا حسابات لدينا، ولا إحصاءات، ولا تتبّع.", .en: "Your provider sign-in details, kept on your device only. We run no accounts, no analytics and no tracking.", .fr: "Vos identifiants de connexion, l'ID de l'appareil et des statistiques d'usage de base, avec votre accord. Rien d'autre.", .tr: "Giriş bilgileriniz, cihaz kimliğiniz ve onayınızla temel kullanım istatistikleri. Başka hiçbir şey.", .es: "Tus datos de acceso, el ID del dispositivo y estadísticas de uso básicas, con tu permiso. Nada más."],
+        // ALL FIVE LANGUAGES SAY THE SAME THING, which they did not.
+        //
+        // ar and en were corrected when the analytics and the device-ID upload were
+        // removed; fr, tr and es were left behind still promising "your login details,
+        // your device ID and basic usage statistics, with your consent". Three of the
+        // five languages this app ships were telling the user we collect data the app
+        // has no code to collect — and contradicting the App Privacy card, which
+        // declares no collection at all. A French-reading reviewer meets the
+        // contradiction, not the fixed version.
+        "privacy.collect.b": [.ar: "بيانات دخول مزوّدك، وهي محفوظة على جهازك وحده. لا حسابات لدينا، ولا إحصاءات، ولا تتبّع.", .en: "Your provider sign-in details, kept on your device only. We run no accounts, no analytics and no tracking.", .fr: "Vos identifiants de fournisseur, conservés uniquement sur votre appareil. Aucun compte, aucune statistique, aucun suivi.", .tr: "Sağlayıcı giriş bilgileriniz, yalnızca cihazınızda saklanır. Hesap yok, istatistik yok, takip yok.", .es: "Los datos de acceso a tu proveedor, guardados solo en tu dispositivo. Sin cuentas, sin estadísticas, sin rastreo."],
         "privacy.use.t":     [.ar: "فيمَ نستخدمها", .en: "What we use it for", .fr: "À quoi elles servent", .tr: "Ne için kullanıyoruz", .es: "Para qué los usamos"],
         "privacy.use.b":     [.ar: "لفتح اشتراكك عند مزوّدك أنت، لا غير. لا يُرسَل شيء إلينا.", .en: "Only to open your subscription with your own provider. Nothing is sent to us.", .fr: "À faire fonctionner le service, à améliorer l'app et à vous notifier au sujet de votre compte, rien de plus.", .tr: "Hizmeti çalıştırmak, uygulamayı iyileştirmek ve yalnızca hesabınızla ilgili bildirimler göndermek için.", .es: "Para que el servicio funcione, para mejorar la app y para avisarte solo sobre tu cuenta."],
         "privacy.share.t":   [.ar: "من يطّلع عليها",   .en: "Who sees it",    .fr: "Qui y a accès", .tr: "Kim görebilir", .es: "Quién los ve"],
