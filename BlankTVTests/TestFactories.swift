@@ -15,10 +15,22 @@
 import Foundation
 @testable import BlankTV
 
+// NAMES ARE QUALIFIED WITH `BlankTV.` DELIBERATELY.
+//
+// The Objective-C runtime declares `typedef struct objc_category *Category;` in
+// objc/runtime.h, which Swift surfaces as `ObjectiveC.Category`. Inside the app
+// that never matters: `Category` is declared in the same module, and a local
+// declaration shadows an imported one. Inside a TEST bundle both names arrive by
+// import, they rank equally, and the compiler stops at
+// "'Category' is ambiguous for type lookup in this context" — which is exactly
+// how the first green-attempt build failed.
+//
+// Every model name is qualified rather than only the one that collided today,
+// because the next collision would be found the same expensive way.
 enum Fx {
 
-    static func category(_ id: String, _ name: String? = nil) -> Category {
-        Category(id: id, name: name ?? id, parentID: nil)
+    static func category(_ id: String, _ name: String? = nil) -> BlankTV.Category {
+        BlankTV.Category(id: id, name: name ?? id, parentID: nil)
     }
 
     static func movie(_ id: String,
@@ -26,8 +38,8 @@ enum Fx {
                       rating: String? = nil,
                       name: String? = nil,
                       ext: String = "mp4",
-                      directURL: String? = nil) -> Movie {
-        Movie(id: id, name: name ?? "movie-\(id)",
+                      directURL: String? = nil) -> BlankTV.Movie {
+        BlankTV.Movie(id: id, name: name ?? "movie-\(id)",
               posterURL: nil, backdropURL: nil,
               year: nil, rating: rating, genre: nil, plot: nil,
               duration: nil, director: nil, cast: nil,
@@ -38,8 +50,8 @@ enum Fx {
     static func series(_ id: String,
                        cat: String = "c",
                        rating: String? = nil,
-                       name: String? = nil) -> Series {
-        Series(id: id, name: name ?? "series-\(id)",
+                       name: String? = nil) -> BlankTV.Series {
+        BlankTV.Series(id: id, name: name ?? "series-\(id)",
                coverURL: nil, backdropURL: nil,
                year: nil, rating: rating, genre: nil, plot: nil,
                cast: nil, director: nil,
@@ -49,8 +61,8 @@ enum Fx {
     static func channel(_ id: String,
                         group: String = "g",
                         name: String? = nil,
-                        directURL: String? = nil) -> Channel {
-        Channel(id: id, name: name ?? "channel-\(id)",
+                        directURL: String? = nil) -> BlankTV.Channel {
+        BlankTV.Channel(id: id, name: name ?? "channel-\(id)",
                 logoURL: nil, groupTitle: group,
                 epgChannelID: nil, directURL: directURL)
     }
@@ -59,8 +71,8 @@ enum Fx {
                         season: Int = 1,
                         number: Int = 1,
                         ext: String = "mkv",
-                        directURL: String? = nil) -> Episode {
-        Episode(id: id, title: "episode-\(id)",
+                        directURL: String? = nil) -> BlankTV.Episode {
+        BlankTV.Episode(id: id, title: "episode-\(id)",
                 episodeNumber: number, seasonNumber: season,
                 containerExtension: ext,
                 posterURL: nil, plot: nil, duration: nil,
@@ -68,12 +80,12 @@ enum Fx {
     }
 
     /// `n` movies in one category, each with a distinct id.
-    static func movies(_ n: Int, cat: String, rating: String? = nil) -> [Movie] {
+    static func movies(_ n: Int, cat: String, rating: String? = nil) -> [BlankTV.Movie] {
         (0..<n).map { movie("\(cat)-\($0)", cat: cat, rating: rating) }
     }
 
     /// `n` series in one category, each with a distinct id.
-    static func seriesList(_ n: Int, cat: String, rating: String? = nil) -> [Series] {
+    static func seriesList(_ n: Int, cat: String, rating: String? = nil) -> [BlankTV.Series] {
         (0..<n).map { series("\(cat)-\($0)", cat: cat, rating: rating) }
     }
 }
