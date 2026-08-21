@@ -111,7 +111,6 @@ struct SettingsProV2: View {
     @StateObject private var auth   = AuthService.shared
     @StateObject private var theme  = AppTheme.shared
     @StateObject private var parental = ParentalService.shared
-    @StateObject private var config = ConfigService.shared
     @Environment(\.horizontalSizeClass) private var hSize
 
     @State private var showAccounts    = false
@@ -243,12 +242,20 @@ struct SettingsProV2: View {
         sectionButton(icon: "arrow.up.arrow.down.circle.fill", title: L("reorder.manage"), subtitle: L("reorder.sub")) {
             showReorder = true
         }
-        if config.hasParental {
-            sectionButton(icon: "lock.shield.fill", title: L("app.parental"),
-                          subtitle: parental.enabled ? L("app.parental.on") : L("app.parental.off"),
-                          tint: parental.enabled ? .s8kGreen : .s8kGoldMid) {
-                showParental = true
-            }
+        // UNCONDITIONAL. This was `if config.hasParental`, read from a remote
+        // feature flag — the single clearest instance of finding L-3: a server able
+        // to switch parental controls OFF after review is exactly what Guideline
+        // 2.5.2 prohibits, and Guideline 1.2 expects the control to be there. With
+        // `appConfig` gone the flag was permanently true anyway; now it cannot be
+        // anything else.
+        //
+        // No `do { }` wrapper either: a ViewBuilder does not accept one, and reaching
+        // for a block to keep the old indentation would have been a compile error in
+        // service of nothing.
+        sectionButton(icon: "lock.shield.fill", title: L("app.parental"),
+                      subtitle: parental.enabled ? L("app.parental.on") : L("app.parental.off"),
+                      tint: parental.enabled ? .s8kGreen : .s8kGoldMid) {
+            showParental = true
         }
         sectionLink(icon: "slider.horizontal.3", title: L("set.app"), subtitle: L("set.app.sub")) {
             SetAppPage()

@@ -379,7 +379,6 @@ final class AuthService: ObservableObject {
         Keychain.shared.clearAll()
         Store.shared.clearSession()
         AppTheme.shared.reset()
-        ConfigService.shared.reset()
         ContentCache.reset()
         AppRouter.shared.contentReady = false
         mode = .xtream
@@ -429,7 +428,6 @@ final class AuthService: ObservableObject {
         // runtime any more. `clearReseller` stays, and is now purely a migration — it
         // erases brand keys left in UserDefaults by a build from before 2026-07-22.
         ActivationService.shared.clearReseller()
-        ConfigService.shared.reset()            // mirror logout's full teardown so no
         ContentCache.reset()                    // previous-user config/content lingers
         ParentalService.shared.resetAll()       // account deletion clears the parental PIN too
         AppRouter.shared.contentReady = false
@@ -465,52 +463,29 @@ final class AuthService: ObservableObject {
         // that point on. So an Xtream user is restored by the M3U branch — verified by
         // reading `loginXtream`, not assumed from the names.
         //
-        // CONSEQUENCE, recorded rather than acted on here: `ConfigService.apply` and
-        // `Store.loadTheme/loadFeatures/loadAppConfig` were called ONLY from the dead
-        // branch. They now have no caller, which means `ConfigService.features` is
-        // permanently `.defaults` — as it already was in practice. Removing that
-        // subsystem touches three views and belongs in its own change.
+        // That consequence has now been acted on: `ConfigService` is deleted, and with
+        // it the three UI branches and the parental-control flag it fed. See the note
+        // where the class used to live.
     }
 }
 
 
-// MARK: ════════════════════════════════════════
-// REMOTE CONFIG SERVICE
-// ════════════════════════════════════════════
-@MainActor
-final class ConfigService: ObservableObject {
-    static let shared = ConfigService()
-    private init() {}
-
-    @Published var features:     FeaturesConfig = .defaults
-    @Published var appConfig:    AppConfig      = .defaults
-    @Published var maintenance:  Bool           = false
-
-    func apply(features: FeaturesConfig, config: AppConfig) {
-        self.features    = features
-        self.appConfig   = config
-        self.maintenance = config.maintenanceMode
-        Store.shared.saveFeatures(features)
-        Store.shared.saveAppConfig(config)
-    }
-
-    // `fetchIfStale()` is deleted with the endpoint it called. It pulled remote
-    // feature flags, remote app config and a remote THEME — a runtime re-skin, which
-    // is the exact shape Guideline 4.2.6 is written about. What survives is `apply`,
-    // called by `restore()` from what is already on disk.
-
-    func reset() {
-        features = .defaults; appConfig = .defaults; maintenance = false
-    }
-
-    // Feature helpers
-    var hasCatchUp:        Bool { features.catchUp }
-    var hasEPG:            Bool { features.epg }
-    var hasParental:       Bool { features.parentalControl }
-    var hasSleepTimer:     Bool { features.sleepTimer }
-    var hasWatchlist:      Bool { features.watchlist }
-    var has4K:             Bool { features.quality4K }
-}
+// `ConfigService` IS DELETED.
+//
+// It held `features`, `appConfig` and `maintenance`, all fetched from a backend that
+// no longer exists. After the severance nothing could write them, so every consumer
+// read `.defaults` forever: `storeURL`, `supportWhatsApp`, `supportTelegram` and
+// `announcement` were permanently nil, and `hasParental` permanently true.
+//
+// Removing it is not only cleanup. It deletes the mechanism behind finding L-3 — a
+// server able to change the app after review, including switching parental controls
+// off. Guideline 2.5.2 is written about exactly that, and the safest version of a
+// remote kill for a user-facing safety control is one that cannot be built because
+// the type is gone.
+//
+// `FeaturesConfig`, `AppConfig` and `ThemeConfig` stay in Models: `Store` still reads
+// what an older build wrote, and deleting the types would break that decode for no
+// gain.
 
 // MARK: ════════════════════════════════════════
 // FAVORITES SERVICE
