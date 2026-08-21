@@ -42,6 +42,7 @@
 		1A1A1A1A000000000001001A /* SearchAndHostTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1A1A1A0000000000010019 /* SearchAndHostTests.swift */; };
 		1A1A1A1A000000000000F018 /* TextFold.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1A1A1A000000000000F017 /* TextFold.swift */; };
 		1A1A1A1A000000000001001C /* TextFoldTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1A1A1A000000000001001B /* TextFoldTests.swift */; };
+		1A1A1A1A0000000000010022 /* TypeScaleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1A1A1A0000000000010021 /* TypeScaleTests.swift */; };
 		1A1A1A1A000000000001001E /* CatalogDBTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1A1A1A000000000001001D /* CatalogDBTests.swift */; };
 		1A1A1A1A000000000000F01A /* Reachability.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1A1A1A000000000000F019 /* Reachability.swift */; };
 		1A1A1A1A0000000000010020 /* ReachabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1A1A1A000000000001001F /* ReachabilityTests.swift */; };
@@ -86,6 +87,7 @@
 		1A1A1A1A0000000000010019 /* SearchAndHostTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchAndHostTests.swift; sourceTree = "<group>"; };
 		1A1A1A1A000000000000F017 /* TextFold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextFold.swift; sourceTree = "<group>"; };
 		1A1A1A1A000000000001001B /* TextFoldTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextFoldTests.swift; sourceTree = "<group>"; };
+		1A1A1A1A0000000000010021 /* TypeScaleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypeScaleTests.swift; sourceTree = "<group>"; };
 		1A1A1A1A000000000001001D /* CatalogDBTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogDBTests.swift; sourceTree = "<group>"; };
 		1A1A1A1A000000000000F019 /* Reachability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Reachability.swift; sourceTree = "<group>"; };
 		1A1A1A1A000000000001001F /* ReachabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReachabilityTests.swift; sourceTree = "<group>"; };
@@ -127,6 +129,7 @@
 				1A1A1A1A0000000000010017 /* StreamRouterTests.swift */,
 				1A1A1A1A0000000000010019 /* SearchAndHostTests.swift */,
 				1A1A1A1A000000000001001B /* TextFoldTests.swift */,
+				1A1A1A1A0000000000010021 /* TypeScaleTests.swift */,
 				1A1A1A1A000000000001001D /* CatalogDBTests.swift */,
 				1A1A1A1A000000000001001F /* ReachabilityTests.swift */,
 			);
@@ -340,6 +343,7 @@
 				1A1A1A1A0000000000010018 /* StreamRouterTests.swift in Sources */,
 				1A1A1A1A000000000001001A /* SearchAndHostTests.swift in Sources */,
 				1A1A1A1A000000000001001C /* TextFoldTests.swift in Sources */,
+				1A1A1A1A0000000000010022 /* TypeScaleTests.swift in Sources */,
 				1A1A1A1A000000000001001E /* CatalogDBTests.swift in Sources */,
 				1A1A1A1A0000000000010020 /* ReachabilityTests.swift in Sources */,
 			);
