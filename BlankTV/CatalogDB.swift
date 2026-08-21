@@ -23,12 +23,35 @@
 // If the store cannot open, every call here degrades to a safe no-op or nil.
 // ============================================================
 
+import CryptoKit
 import Foundation
 import GRDB
 
 enum CatalogDB {
     /// Same freshness window as the legacy JSON cache (stale-while-revalidate).
     static let ttl: TimeInterval = 12 * 3600   // matches CatalogDiskCache.ttl
+
+    /// The partition key, HASHED — never the scope string itself.
+    ///
+    /// Callers pass `Store.shared.m3uURL`, and for an Xtream line that string is
+    /// `http://host/player_api.php?username=USER&password=PASS`. It was written
+    /// verbatim into a `scope` column on five tables, so every row of
+    /// `catalog.sqlite` carried the subscriber's password in the clear — tens of
+    /// thousands of copies of it — in a file with no NSFileProtection attribute,
+    /// which an unencrypted device backup copies out whole.
+    ///
+    /// The URL was never needed here. `scope` is an opaque partition key: the store
+    /// only ever compares it for equality. A SHA-256 of it partitions identically and
+    /// carries nothing. The legacy JSON cache had already worked this out — it hashes
+    /// the same string to build its filename (`CatalogDiskCache.fileURL`) — and the
+    /// SQLite store simply never followed.
+    ///
+    /// Hashing NEW writes is only half a fix: it leaves the plaintext already on disk.
+    /// Migration `v4_scope_hash` empties the store so the next load repopulates under
+    /// the hash, which is what actually removes the credentials from existing installs.
+    private static func key(_ scope: String) -> String {
+        SHA256.hash(data: Data(scope.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
 
     // MARK: - The store
     //
@@ -82,7 +105,15 @@ enum CatalogDB {
             try db.execute(sql: "PRAGMA synchronous = NORMAL")
         }
         let pool = try DatabasePool(path: path, configuration: config)
+        let fresh = !FileManager.default.fileExists(atPath: path)
+        let hadRows = !fresh && ((try? pool.read { db in
+            try Int.fetchOne(db, sql: "SELECT count(*) FROM sqlite_master WHERE name = 'channel'") ?? 0
+        }) ?? 0) > 0
         try migrator.migrate(pool)
+        // Reclaim the pages v4 freed. Outside the migration because VACUUM cannot run
+        // in a transaction, and only when there was something to reclaim — a VACUUM on
+        // a fresh store is pure cost.
+        if hadRows { try? pool.writeWithoutTransaction { db in try db.execute(sql: "VACUUM") } }
         return pool
     }
 
@@ -249,6 +280,29 @@ enum CatalogDB {
                 }
             }
         }
+        // Purge every row written under a PLAINTEXT scope.
+        //
+        // `key(_:)` hashes the partition key from now on, but that only protects new
+        // writes. An install that already has a catalogue is carrying the subscriber's
+        // username and password, in the clear, once per row across five tables — and
+        // leaving them there would make the whole change cosmetic for exactly the users
+        // who already trusted the app with a line.
+        //
+        // A wholesale DELETE rather than a rewrite, and deliberately: rewriting would
+        // mean reading the old scope values back out to hash them, which is the one
+        // thing this migration exists to stop doing. The next load refetches and
+        // repopulates under the hash — one refresh, and the plaintext is gone.
+        //
+        // VACUUM afterwards, because a DELETE in SQLite frees pages for reuse without
+        // returning them to the OS: the deleted bytes stay readable in the file with a
+        // hex editor until something overwrites them. For credentials that is not good
+        // enough. Runs outside the migration's transaction, which is what VACUUM
+        // requires.
+        m.registerMigration("v4_scope_hash") { db in
+            for t in ["channel", "movie", "series", "category", "catalog_meta", "catalog_fts"] {
+                try db.execute(sql: "DELETE FROM \(t)")
+            }
+        }
         return m
     }
 
@@ -261,6 +315,7 @@ enum CatalogDB {
     /// revalidate needs the age, not a verdict — serve what is on disk NOW, refresh
     /// behind it. Mirrors `CatalogDiskCache.read`, which is the API this replaces.
     static func read(scope: String) -> (content: M3UContent, age: TimeInterval)? {
+        let scope = key(scope)   // hash at the door — see `key(_:)`
         guard let c = load(scope: scope, ttl: .greatestFiniteMagnitude),
               let q = dbPool else { return nil }
         let savedAt = (try? q.read { db in
@@ -271,6 +326,7 @@ enum CatalogDB {
     }
 
     static func load(scope: String, ttl: TimeInterval = CatalogDB.ttl) -> M3UContent? {
+        let scope = key(scope)   // hash at the door — see `key(_:)`
         guard let q = dbPool else { return nil }
         return try? q.read { db -> M3UContent? in
             guard let savedAt = try Double.fetchOne(db,
@@ -294,6 +350,7 @@ enum CatalogDB {
     }
 
     static func isPopulated(scope: String) -> Bool {
+        let scope = key(scope)   // hash at the door — see `key(_:)`
         guard let q = dbPool else { return false }
         return (try? q.read { db in
             try Chan.filter(Column("scope") == scope).fetchCount(db) > 0
@@ -319,6 +376,7 @@ enum CatalogDB {
     }
     /// FTS search → ordered matching item ids for a scope + kind (live|movie|series).
     static func search(_ raw: String, kind: String, scope: String, limit: Int) -> [String] {
+        let scope = key(scope)   // hash at the door — see `key(_:)`
         guard let q = dbPool, let match = ftsQuery(raw) else { return [] }
         return (try? q.read { db in
             try String.fetchAll(db, sql: """
@@ -329,6 +387,7 @@ enum CatalogDB {
         }) ?? []
     }
     static func isSearchable(scope: String) -> Bool {
+        let scope = key(scope)   // hash at the door — see `key(_:)`
         guard let q = dbPool else { return false }
         return (try? q.read { db in
             try Int.fetchOne(db, sql: "SELECT 1 FROM catalog_fts WHERE scope = ? LIMIT 1", arguments: [scope]) != nil
@@ -337,6 +396,7 @@ enum CatalogDB {
 
     // MARK: - Keyset paging (constant-time at any depth on the covering indexes)
     static func pageChannels(scope: String, category: String?, after: Int?, limit: Int) -> (items: [Channel], nextCursor: Int?) {
+        let scope = key(scope)   // hash at the door — see `key(_:)`
         guard let q = dbPool else { return ([], nil) }
         let rows: [Chan] = (try? q.read { db -> [Chan] in
             var req = Chan.filter(Column("scope") == scope)
@@ -347,6 +407,7 @@ enum CatalogDB {
         return (rows.map(\.model), rows.count == limit ? rows.last?.pos : nil)
     }
     static func pageMovies(scope: String, category: String?, after: Int?, limit: Int) -> (items: [Movie], nextCursor: Int?) {
+        let scope = key(scope)   // hash at the door — see `key(_:)`
         guard let q = dbPool else { return ([], nil) }
         let rows: [Mov] = (try? q.read { db -> [Mov] in
             var req = Mov.filter(Column("scope") == scope)
@@ -357,6 +418,7 @@ enum CatalogDB {
         return (rows.map(\.model), rows.count == limit ? rows.last?.pos : nil)
     }
     static func pageSeries(scope: String, category: String?, after: Int?, limit: Int) -> (items: [Series], nextCursor: Int?) {
+        let scope = key(scope)   // hash at the door — see `key(_:)`
         guard let q = dbPool else { return ([], nil) }
         let rows: [Ser] = (try? q.read { db -> [Ser] in
             var req = Ser.filter(Column("scope") == scope)
@@ -369,6 +431,7 @@ enum CatalogDB {
 
     // MARK: - Resolve FTS hits → models (preserve rank order)
     static func channelsByIds(scope: String, ids: [String]) -> [Channel] {
+        let scope = key(scope)   // hash at the door — see `key(_:)`
         guard let q = dbPool, !ids.isEmpty else { return [] }
         let rows: [Chan] = (try? q.read { db in
             try Chan.filter(Column("scope") == scope && ids.contains(Column("id"))).fetchAll(db)
@@ -377,6 +440,7 @@ enum CatalogDB {
         return ids.compactMap { byId[$0] }
     }
     static func moviesByIds(scope: String, ids: [String]) -> [Movie] {
+        let scope = key(scope)   // hash at the door — see `key(_:)`
         guard let q = dbPool, !ids.isEmpty else { return [] }
         let rows: [Mov] = (try? q.read { db in
             try Mov.filter(Column("scope") == scope && ids.contains(Column("id"))).fetchAll(db)
@@ -385,6 +449,7 @@ enum CatalogDB {
         return ids.compactMap { byId[$0] }
     }
     static func seriesByIds(scope: String, ids: [String]) -> [Series] {
+        let scope = key(scope)   // hash at the door — see `key(_:)`
         guard let q = dbPool, !ids.isEmpty else { return [] }
         let rows: [Ser] = (try? q.read { db in
             try Ser.filter(Column("scope") == scope && ids.contains(Column("id"))).fetchAll(db)
@@ -395,6 +460,7 @@ enum CatalogDB {
 
     // MARK: - Counts (list headers / folder cards)
     static func countMovies(scope: String, category: String?) -> Int {
+        let scope = key(scope)   // hash at the door — see `key(_:)`
         guard let q = dbPool else { return 0 }
         return (try? q.read { db -> Int in
             var req = Mov.filter(Column("scope") == scope)
@@ -404,6 +470,7 @@ enum CatalogDB {
     }
     private struct CatCount: Codable, FetchableRecord { var categoryID: String; var n: Int }
     static func movieCategoryCounts(scope: String) -> [String: Int] {
+        let scope = key(scope)   // hash at the door — see `key(_:)`
         guard let q = dbPool else { return [:] }
         return (try? q.read { db -> [String: Int] in
             let rows = try CatCount.fetchAll(db, sql:
@@ -412,6 +479,7 @@ enum CatalogDB {
         }) ?? [:]
     }
     static func categories(scope: String, kind: String) -> [Category] {
+        let scope = key(scope)   // hash at the door — see `key(_:)`
         guard let q = dbPool else { return [] }
         let rows: [Cat] = (try? q.read { db in
             try Cat.filter(Column("scope") == scope && Column("kind") == kind).fetchAll(db)
@@ -436,6 +504,7 @@ enum CatalogDB {
 
     // MARK: - Bulk write (replace-all for scope inside ONE transaction, off-main by caller)
     static func save(_ c: M3UContent, scope: String) {
+        let scope = key(scope)   // hash at the door — see `key(_:)`
         guard let q = dbPool else { return }
         do {
             try q.write { db in
