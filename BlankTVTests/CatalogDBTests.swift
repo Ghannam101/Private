@@ -165,6 +165,51 @@ struct CatalogDBStoreTests {
         #expect(CatalogDB.search("!!!", kind: "movie", scope: s, limit: 10).isEmpty)
     }
 
+    // MARK: read(scope:) — the cold-start path
+
+    @Test("read returns the catalogue and its age, not a freshness verdict")
+    func readReturnsAge() throws {
+        let s = scope("read-age")
+        CatalogDB.save(content(movies: [Fx.movie("m1", cat: "c", name: "Stored")]), scope: s)
+        let hit = try #require(CatalogDB.read(scope: s))
+        #expect(hit.content.movies.first?.name == "Stored")
+        #expect(hit.age >= 0 && hit.age < 60)
+    }
+
+    @Test("read serves a STALE catalogue, because load's TTL cliff is what it exists to avoid")
+    func readIgnoresTTL() throws {
+        // `load` returns nil past the TTL, so a caller cannot tell "nothing stored"
+        // from "stored, slightly stale" and blocks on a full network parse either way.
+        // Stale-while-revalidate needs the bytes plus the age. Backdating savedAt is
+        // the only way to assert that without waiting twelve hours.
+        let s = scope("read-stale")
+        CatalogDB.save(content(movies: [Fx.movie("m1", cat: "c", name: "Old")]), scope: s)
+        let pool = try #require(CatalogDB.dbPool)
+        let longAgo = Date().timeIntervalSince1970 - (CatalogDB.ttl + 3600)
+        try pool.write { db in
+            try db.execute(sql: "UPDATE catalog_meta SET savedAt = ? WHERE scope = ?",
+                           arguments: [longAgo, s])
+        }
+        #expect(CatalogDB.load(scope: s) == nil, "load must still enforce its TTL")
+        let hit = try #require(CatalogDB.read(scope: s), "read must serve it anyway")
+        #expect(hit.content.movies.first?.name == "Old")
+        #expect(hit.age > CatalogDB.ttl)
+    }
+
+    @Test("read on an unknown scope returns nothing")
+    func readMissing() {
+        #expect(CatalogDB.read(scope: scope("read-missing")) == nil)
+    }
+
+    @Test("read preserves provider order")
+    func readPreservesOrder() throws {
+        let s = scope("read-order")
+        let ids = ["z", "a", "m", "b"]     // deliberately not sorted
+        CatalogDB.save(content(movies: ids.map { Fx.movie($0, cat: "c") }), scope: s)
+        let hit = try #require(CatalogDB.read(scope: s))
+        #expect(hit.content.movies.map(\.id) == ids)
+    }
+
     // MARK: Keyset paging — the path m1.4 will switch the lists onto
 
     @Test("paging walks the whole catalogue in provider order, once each")

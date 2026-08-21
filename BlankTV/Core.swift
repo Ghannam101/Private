@@ -1842,34 +1842,6 @@ enum CatalogDiskCache {
         let seriesCategories: [Category]
     }
 
-    private static func envelope(from c: M3UContent) -> Envelope {
-        Envelope(
-            savedAt: Date().timeIntervalSince1970,
-            channels: c.channels.map { DChannel(id: $0.id, name: $0.name, logoURL: $0.logoURL,
-                                                groupTitle: $0.groupTitle, epgChannelID: $0.epgChannelID,
-                                                directURL: $0.directURL) },
-            movies: c.movies.map { DMovie(id: $0.id, name: $0.name, posterURL: $0.posterURL,
-                                          backdropURL: $0.backdropURL, year: $0.year, rating: $0.rating,
-                                          genre: $0.genre, plot: $0.plot, duration: $0.duration,
-                                          director: $0.director, cast: $0.cast, categoryID: $0.categoryID,
-                                          containerExtension: $0.containerExtension, directURL: $0.directURL) },
-            series: c.series.map { s in
-                DSeries(id: s.id, name: s.name, coverURL: s.coverURL, backdropURL: s.backdropURL,
-                        year: s.year, rating: s.rating, genre: s.genre, plot: s.plot, cast: s.cast,
-                        director: s.director, categoryID: s.categoryID,
-                        seasons: s.seasons.map { se in
-                            DSeason(id: se.id, seasonNumber: se.seasonNumber, name: se.name,
-                                    episodes: se.episodes.map { e in
-                                        DEpisode(id: e.id, title: e.title, episodeNumber: e.episodeNumber,
-                                                 seasonNumber: e.seasonNumber, containerExtension: e.containerExtension,
-                                                 posterURL: e.posterURL, plot: e.plot, duration: e.duration,
-                                                 directURL: e.directURL)
-                                    })
-                        })
-            },
-            liveCategories: c.liveCategories, movieCategories: c.movieCategories, seriesCategories: c.seriesCategories
-        )
-    }
 
     private static func content(from e: Envelope) -> M3UContent {
         var c = M3UContent()
@@ -1920,11 +1892,14 @@ enum CatalogDiskCache {
         return dir.appendingPathComponent("cat_\(h).json")
     }
 
-    static func save(_ c: M3UContent, scope: String) {
-        guard let url = fileURL(scope),
-              let data = try? JSONEncoder().encode(envelope(from: c)) else { return }
-        try? data.write(to: url, options: .atomic)
-    }
+    // `save` and `envelope(from:)` are DELETED, not merely unused.
+    //
+    // Nothing writes this cache any more — CatalogDB is the store. Leaving an
+    // unreachable writer here would read as a live second persistence path to the
+    // next person, and the encode half is exactly the tens-of-megabytes JSON pass
+    // this change exists to stop. What remains is the READER, which serves an
+    // install that upgraded from a build predating the SQLite population, for the
+    // one cycle it takes the refresh behind it to fill the store.
 
     /// Returns a fresh (within TTL) cached catalog, or nil if missing/stale/empty.
     /// Is there a catalogue on disk for this scope? Deliberately a stat, not a read:
@@ -2004,7 +1979,21 @@ actor PlaylistService {
         // Instant cold-start: serve the last good catalog from disk immediately
         // (within TTL) instead of blocking on a full network parse. A refresh
         // (pull-to-refresh / playlist switch) passes force:true to bypass this.
-        if !force, let cached = CatalogDiskCache.read(scope: urlString) {
+        // SQLITE FIRST; THE JSON BLOB IS NOW ONLY A BRIDGE.
+        //
+        // The catalogue was persisted TWICE on every load — a JSON envelope AND the
+        // SQLite store — and only the JSON was ever read back. So every cold start
+        // paid a full JSONDecoder pass over tens of megabytes to rebuild something the
+        // store already held in a form it can page, and every refresh paid to write
+        // both.
+        //
+        // The store is the source now. `CatalogDiskCache` survives READ-ONLY, for one
+        // cycle: an install upgrading from a build that wrote JSON but not SQLite
+        // still has a catalogue to serve instantly, and the refresh behind it fills
+        // the store. Nothing writes JSON any more, so every install converges after a
+        // single load and the leftover files are cleared by `purgeAll` on logout or
+        // account deletion.
+        if !force, let cached = CatalogDB.read(scope: urlString) ?? CatalogDiskCache.read(scope: urlString) {
             S8KPerf.end("الكتالوج", "من القرص")
             content = cached.content
             // Re-parse credentials (pure string work, no network) so lazy
@@ -2022,7 +2011,7 @@ actor PlaylistService {
             // `load(force:)`: that joins any fetch already in flight, and the fetch in
             // flight right now is THIS one — so it would hand back the same stale
             // catalogue and the revalidation would silently never happen.
-            if cached.age >= CatalogDiskCache.ttl {
+            if cached.age >= CatalogDB.ttl {
                 Task.detached(priority: .utility) { await PlaylistService.shared.revalidate() }
             }
             return cached.content
@@ -2043,17 +2032,11 @@ actor PlaylistService {
             // relaunch. Serving the partial for THIS session is fine; recording it
             // as the truth is not.
             if !built.isPartial {
-                // BOTH writes are detached. `CatalogDiskCache.save` used to run
-                // SYNCHRONOUSLY here, before `return built` — it JSON-encodes the whole
-                // catalogue (tens of megabytes for a large line) and writes it, and the
-                // seven tab view models were all blocked behind that on the actor's
-                // return path, for seconds, before a single one of them could ask for
-                // its first row. The content is already in hand at this point; caching
-                // it is bookkeeping and belongs behind the user, not in front of them.
-                Task.detached(priority: .utility) { CatalogDiskCache.save(built, scope: urlString) }
-                // Shadow-write the same catalog into the SQLite store (off-actor, off-main).
-                // No reader yet (step 3) — this only POPULATES the DB so a later switch to
-                // paged reads is instant. Never blocks the return; store failure is a no-op.
+                // ONE write, and detached. It used to run SYNCHRONOUSLY here, before
+                // `return built`, and the seven tab view models were all blocked behind
+                // it on the actor's return path — for seconds — before a single one
+                // could ask for its first row. The content is already in hand; storing
+                // it is bookkeeping and belongs behind the user, not in front.
                 Task.detached(priority: .utility) { CatalogDB.save(built, scope: urlString) }
             }
             return built
@@ -2097,11 +2080,7 @@ actor PlaylistService {
         }
         S8KPerf.end("الكتالوج", "M3U · \(parsed.channels.count) قناة · \(parsed.movies.count) فلم · \(parsed.series.count) مسلسل")
         content = parsed
-        // Detached for the same reason as the Xtream branch above: this encodes the
-        // entire catalogue and writes it, and every tab view model was blocked behind
-        // it on the return path before it could ask for its first row.
-        Task.detached(priority: .utility) { CatalogDiskCache.save(parsed, scope: urlString) }
-        // Shadow-write into the SQLite store too (off-actor, off-main; no reader yet).
+        // One write, detached — see the note in the Xtream branch above.
         Task.detached(priority: .utility) { CatalogDB.save(parsed, scope: urlString) }
         return parsed
     }
@@ -2510,7 +2489,13 @@ actor PlaylistService {
         // at all. Firing our own request would turn a network-free warm launch into an
         // extra round trip — and offline it would be the only thing that could fail,
         // over a catalogue sitting right there and perfectly usable.
-        if CatalogDiskCache.exists(scope: urlString) { return try await load().channels }
+        // Asks BOTH stores: SQLite is where a catalogue lands now, JSON is what an
+        // install carries until its first refresh. Missing the SQLite case here would
+        // fire a redundant network request on exactly the warm launches this guard
+        // exists to keep network-free.
+        if CatalogDB.isPopulated(scope: urlString) || CatalogDiskCache.exists(scope: urlString) {
+            return try await load().channels
+        }
 
         let gen = accountGen
         let task = Task<[Channel], Error> { [xd] in try await self.fetchChannelsOnly(xd) }
@@ -2607,7 +2592,7 @@ actor PlaylistService {
         // Same rule as channelsFast: never race the network against a disk copy that
         // the full load will serve for free, and never be the reason an offline launch
         // fails.
-        if CatalogDiskCache.exists(scope: urlString) {
+        if CatalogDB.isPopulated(scope: urlString) || CatalogDiskCache.exists(scope: urlString) {
             let full = try await load()
             return section == .vod ? full.movieCategories : full.seriesCategories
         }
