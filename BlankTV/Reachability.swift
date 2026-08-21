@@ -8,7 +8,7 @@
 //
 // TWO SEPARATE JOBS, and they are kept separate on purpose:
 //
-//   `Link` is pure. It turns a path's facts into the state the UI needs, and it is a
+//   `S8KNetLink` is pure. It turns a path's facts into the state the UI needs, and it is a
 //   plain value with no Network import in its way, so it can be tested exhaustively
 //   without a device, a simulator, or a Wi-Fi router.
 //
@@ -22,11 +22,17 @@ import Network
 
 /// What the app needs to know about the connection, derived from one path.
 ///
+/// PREFIXED, and not for tidiness. This was called `Link`, which is a SwiftUI VIEW —
+/// `AuthViews.swift:527` builds one — so the plain name turned four unrelated lines
+/// of a login screen into compile errors. Same class of collision as `Category`,
+/// which the Objective-C runtime also owns. A short, obvious name is exactly the kind
+/// most likely to be taken already; the S8K prefix is the house answer to that.
+///
 /// `satisfied` alone is not the answer. iOS reports a path as satisfied while Low
 /// Data Mode is throttling it and while the only route is a cellular hotspot, and
 /// those are different products for a video app: one should still stream, the other
 /// should not start a background download the user pays for by the megabyte.
-struct Link: Equatable {
+struct S8KNetLink: Equatable {
     /// A route exists. False means every request will fail — say so, do not spin.
     var isOnline: Bool
     /// Cellular, a personal hotspot, or another metered route.
@@ -37,7 +43,7 @@ struct Link: Equatable {
     /// Optimistic. The first path update lands a moment after launch, and starting
     /// at `false` would flash an offline banner on every cold start of a perfectly
     /// connected app — a lie that is worse than the silence being fixed.
-    static let unknown = Link(isOnline: true, isExpensive: false, isConstrained: false)
+    static let unknown = S8KNetLink(isOnline: true, isExpensive: false, isConstrained: false)
 
     /// Whether a large, deferrable transfer should begin right now.
     ///
@@ -55,7 +61,7 @@ struct Link: Equatable {
 final class Reachability: ObservableObject {
     static let shared = Reachability()
 
-    @Published private(set) var link: Link = .unknown
+    @Published private(set) var link: S8KNetLink = .unknown
 
     var isOnline: Bool { link.isOnline }
 
@@ -73,7 +79,7 @@ final class Reachability: ObservableObject {
         monitor.pathUpdateHandler = { [weak self] path in
             // NWPathMonitor calls back on its own queue. Everything below touches
             // @Published state, so it has to arrive on the main actor.
-            let next = Link(isOnline: path.status == .satisfied,
+            let next = S8KNetLink(isOnline: path.status == .satisfied,
                             isExpensive: path.isExpensive,
                             isConstrained: path.isConstrained)
             Task { @MainActor [weak self] in self?.apply(next) }
@@ -83,7 +89,7 @@ final class Reachability: ObservableObject {
 
     deinit { monitor.cancel() }
 
-    private func apply(_ next: Link) {
+    private func apply(_ next: S8KNetLink) {
         let cameBack = !link.isOnline && next.isOnline
         guard next != link else { return }   // no churn on identical updates
         link = next

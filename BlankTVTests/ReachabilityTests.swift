@@ -1,6 +1,6 @@
 // ============================================================
 // BLANK TV — ReachabilityTests.swift
-// `Link` is the half of connectivity worth testing: it turns a network path's facts
+// `S8KNetLink` is the half of connectivity worth testing: it turns a network path's facts
 // into a decision, and that decision gates whether a metered download starts.
 //
 // The NWPathMonitor half is deliberately untested — it has no logic, and testing it
@@ -12,23 +12,23 @@ import Foundation
 import Testing
 @testable import BlankTV
 
-@Suite("Link")
+@Suite("S8KNetLink")
 struct LinkTests {
 
     @Test("the launch state is optimistic, so no offline banner flashes on a good connection")
     func unknownIsOnline() {
         // The first path update arrives a moment after launch. Starting at offline
         // would show every user a lie for that moment.
-        #expect(Link.unknown.isOnline)
-        #expect(Link.unknown.isExpensive == false)
-        #expect(Link.unknown.isConstrained == false)
+        #expect(S8KNetLink.unknown.isOnline)
+        #expect(S8KNetLink.unknown.isExpensive == false)
+        #expect(S8KNetLink.unknown.isConstrained == false)
     }
 
     // MARK: allowsBulkTransfer — the one real decision in this type
 
     @Test("offline blocks a bulk transfer no matter what the switch says")
     func offlineBlocksEverything() {
-        let l = Link(isOnline: false, isExpensive: false, isConstrained: false)
+        let l = S8KNetLink(isOnline: false, isExpensive: false, isConstrained: false)
         #expect(l.allowsBulkTransfer(wifiOnly: false) == false)
         #expect(l.allowsBulkTransfer(wifiOnly: true) == false)
     }
@@ -38,21 +38,21 @@ struct LinkTests {
         // The system asked apps to defer discretionary transfers. That request is
         // honoured whatever the user set for Wi-Fi-only, because it is not the same
         // question: the switch is about cost, this is about the OS being explicit.
-        let l = Link(isOnline: true, isExpensive: false, isConstrained: true)
+        let l = S8KNetLink(isOnline: true, isExpensive: false, isConstrained: true)
         #expect(l.allowsBulkTransfer(wifiOnly: false) == false)
         #expect(l.allowsBulkTransfer(wifiOnly: true) == false)
     }
 
     @Test("an expensive route is blocked only when the user asked for Wi-Fi only")
     func expensiveRespectsTheSwitch() {
-        let l = Link(isOnline: true, isExpensive: true, isConstrained: false)
+        let l = S8KNetLink(isOnline: true, isExpensive: true, isConstrained: false)
         #expect(l.allowsBulkTransfer(wifiOnly: true) == false)
         #expect(l.allowsBulkTransfer(wifiOnly: false))
     }
 
     @Test("a clean connection allows a bulk transfer either way")
     func cleanConnectionAllows() {
-        let l = Link(isOnline: true, isExpensive: false, isConstrained: false)
+        let l = S8KNetLink(isOnline: true, isExpensive: false, isConstrained: false)
         #expect(l.allowsBulkTransfer(wifiOnly: true))
         #expect(l.allowsBulkTransfer(wifiOnly: false))
     }
@@ -63,7 +63,7 @@ struct LinkTests {
         for online in [true, false] {
             for expensive in [true, false] {
                 for constrained in [true, false] {
-                    let l = Link(isOnline: online, isExpensive: expensive, isConstrained: constrained)
+                    let l = S8KNetLink(isOnline: online, isExpensive: expensive, isConstrained: constrained)
                     for wifiOnly in [true, false] where l.allowsBulkTransfer(wifiOnly: wifiOnly) {
                         allowed.append("online=\(online) expensive=\(expensive) constrained=\(constrained) wifiOnly=\(wifiOnly)")
                     }
@@ -80,12 +80,12 @@ struct LinkTests {
         ])
     }
 
-    @Test("Link is Equatable so the monitor can drop identical path updates")
+    @Test("S8KNetLink is Equatable so the monitor can drop identical path updates")
     func equatable() {
         // NWPathMonitor re-fires on changes the app does not care about. Without this
         // the publisher would churn and every observing view would re-render.
-        #expect(Link.unknown == Link(isOnline: true, isExpensive: false, isConstrained: false))
-        #expect(Link.unknown != Link(isOnline: true, isExpensive: true, isConstrained: false))
+        #expect(S8KNetLink.unknown == S8KNetLink(isOnline: true, isExpensive: false, isConstrained: false))
+        #expect(S8KNetLink.unknown != S8KNetLink(isOnline: true, isExpensive: true, isConstrained: false))
     }
 }
 
