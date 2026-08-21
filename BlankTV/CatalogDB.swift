@@ -24,14 +24,69 @@ enum CatalogDB {
     /// Same freshness window as the legacy JSON cache (stale-while-revalidate).
     static let ttl: TimeInterval = 12 * 3600   // matches CatalogDiskCache.ttl
 
-    // One shared connection, opened lazily. nil if the store can't be created.
-    static let dbQueue: DatabaseQueue? = {
+    // MARK: - The store
+    //
+    // A POOL, NOT A QUEUE, and the difference is the whole reason this changed.
+    //
+    // `DatabaseQueue` is ONE serialized connection: every read waits behind every
+    // write. Importing a fifty-thousand-title catalogue is a single transaction that
+    // runs for tens of seconds, and for its whole duration the search box and every
+    // ThumbHash placeholder lookup were blocked — on a store whose entire purpose is
+    // that those two feel instant.
+    //
+    // `DatabasePool` opens several read connections beside the one writer and, in WAL
+    // mode, gives readers SNAPSHOT ISOLATION: a reader that starts during the import
+    // keeps seeing the catalogue as it was before the import began, and never waits
+    // for it. The user searching while a refresh runs gets the OLD results promptly
+    // instead of a frozen screen — which is the correct behaviour as well as the fast
+    // one. WAL is switched on by DatabasePool itself; nothing here has to ask for it.
+    //
+    // The import deliberately stays ONE transaction. Splitting it into batches would
+    // shrink the WAL file, and would also let a reader observe a catalogue that is
+    // half-deleted — `save` clears the scope before re-inserting it. Snapshot
+    // isolation makes the big transaction harmless to readers, so atomicity wins.
+    //
+    // GRDB's own guidance is to start with DatabaseQueue and move to DatabasePool
+    // only when there is a reason. This is that reason, written down.
+
+    /// Reader connections. Left at GRDB's default of 5, deliberately.
+    ///
+    /// The concurrent readers here are the FTS search (one at a time — the query is
+    /// debounced and single-flighted) and ThumbHash lookups, which are microsecond
+    /// point queries fired from the image prefetcher. A burst of those queues briefly
+    /// against five slots and drains immediately. Raising this without a measurement
+    /// would just buy more open connections and more page cache.
+    private static let readerCount = 5
+
+    /// Build a store at `path`, configured and fully migrated.
+    ///
+    /// Separate from the shared instance so a test can open a throwaway store on a
+    /// temp path and exercise the migrations and the FTS round-trip for real, rather
+    /// than against whatever the simulator happens to be carrying.
+    static func makeStore(path: String) throws -> DatabasePool {
+        var config = Configuration()
+        config.maximumReaderCount = readerCount
+        // synchronous = NORMAL, which in WAL mode is corruption-safe by SQLite's own
+        // documentation: a power loss can roll back the most recent transactions, but
+        // the file is never left broken. The default FULL fsyncs on every commit, and
+        // this store holds a CACHE that is re-fetched from the provider on a twelve-
+        // hour TTL. Paying full durability for data we would happily re-download is
+        // the wrong trade, and it is paid fifty thousand rows at a time.
+        config.prepareDatabase { db in
+            try db.execute(sql: "PRAGMA synchronous = NORMAL")
+        }
+        let pool = try DatabasePool(path: path, configuration: config)
+        try migrator.migrate(pool)
+        return pool
+    }
+
+    /// The shared store. nil if it cannot be created — every call below then degrades
+    /// to a safe no-op rather than trapping.
+    static let dbPool: DatabasePool? = {
         do {
             let dir = try FileManager.default.url(for: .applicationSupportDirectory,
                                                   in: .userDomainMask, appropriateFor: nil, create: true)
-            let q = try DatabaseQueue(path: dir.appendingPathComponent("catalog.sqlite").path)
-            try migrator.migrate(q)
-            return q
+            return try makeStore(path: dir.appendingPathComponent("catalog.sqlite").path)
         } catch { print("CatalogDB init failed:", error); return nil }
     }()
 
@@ -72,7 +127,10 @@ enum CatalogDB {
     }
 
     // MARK: - Schema — one clean migration (fresh store, no legacy history to replay).
-    private static var migrator: DatabaseMigrator {
+    /// Internal rather than private so a test can drive it to a specific version.
+    /// `v3_fold_fts` rewrites an index built by an EARLIER build, and the only honest
+    /// way to test that is to create the earlier state and migrate across it.
+    static var migrator: DatabaseMigrator {
         var m = DatabaseMigrator()
         m.registerMigration("v1_catalog") { db in
             try db.create(table: "channel") { t in
@@ -190,7 +248,7 @@ enum CatalogDB {
 
     // MARK: - Load / populate guard (parallels CatalogDiskCache.load)
     static func load(scope: String, ttl: TimeInterval = CatalogDB.ttl) -> M3UContent? {
-        guard let q = dbQueue else { return nil }
+        guard let q = dbPool else { return nil }
         return try? q.read { db -> M3UContent? in
             guard let savedAt = try Double.fetchOne(db,
                     sql: "SELECT savedAt FROM catalog_meta WHERE scope = ?", arguments: [scope]),
@@ -213,7 +271,7 @@ enum CatalogDB {
     }
 
     static func isPopulated(scope: String) -> Bool {
-        guard let q = dbQueue else { return false }
+        guard let q = dbPool else { return false }
         return (try? q.read { db in
             try Chan.filter(Column("scope") == scope).fetchCount(db) > 0
             || (try Mov.filter(Column("scope") == scope).fetchCount(db)) > 0
@@ -238,7 +296,7 @@ enum CatalogDB {
     }
     /// FTS search → ordered matching item ids for a scope + kind (live|movie|series).
     static func search(_ raw: String, kind: String, scope: String, limit: Int) -> [String] {
-        guard let q = dbQueue, let match = ftsQuery(raw) else { return [] }
+        guard let q = dbPool, let match = ftsQuery(raw) else { return [] }
         return (try? q.read { db in
             try String.fetchAll(db, sql: """
                 SELECT itemId FROM catalog_fts
@@ -248,7 +306,7 @@ enum CatalogDB {
         }) ?? []
     }
     static func isSearchable(scope: String) -> Bool {
-        guard let q = dbQueue else { return false }
+        guard let q = dbPool else { return false }
         return (try? q.read { db in
             try Int.fetchOne(db, sql: "SELECT 1 FROM catalog_fts WHERE scope = ? LIMIT 1", arguments: [scope]) != nil
         }) ?? false
@@ -256,7 +314,7 @@ enum CatalogDB {
 
     // MARK: - Keyset paging (constant-time at any depth on the covering indexes)
     static func pageChannels(scope: String, category: String?, after: Int?, limit: Int) -> (items: [Channel], nextCursor: Int?) {
-        guard let q = dbQueue else { return ([], nil) }
+        guard let q = dbPool else { return ([], nil) }
         let rows: [Chan] = (try? q.read { db -> [Chan] in
             var req = Chan.filter(Column("scope") == scope)
             if let category { req = req.filter(Column("groupTitle") == category) }
@@ -266,7 +324,7 @@ enum CatalogDB {
         return (rows.map(\.model), rows.count == limit ? rows.last?.pos : nil)
     }
     static func pageMovies(scope: String, category: String?, after: Int?, limit: Int) -> (items: [Movie], nextCursor: Int?) {
-        guard let q = dbQueue else { return ([], nil) }
+        guard let q = dbPool else { return ([], nil) }
         let rows: [Mov] = (try? q.read { db -> [Mov] in
             var req = Mov.filter(Column("scope") == scope)
             if let category { req = req.filter(Column("categoryID") == category) }
@@ -276,7 +334,7 @@ enum CatalogDB {
         return (rows.map(\.model), rows.count == limit ? rows.last?.pos : nil)
     }
     static func pageSeries(scope: String, category: String?, after: Int?, limit: Int) -> (items: [Series], nextCursor: Int?) {
-        guard let q = dbQueue else { return ([], nil) }
+        guard let q = dbPool else { return ([], nil) }
         let rows: [Ser] = (try? q.read { db -> [Ser] in
             var req = Ser.filter(Column("scope") == scope)
             if let category { req = req.filter(Column("categoryID") == category) }
@@ -288,7 +346,7 @@ enum CatalogDB {
 
     // MARK: - Resolve FTS hits → models (preserve rank order)
     static func channelsByIds(scope: String, ids: [String]) -> [Channel] {
-        guard let q = dbQueue, !ids.isEmpty else { return [] }
+        guard let q = dbPool, !ids.isEmpty else { return [] }
         let rows: [Chan] = (try? q.read { db in
             try Chan.filter(Column("scope") == scope && ids.contains(Column("id"))).fetchAll(db)
         }) ?? []
@@ -296,7 +354,7 @@ enum CatalogDB {
         return ids.compactMap { byId[$0] }
     }
     static func moviesByIds(scope: String, ids: [String]) -> [Movie] {
-        guard let q = dbQueue, !ids.isEmpty else { return [] }
+        guard let q = dbPool, !ids.isEmpty else { return [] }
         let rows: [Mov] = (try? q.read { db in
             try Mov.filter(Column("scope") == scope && ids.contains(Column("id"))).fetchAll(db)
         }) ?? []
@@ -304,7 +362,7 @@ enum CatalogDB {
         return ids.compactMap { byId[$0] }
     }
     static func seriesByIds(scope: String, ids: [String]) -> [Series] {
-        guard let q = dbQueue, !ids.isEmpty else { return [] }
+        guard let q = dbPool, !ids.isEmpty else { return [] }
         let rows: [Ser] = (try? q.read { db in
             try Ser.filter(Column("scope") == scope && ids.contains(Column("id"))).fetchAll(db)
         }) ?? []
@@ -314,7 +372,7 @@ enum CatalogDB {
 
     // MARK: - Counts (list headers / folder cards)
     static func countMovies(scope: String, category: String?) -> Int {
-        guard let q = dbQueue else { return 0 }
+        guard let q = dbPool else { return 0 }
         return (try? q.read { db -> Int in
             var req = Mov.filter(Column("scope") == scope)
             if let category { req = req.filter(Column("categoryID") == category) }
@@ -323,7 +381,7 @@ enum CatalogDB {
     }
     private struct CatCount: Codable, FetchableRecord { var categoryID: String; var n: Int }
     static func movieCategoryCounts(scope: String) -> [String: Int] {
-        guard let q = dbQueue else { return [:] }
+        guard let q = dbPool else { return [:] }
         return (try? q.read { db -> [String: Int] in
             let rows = try CatCount.fetchAll(db, sql:
                 "SELECT categoryID, COUNT(*) AS n FROM movie WHERE scope = ? GROUP BY categoryID", arguments: [scope])
@@ -331,7 +389,7 @@ enum CatalogDB {
         }) ?? [:]
     }
     static func categories(scope: String, kind: String) -> [Category] {
-        guard let q = dbQueue else { return [] }
+        guard let q = dbPool else { return [] }
         let rows: [Cat] = (try? q.read { db in
             try Cat.filter(Column("scope") == scope && Column("kind") == kind).fetchAll(db)
         }) ?? []
@@ -340,11 +398,11 @@ enum CatalogDB {
 
     /// Empty EVERY scope. Account deletion only — "delete all my data" has to mean
     /// the catalogue as well as the login. Rows are dropped inside the existing queue
-    /// rather than unlinking the file: `dbQueue` is opened once for the process
+    /// rather than unlinking the file: `dbPool` is opened once for the process
     /// lifetime, so pulling the file out from under it would leave every later read
     /// failing silently instead of rebuilding.
     static func deleteEverything() {
-        guard let q = dbQueue else { return }
+        guard let q = dbPool else { return }
         try? q.write { db in
             for t in ["channel", "movie", "series", "category", "catalog_fts",
                       "catalog_meta", "image_hash"] {
@@ -355,7 +413,7 @@ enum CatalogDB {
 
     // MARK: - Bulk write (replace-all for scope inside ONE transaction, off-main by caller)
     static func save(_ c: M3UContent, scope: String) {
-        guard let q = dbQueue else { return }
+        guard let q = dbPool else { return }
         do {
             try q.write { db in
                 try Chan.filter(Column("scope") == scope).deleteAll(db)
@@ -399,21 +457,21 @@ enum CatalogDB {
     // MARK: - Image ThumbHash cache (perceived-instant poster/logo placeholders)
     /// The stored ThumbHash bytes for an image URL, or nil if not encoded yet.
     static func imageHash(_ url: String) -> Data? {
-        guard let q = dbQueue else { return nil }
+        guard let q = dbPool else { return nil }
         return (try? q.read { db in
             try Data.fetchOne(db, sql: "SELECT hash FROM image_hash WHERE url = ?", arguments: [url])
         }) ?? nil
     }
     /// Fast existence check (skip the ~1-2ms re-encode when a URL is already hashed).
     static func hasImageHash(_ url: String) -> Bool {
-        guard let q = dbQueue else { return false }
+        guard let q = dbPool else { return false }
         return (try? q.read { db in
             try Int.fetchOne(db, sql: "SELECT 1 FROM image_hash WHERE url = ? LIMIT 1", arguments: [url]) != nil
         }) ?? false
     }
     /// Persist (or replace) the ThumbHash for an image URL. Tiny (~25-byte) write.
     static func saveImageHash(_ url: String, _ hash: Data) {
-        guard let q = dbQueue else { return }
+        guard let q = dbPool else { return }
         try? q.write { db in
             try db.execute(sql: "INSERT OR REPLACE INTO image_hash (url, hash, savedAt) VALUES (?, ?, ?)",
                            arguments: [url, hash, Date().timeIntervalSince1970])
