@@ -101,32 +101,11 @@ struct ServerInfo: Codable {
     var baseURL: String { "\(host)" }
 }
 
-// MARK: - Login Request
-struct LoginRequest: Encodable {
-    let username:    String
-    let password:    String
-    let deviceID:    String
-    let deviceModel: String
-    let appVersion:  String
-}
-
-// MARK: - Login Response
-struct LoginResponse: Decodable {
-    let token:     String
-    let expiresAt: TimeInterval
-    let user:      UserInfo
-    let server:    ServerInfo
-    let theme:     ThemeConfig
-    let features:  FeaturesConfig
-    let config:    AppConfig
-}
-
-// MARK: - Remote Config Response
-struct RemoteConfigResponse: Decodable {
-    let theme:    ThemeConfig
-    let features: FeaturesConfig
-    let config:   AppConfig
-}
+// LoginRequest / LoginResponse / RemoteConfigResponse are deleted with the backend
+// they described. Nothing encodes or decodes them any more: the app authenticates
+// against the user's own Xtream line or reads their M3U, and both paths build their
+// own models. ThemeConfig / FeaturesConfig / AppConfig / UserInfo / ServerInfo stay —
+// they are still loaded from disk by `restore()`.
 
 // MARK: - Channel
 struct Channel: Codable, Identifiable, Hashable {
