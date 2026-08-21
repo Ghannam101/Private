@@ -1,4 +1,88 @@
 workflows:
+  # ==========================================================================
+  # UNIT TESTS — deliberately a SEPARATE workflow, not a step inside ios-release.
+  #
+  # Running tests needs a SIMULATOR, and the simulator is the one place this
+  # project's dependency set is not proven: the Podfile excludes arm64 for
+  # `sdk=iphonesimulator*` (MobileVLCKit 3.6 ships a fat framework, which cannot
+  # carry device-arm64 and simulator-arm64 at once), while the CI machine is an
+  # M2 — whose simulators are arm64. So the test build is pinned to x86_64 and
+  # runs under Rosetta.
+  #
+  # That pin is a HYPOTHESIS until this workflow goes green once. Keeping it out
+  # of ios-release means the hypothesis can be wrong without costing a single
+  # release build — and TestFlight's daily upload cap makes wasted release builds
+  # genuinely expensive. Once this is green, add the same run-tests step to
+  # ios-release ahead of `build-ipa`, and delete this paragraph.
+  #
+  # `sdk=iphoneos` is untouched by everything here, so the shipping IPA cannot be
+  # affected by any of it.
+  # ==========================================================================
+  ios-test:
+    name: BLANK TV — unit tests
+    max_build_duration: 30
+    instance_type: mac_mini_m2
+    environment:
+      vars:
+        XCODE_WORKSPACE: "BlankTV.xcworkspace"
+        XCODE_SCHEME: "BlankTV"
+      xcode: 26.3
+    scripts:
+      - name: Install CocoaPods
+        script: |
+          # Same CDN rate-limit dance as the release workflow — see the note there.
+          for n in 1 2 3 4 5; do
+            if [ "$n" -eq 5 ]; then
+              if pod install --repo-update; then exit 0; fi
+            else
+              if pod install; then exit 0; fi
+              echo "pod install failed (attempt $n/5) — retrying in $((n*20))s…"
+              sleep $((n*20))
+            fi
+          done
+          echo "pod install failed after 5 attempts (CocoaPods CDN 429?)"
+          exit 1
+      - name: Pick an available iPhone simulator
+        script: |
+          # Resolved at run time rather than hard-coded: a device NAME that is not
+          # on the image fails with "Unable to find a destination", which reads as
+          # a test failure and is not one. A UDID from the machine itself cannot be
+          # wrong about what the machine has.
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          runtimes = json.load(sys.stdin)['devices']
+          for rt in sorted(runtimes, reverse=True):
+              if 'iOS' not in rt:
+                  continue
+              for dev in runtimes[rt]:
+                  if dev.get('isAvailable') and 'iPhone' in dev.get('name', ''):
+                      print(dev['udid'])
+                      sys.exit(0)
+          sys.exit(1)
+          ")
+          if [ -z "$UDID" ]; then
+            echo "No available iPhone simulator on this image."
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "Using simulator $UDID"
+          echo "SIM_UDID=$UDID" >> "$CM_ENV"
+      - name: Run unit tests
+        script: |
+          set -o pipefail
+          xcodebuild test \
+            -workspace "$XCODE_WORKSPACE" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Debug \
+            -destination "id=$SIM_UDID" \
+            -derivedDataPath build/dd \
+            -resultBundlePath build/tests.xcresult \
+            ARCHS=x86_64 \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO
+    artifacts:
+      - build/tests.xcresult
+
   ios-release:
     name: BLANK TV iOS
     max_build_duration: 60

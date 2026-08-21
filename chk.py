@@ -106,8 +106,15 @@ def check(path):
 def main():
     paths = sys.argv[1:]
     if not paths:                       # no arguments = the whole tree, never nothing
-        for root, _, files in os.walk("BlankTV"):
-            paths += [os.path.join(root, f) for f in files if f.endswith(".swift")]
+        # BOTH source roots. The test bundle was invisible to this gate on the day
+        # it was added: `os.walk("BlankTV")` does not descend into `BlankTVTests`,
+        # so the checker reported "26 files, 0 problems" over a tree that had just
+        # grown five unchecked files — the same shape of silence this script's own
+        # header was written about. A root that exists but holds no Swift is fine
+        # (nothing to check); a root missing entirely is caught by the guard below.
+        for src in ("BlankTV", "BlankTVTests"):
+            for root, _, files in os.walk(src):
+                paths += [os.path.join(root, f) for f in files if f.endswith(".swift")]
     if not paths:
         print("chk: no Swift files found — is this the repo root?", file=sys.stderr)
         return 2

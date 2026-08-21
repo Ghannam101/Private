@@ -10,6 +10,16 @@ target 'BlankTV' do
   # (GRDB 7 is SPM-only, not on the CocoaPods trunk); the classic Column("x")
   # query API used by CatalogDB is identical on 6 and 7.
   pod 'GRDB.swift', '~> 6.24'
+
+  # Unit tests. `inherit! :search_paths` is the correct mode for a HOSTED test
+  # bundle: the app already links MobileVLCKit and GRDB, and the test bundle loads
+  # into that app. Linking them a second time here would put two copies of each
+  # library in one process — duplicate Objective-C classes, and a linker that picks
+  # one at random. The tests need the HEADERS to compile `@testable import BlankTV`,
+  # which is exactly what search_paths gives and nothing more.
+  target 'BlankTVTests' do
+    inherit! :search_paths
+  end
 end
 
 post_install do |installer|

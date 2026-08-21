@@ -35,6 +35,11 @@
 		1A1A1A1A000000000000F015 /* Plate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1A1A1A000000000000F016 /* Plate.swift */; };
 		9CF0B3FC092447CF884B9686 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EBF265EBFBBB4C56A4DB1667 /* Assets.xcassets */; };
 		1A1A1A1A000000000000B001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1A1A1A1A000000000000B002 /* PrivacyInfo.xcprivacy */; };
+		1A1A1A1A0000000000010012 /* TestFactories.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1A1A1A0000000000010011 /* TestFactories.swift */; };
+		1A1A1A1A0000000000010014 /* RailEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1A1A1A0000000000010013 /* RailEngineTests.swift */; };
+		1A1A1A1A0000000000010016 /* M3UParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1A1A1A0000000000010015 /* M3UParserTests.swift */; };
+		1A1A1A1A0000000000010018 /* StreamRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1A1A1A0000000000010017 /* StreamRouterTests.swift */; };
+		1A1A1A1A000000000001001A /* SearchAndHostTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1A1A1A0000000000010019 /* SearchAndHostTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -68,10 +73,23 @@
 		EBF265EBFBBB4C56A4DB1667 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1A1A1A1A000000000000B002 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		91E2B89DD0E34541B0BD02CE /* BlankTV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BlankTV.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1A1A1A1A0000000000010002 /* BlankTVTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BlankTVTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		1A1A1A1A0000000000010011 /* TestFactories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestFactories.swift; sourceTree = "<group>"; };
+		1A1A1A1A0000000000010013 /* RailEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RailEngineTests.swift; sourceTree = "<group>"; };
+		1A1A1A1A0000000000010015 /* M3UParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M3UParserTests.swift; sourceTree = "<group>"; };
+		1A1A1A1A0000000000010017 /* StreamRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamRouterTests.swift; sourceTree = "<group>"; };
+		1A1A1A1A0000000000010019 /* SearchAndHostTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchAndHostTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		752DD02D44214266B5D521EA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1A1A1A1A0000000000010004 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -85,14 +103,28 @@
 			isa = PBXGroup;
 			children = (
 				67F961334EB041FABF56C6F0 /* BlankTV */,
+				1A1A1A1A000000000001000B /* BlankTVTests */,
 				8464AC73254F4AE89310F41E /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		1A1A1A1A000000000001000B /* BlankTVTests */ = {
+			isa = PBXGroup;
+			children = (
+				1A1A1A1A0000000000010011 /* TestFactories.swift */,
+				1A1A1A1A0000000000010013 /* RailEngineTests.swift */,
+				1A1A1A1A0000000000010015 /* M3UParserTests.swift */,
+				1A1A1A1A0000000000010017 /* StreamRouterTests.swift */,
+				1A1A1A1A0000000000010019 /* SearchAndHostTests.swift */,
+			);
+			path = BlankTVTests;
 			sourceTree = "<group>";
 		};
 		8464AC73254F4AE89310F41E /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				91E2B89DD0E34541B0BD02CE /* BlankTV.app */,
+				1A1A1A1A0000000000010002 /* BlankTVTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -153,7 +185,43 @@
 			productReference = 91E2B89DD0E34541B0BD02CE /* BlankTV.app */;
 			productType = "com.apple.product-type.application";
 		};
+		1A1A1A1A0000000000010001 /* BlankTVTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1A1A1A1A0000000000010006 /* Build configuration list for PBXNativeTarget "BlankTVTests" */;
+			buildPhases = (
+				1A1A1A1A0000000000010003 /* Sources */,
+				1A1A1A1A0000000000010004 /* Frameworks */,
+				1A1A1A1A0000000000010005 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1A1A1A1A0000000000010009 /* PBXTargetDependency */,
+			);
+			name = BlankTVTests;
+			productName = BlankTVTests;
+			productReference = 1A1A1A1A0000000000010002 /* BlankTVTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
+
+/* Begin PBXTargetDependency section */
+		1A1A1A1A0000000000010009 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8E99D2C80CCE4B17948C89DC /* BlankTV */;
+			targetProxy = 1A1A1A1A000000000001000A /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXContainerItemProxy section */
+		1A1A1A1A000000000001000A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6990FB5B6E1A4D6CBB3D2A1D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8E99D2C80CCE4B17948C89DC;
+			remoteInfo = BlankTV;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXProject section */
 		6990FB5B6E1A4D6CBB3D2A1D /* Project object */ = {
@@ -165,6 +233,10 @@
 				TargetAttributes = {
 					8E99D2C80CCE4B17948C89DC = {
 						CreatedOnToolsVersion = 15.2;
+					};
+					1A1A1A1A0000000000010001 = {
+						CreatedOnToolsVersion = 15.2;
+						TestTargetID = 8E99D2C80CCE4B17948C89DC;
 					};
 				};
 			};
@@ -183,6 +255,7 @@
 			projectRoot = "";
 			targets = (
 				8E99D2C80CCE4B17948C89DC /* BlankTV */,
+				1A1A1A1A0000000000010001 /* BlankTVTests */,
 			);
 		};
 /* End PBXProject section */
@@ -194,6 +267,13 @@
 			files = (
 				9CF0B3FC092447CF884B9686 /* Assets.xcassets in Resources */,
 				1A1A1A1A000000000000B001 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1A1A1A1A0000000000010005 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -230,6 +310,18 @@
 				1A1A1A1A000000000000F015 /* Plate.swift in Sources */,
 				1A1A1A1A000000000000F011 /* MediaPrefetcher.swift in Sources */,
 				1A1A1A1A000000000000F013 /* GatewayView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1A1A1A1A0000000000010003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1A1A1A1A0000000000010012 /* TestFactories.swift in Sources */,
+				1A1A1A1A0000000000010014 /* RailEngineTests.swift in Sources */,
+				1A1A1A1A0000000000010016 /* M3UParserTests.swift in Sources */,
+				1A1A1A1A0000000000010018 /* StreamRouterTests.swift in Sources */,
+				1A1A1A1A000000000001001A /* SearchAndHostTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -346,6 +438,54 @@
 			};
 			name = Release;
 		};
+		1A1A1A1A0000000000010007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.blanktv.player.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BlankTV.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BlankTV";
+			};
+			name = Debug;
+		};
+		1A1A1A1A0000000000010008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.blanktv.player.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BlankTV.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BlankTV";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -363,6 +503,15 @@
 			buildConfigurations = (
 				49C02E610F0749F0B3CB1841 /* Debug */,
 				81C8943E659F45F1A893F8A5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1A1A1A1A0000000000010006 /* Build configuration list for PBXNativeTarget "BlankTVTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1A1A1A1A0000000000010007 /* Debug */,
+				1A1A1A1A0000000000010008 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
