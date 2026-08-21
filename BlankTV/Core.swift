@@ -372,7 +372,12 @@ enum L10n {
         "subs.welcome":     [.ar: "مرحباً بك في %@", .en: "Welcome to %@", .fr: "Bienvenue sur %@", .tr: "Hoş geldiniz — %@", .es: "Bienvenido a %@"],
 
         // About
-        "about.subtitle":   [.ar: "Premium IPTV Player", .en: "Premium IPTV Player", .fr: "Lecteur IPTV Premium", .tr: "Premium IPTV Oynatıcı", .es: "Reproductor IPTV Premium"],
+        // NO "Premium" here. The About screen draws S8KBrand.name and then this line
+        // directly under it, so with the brand at "Blank Premium" it read
+        // "Blank Premium / Premium IPTV Player" — the word twice, adjacent. That is
+        // the welded-name defect brandlint exists to catch, and it caught this one the
+        // moment the name changed. A descriptor must not repeat the brand it sits under.
+        "about.subtitle":   [.ar: "IPTV Player",        .en: "IPTV Player",     .fr: "Lecteur IPTV",    .tr: "IPTV Oynatıcı",   .es: "Reproductor IPTV"],
         "about.version":    [.ar: "الإصدار",            .en: "Version",         .fr: "Version",         .tr: "Sürüm",           .es: "Versión"],
 
         // Parental PIN

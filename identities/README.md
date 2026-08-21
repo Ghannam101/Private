@@ -10,14 +10,25 @@ exact base and accent, was never referenced, and still shipped. Archive here, sh
 
 ---
 
-## buyer1 — Blank Prime · بلانك ستور  ← **SHIPPING NOW**
+## buyer1 — Blank Premium · بلانك ستور  ← **SHIPPING NOW**
+
+> **NAME CORRECTED 2026-08-21.** This archive recorded `"Blank Prime"`, and the
+> restore was carried out under that name until the owner corrected it: the buyer's
+> name is **Blank Premium**. The folder slug stays `buyer1-blank-prime` — renaming a
+> directory to fix a typo costs more than it explains — but every shipped string,
+> the store copy and the wordmark now read Blank Premium.
+>
+> The wrong name was not harmless: **"Blank Prime" is already reserved on the App
+> Store** (HTTP 409 from App Store Connect, held by an unpublished record on another
+> account — no live app carries it). "Blank Premium" returns no match in the US, SA
+> or AE storefronts.
 
 Wordmark-in-a-frame mark, dark on a lime field. Arabic lockup «بلانك ستور».
 
 | slot | value |
 |---|---|
-| `name` | `"Blank Prime"` |
-| `shortName` | `"Blank"` |
+| `name` | `"Blank Premium"` |
+| `shortName` / `markSuffix` | `"Blank"` / `"Premium"` |
 | palette | `BrandTheme.blankGreen` (below) |
 | assets | `buyer1-blank-prime/assets/` |
 | last shipped at | commit `518fe8b`, superseded by `70d1b06`, **restored 2026-08-21** |
