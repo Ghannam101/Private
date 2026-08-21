@@ -242,6 +242,39 @@ struct RegionClassifierTests {
         #expect(RegionClassifier.region(for: "") == nil)
     }
 
+    // MARK: The three misfilings that substring matching caused
+
+    @Test("a key buried inside a word no longer decides the region")
+    func noSubstringMisfiling() {
+        // "Sukkar" contains "uk" and "Duke" contains "uk"; neither is European.
+        #expect(RegionClassifier.region(for: "Sukkar TV") == nil)
+        #expect(RegionClassifier.region(for: "Duke TV") == nil)
+    }
+
+    @Test("Romania lands on the European stem, not on Oman")
+    func romaniaIsEuropean() {
+        // "R-oman-ia" used to match the Arabic key "oman" before the European key
+        // "roman" was ever reached. Word-initial matching puts it where it belongs.
+        #expect(RegionClassifier.region(for: "Romania TV") == .european)
+        #expect(RegionClassifier.region(for: "Oman TV") == .arabic)
+    }
+
+    @Test("the spaced spelling of Abu Dhabi is recognised")
+    func abuDhabiSpaced() {
+        // The list only carried "abudhabi". Every broadcaster writes it with a space.
+        #expect(RegionClassifier.region(for: "Abu Dhabi TV") == .arabic)
+        #expect(RegionClassifier.region(for: "AbuDhabi Sports") == .arabic)
+        #expect(RegionClassifier.region(for: "ابو ظبي") == .arabic)
+    }
+
+    @Test("Arabic keys survive hamza and harakat variation")
+    func arabicKeysAreFolded() {
+        // The name is folded before matching, so a provider's spelling choice cannot
+        // hide a channel from its own region.
+        #expect(RegionClassifier.region(for: "الكوَيت اليوم") == .arabic)
+        #expect(RegionClassifier.region(for: "قنَوات عربية") == .arabic)
+    }
+
     @Test("Arabic wins over the other lists when a name matches both")
     func arabicTakesPrecedence() {
         // "OSN" is Arabic; the name also carries "movies" which appears nowhere in

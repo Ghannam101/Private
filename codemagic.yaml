@@ -2,21 +2,24 @@ workflows:
   # ==========================================================================
   # UNIT TESTS — deliberately a SEPARATE workflow, not a step inside ios-release.
   #
-  # Running tests needs a SIMULATOR, and the simulator is the one place this
-  # project's dependency set is not proven: the Podfile excludes arm64 for
-  # `sdk=iphonesimulator*` (MobileVLCKit 3.6 ships a fat framework, which cannot
-  # carry device-arm64 and simulator-arm64 at once), while the CI machine is an
-  # M2 — whose simulators are arm64. So the test build is pinned to x86_64 and
-  # runs under Rosetta.
+  # Tests need a SIMULATOR, and that was the one part of this dependency set
+  # nobody had ever exercised. Two failed builds settled it, and both answers are
+  # recorded here so the next person does not re-derive them:
   #
-  # That pin is a HYPOTHESIS until this workflow goes green once. Keeping it out
-  # of ios-release means the hypothesis can be wrong without costing a single
-  # release build — and TestFlight's daily upload cap makes wasted release builds
-  # genuinely expensive. Once this is green, add the same run-tests step to
-  # ios-release ahead of `build-ipa`, and delete this paragraph.
+  #   1. Every Xcode 26 simulator runtime on Apple Silicon is arm64-ONLY. Pinning
+  #      the build to x86_64 to run under Rosetta does not work; xcodebuild
+  #      refuses with "does not support any of iPhone 17 Pro's architectures".
+  #   2. MobileVLCKit 3.6 is an XCFRAMEWORK whose simulator slice is
+  #      `ios-arm64_i386_x86_64-simulator`. It has arm64. The Podfile's old
+  #      `EXCLUDED_ARCHS[sdk=iphonesimulator*] = arm64` was a fat-framework
+  #      workaround guarding against a problem that no longer exists, and it was
+  #      the sole reason (1) mattered. It is gone, and no arch overrides remain.
   #
-  # `sdk=iphoneos` is untouched by everything here, so the shipping IPA cannot be
-  # affected by any of it.
+  # STILL A SEPARATE WORKFLOW, on purpose. Test runs are free; release builds are
+  # not — Apple caps TestFlight uploads per day, and the three builds it took to
+  # learn the two facts above would have burned three of them. Tests gate merges
+  # here, not the shipping pipeline. `sdk=iphoneos` is untouched by any of this,
+  # so the IPA cannot be affected either way.
   # ==========================================================================
   ios-test:
     name: BLANK TV — unit tests
@@ -88,17 +91,9 @@ workflows:
       - name: Run unit tests
         script: |
           set -o pipefail
-          # EXCLUDED_ARCHS is emptied for THIS invocation only. The Podfile sets
-          # `EXCLUDED_ARCHS[sdk=iphonesimulator*] = arm64`, which is an Intel-era
-          # workaround: it exists so a fat framework carrying device-arm64 does not
-          # collide with an arm64 simulator build. On an Apple Silicon machine with
-          # Xcode 26 that workaround is fatal rather than helpful — every available
-          # simulator runtime is arm64-only, so excluding arm64 leaves the test
-          # bundle with no architecture at all. That is the exact error the previous
-          # run gave, in those words.
-          #
-          # A command-line build setting overrides every target, Pods included, and
-          # touches no file — so the release workflow keeps the exclusion untouched.
+          # No arch overrides. The Podfile no longer excludes arm64 for the
+          # simulator — the diagnostic step above is what proved that exclusion was
+          # protecting against nothing — so the native architecture just works.
           xcodebuild test \
             -workspace "$XCODE_WORKSPACE" \
             -scheme "$XCODE_SCHEME" \
@@ -106,8 +101,6 @@ workflows:
             -destination "id=$SIM_UDID" \
             -derivedDataPath build/dd \
             -resultBundlePath build/tests.xcresult \
-            EXCLUDED_ARCHS="" \
-            ONLY_ACTIVE_ARCH=YES \
             CODE_SIGNING_ALLOWED=NO
     artifacts:
       - build/tests.xcresult

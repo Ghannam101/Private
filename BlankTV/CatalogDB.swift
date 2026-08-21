@@ -140,6 +140,51 @@ enum CatalogDB {
                 t.column("savedAt", .double).notNull()
             }
         }
+        // Rebuild the FTS index with folded text.
+        //
+        // Not cosmetic and not deferrable: every install that already has a catalogue
+        // carries an index built from RAW names, and the query side now folds. Without
+        // this the two sides speak different alphabets and Arabic search returns
+        // nothing at all — strictly worse than the bug being fixed.
+        //
+        // Rebuilt from `channel` / `movie` / `series`, which are the source of truth
+        // and are written in the same transaction as the index, so they cannot be out
+        // of step with it. Streamed with a cursor rather than fetched into an array: a
+        // fifty-thousand-title catalogue carries plot text, and materialising all of it
+        // to migrate a database is how a migration becomes the crash it was meant to
+        // prevent. Reading one table while inserting into another is safe in SQLite.
+        //
+        // A fresh install runs this against empty tables and does nothing.
+        m.registerMigration("v3_fold_fts") { db in
+            let f = S8KFold.key
+            try db.execute(sql: "DELETE FROM catalog_fts")
+            let ins = """
+                INSERT INTO catalog_fts (scope, kind, itemId, name, genre, actors, plot, director)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """
+            let chans = try Row.fetchCursor(db, sql: "SELECT scope, id, name FROM channel")
+            while let r = try chans.next() {
+                try db.execute(sql: ins, arguments: [r["scope"] as String, "live", r["id"] as String,
+                                                     f(r["name"] as String), "", "", "", ""])
+            }
+            for (table, kind) in [("movie", "movie"), ("series", "series")] {
+                // "cast" is QUOTED because it is the SQL keyword CAST. The FTS column
+                // beside it is named `actors` for exactly this reason — the note on the
+                // v1 migration says so — and an unquoted `cast` here is a syntax error
+                // that would only ever surface on a device mid-migration.
+                let rows = try Row.fetchCursor(db, sql: """
+                    SELECT scope, id, name, genre, "cast", plot, director FROM \(table)
+                    """)
+                while let r = try rows.next() {
+                    try db.execute(sql: ins, arguments: [
+                        r["scope"] as String, kind, r["id"] as String,
+                        f(r["name"] as String),
+                        f(r["genre"] as String? ?? ""), f(r["cast"] as String? ?? ""),
+                        f(r["plot"] as String? ?? ""), f(r["director"] as String? ?? "")
+                    ])
+                }
+            }
+        }
         return m
     }
 
@@ -177,8 +222,15 @@ enum CatalogDB {
     }
 
     // MARK: - FTS search
+    /// Turn a user's typing into an FTS5 MATCH expression.
+    ///
+    /// `S8KFold.key` FIRST, and the index is built with the same call. The tokenizer
+    /// is `unicode61 remove_diacritics 2`, whose name promises more than it delivers:
+    /// verified against SQLite 3.50.4, it leaves Arabic hamza forms and harakat
+    /// exactly as they were, so `افلام` did not match an indexed `أفلام`. Normalising
+    /// on both sides is what makes the index searchable in the app's first language.
     private static func ftsQuery(_ raw: String) -> String? {
-        let tokens = raw.lowercased()
+        let tokens = S8KFold.key(raw).lowercased()
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
             .filter { !$0.isEmpty }
         guard !tokens.isEmpty else { return nil }
@@ -331,9 +383,13 @@ enum CatalogDB {
                 // FTS index (raw SQL — catalog_fts is a virtual table, not a Record).
                 try db.execute(sql: "DELETE FROM catalog_fts WHERE scope = ?", arguments: [scope])
                 let ins = "INSERT INTO catalog_fts (scope, kind, itemId, name, genre, actors, plot, director) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-                for x in c.channels { try db.execute(sql: ins, arguments: [scope, "live",   x.id, x.name, "", "", "", ""]) }
-                for x in c.movies   { try db.execute(sql: ins, arguments: [scope, "movie",  x.id, x.name, x.genre ?? "", x.cast ?? "", x.plot ?? "", x.director ?? ""]) }
-                for x in c.series   { try db.execute(sql: ins, arguments: [scope, "series", x.id, x.name, x.genre ?? "", x.cast ?? "", x.plot ?? "", x.director ?? ""]) }
+                // FOLDED on the way in — see the note on `ftsQuery`. unicode61 does not
+                // touch Arabic, so the normalisation has to happen here, and the query
+                // side has to use the SAME rule or the index becomes unsearchable.
+                let f = S8KFold.key
+                for x in c.channels { try db.execute(sql: ins, arguments: [scope, "live",   x.id, f(x.name), "", "", "", ""]) }
+                for x in c.movies   { try db.execute(sql: ins, arguments: [scope, "movie",  x.id, f(x.name), f(x.genre ?? ""), f(x.cast ?? ""), f(x.plot ?? ""), f(x.director ?? "")]) }
+                for x in c.series   { try db.execute(sql: ins, arguments: [scope, "series", x.id, f(x.name), f(x.genre ?? ""), f(x.cast ?? ""), f(x.plot ?? ""), f(x.director ?? "")]) }
                 try db.execute(sql: "INSERT OR REPLACE INTO catalog_meta (scope, savedAt) VALUES (?, ?)",
                                arguments: [scope, Date().timeIntervalSince1970])
             }
