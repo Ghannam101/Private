@@ -1932,14 +1932,14 @@ struct S8KWatermark: View {
 /// languages at once — which is exactly what it was.
 enum S8KBrand {
     /// The product name as the user reads it.
-    static let name = "Blank Prime"
+    static let name = "Blank Premium"
     /// The short form, for the wordmark and other tight places.
     static let shortName = "Blank"
     /// The second half of the two-part wordmark. It lives here, and not as a literal
     /// inside S8KWordmark, because a literal there is invisible to brandlint: the old
     /// one said "Prime", and a rename that edited only `shortName` would have shipped
     /// the new name welded to the old one across every top bar in the app.
-    static let markSuffix = "Prime"
+    static let markSuffix = "Premium"
     /// The bundled logo asset. Swapping identity = replacing the file under this name.
     static let logoAsset = "Logo"
     /// Where content reports go (Guideline 4.7.1). A reviewer reads this, so it must
