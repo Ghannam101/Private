@@ -1542,7 +1542,12 @@ struct PerfStatsView: View {
     // until now they were written to disk and never read by anything. Surfacing them
     // HERE, rather than building a new screen, because this is already where someone
     // comes looking for numbers about the app itself.
-    @State private var crashes = Diagnostics.crashNotes()
+    // Loaded in `.task`, NOT as this property's initial value. A `@State` default IS
+    // the property's initialiser, and SwiftUI re-initialises a View struct on every
+    // parent body pass — so `= Diagnostics.crashNotes()` there would open the
+    // directory, read every payload and parse the JSON on the MAIN THREAD, again and
+    // again, for a value SwiftUI then throws away. Empty here; filled off-thread once.
+    @State private var crashes: [Diagnostics.CrashNote] = []
     @State private var crashCopied = false
 
     var body: some View {
@@ -1612,6 +1617,11 @@ struct PerfStatsView: View {
                 .padding(.horizontal, S8KSpace.xl).padding(.top, 4)
         }
         .onAppear { samples = S8KPerf.recent }
+        .task {
+            // Detached: opening the directory and parsing the payloads must not sit on
+            // the main thread while this screen is appearing.
+            crashes = await Task.detached(priority: .utility) { Diagnostics.crashNotes() }.value
+        }
     }
 
     private func row(_ s: S8KPerf.Sample) -> some View {

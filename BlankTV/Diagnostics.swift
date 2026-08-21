@@ -95,7 +95,10 @@ final class Diagnostics: NSObject, MXMetricManagerSubscriber {
     // exact build, off the device. So the summary leads with the app VERSION and BUILD
     // — without those the offsets cannot be resolved by anyone, and with them they can.
 
-    struct CrashNote: Identifiable {
+    /// `Sendable` because the read runs off the main thread and these cross back.
+    /// Every member already is one; the conformance just says so out loud, and keeps
+    /// this from becoming an error under the Swift 6 migration.
+    struct CrashNote: Identifiable, Sendable {
         let id = UUID()
         let file: String
         let date: Date
