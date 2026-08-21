@@ -994,22 +994,68 @@ struct S8KGradient {
 
 // MARK: - Typography
 struct S8KFont {
-    static let display    = Font.system(size: 34, weight: .black)
-    static let title1     = Font.system(size: 28, weight: .heavy)
-    static let title2     = Font.system(size: 22, weight: .bold)
-    static let title3     = Font.system(size: 18, weight: .bold)
-    static let headline   = Font.system(size: 15, weight: .semibold)
-    static let body       = Font.system(size: 15, weight: .regular)
+
+    // ── THE TOKENS NOW SCALE WITH THE USER'S TEXT SIZE ──────────────────────────
+    //
+    // Every one of these was a fixed point size, so the app ignored Larger Text
+    // entirely. Its smallest token is 9pt: a user who needs bigger text got nothing,
+    // on a video app whose whole interface is meant to be read from a sofa.
+    //
+    // WHAT IS SCALED IS THE NUMBER, NOT THE FONT OBJECT — and that choice is the
+    // difference between a safe change and a silent regression across a third of the
+    // app. The obvious approach is `UIFontMetrics.scaledFont(for:)` wrapped with
+    // `Font(uiFont)`, but a UIFont-backed `Font` does not reliably honour SwiftUI's
+    // `.weight()`, and 87 of the 263 uses of these tokens apply exactly that
+    // (`S8KFont.caption1.weight(.semibold)` and friends). Wrapping would have changed
+    // the weight of eighty-seven labels, invisibly, on hardware nobody here can see.
+    //
+    // `scaledValue(for:)` returns a plain CGFloat, so what comes back is still
+    // `Font.system(size:weight:)` — the exact type these were before — and `.weight()`
+    // keeps behaving as it always has.
+    //
+    // COMPUTED, not `static let`. A stored property is evaluated once and would freeze
+    // the scale at whatever the setting was when the app first touched it.
+    //
+    // Each token is paired with the TEXT STYLE whose growth curve suits it: Apple does
+    // not scale every style at the same rate, and mapping a caption to .largeTitle
+    // would make small print grow faster than headings.
+    private static func s(_ size: CGFloat, _ style: UIFont.TextStyle) -> CGFloat {
+        UIFontMetrics(forTextStyle: style).scaledValue(for: size)
+    }
+
+    /// The same computation, with the content size category supplied — so a test can
+    /// pin the curve without a device and without changing the simulator's settings.
+    static func scaledSize(_ size: CGFloat, _ style: UIFont.TextStyle,
+                           category: UIContentSizeCategory) -> CGFloat {
+        UIFontMetrics(forTextStyle: style)
+            .scaledValue(for: size, compatibleWith: UITraitCollection(preferredContentSizeCategory: category))
+    }
+
+    static var display:  Font { .system(size: s(34, .largeTitle),  weight: .black) }
+    static var title1:   Font { .system(size: s(28, .title1),      weight: .heavy) }
+    static var title2:   Font { .system(size: s(22, .title2),      weight: .bold) }
+    static var title3:   Font { .system(size: s(18, .title3),      weight: .bold) }
+    static var headline: Font { .system(size: s(15, .headline),    weight: .semibold) }
+    static var body:     Font { .system(size: s(15, .body),        weight: .regular) }
     /// Text INPUT only (S8KTextField). 16pt is Apple's default input size — anything
     /// smaller is the size iOS treats as "needs zooming" and reads cheap on a form.
-    static let field      = Font.system(size: 16, weight: .regular)
-    static let callout    = Font.system(size: 14, weight: .regular)
-    static let subhead    = Font.system(size: 13, weight: .semibold)
-    static let footnote   = Font.system(size: 12, weight: .regular)
-    static let caption1   = Font.system(size: 11, weight: .medium)
-    static let caption2   = Font.system(size: 10, weight: .semibold)
-    static let caption3   = Font.system(size: 9,  weight: .bold)
-    static let mono       = Font.system(size: 12, weight: .medium, design: .monospaced)
+    static var field:    Font { .system(size: s(16, .body),        weight: .regular) }
+    static var callout:  Font { .system(size: s(14, .callout),     weight: .regular) }
+    static var subhead:  Font { .system(size: s(13, .subheadline), weight: .semibold) }
+    static var footnote: Font { .system(size: s(12, .footnote),    weight: .regular) }
+    static var caption1: Font { .system(size: s(11, .caption1),    weight: .medium) }
+    static var caption2: Font { .system(size: s(10, .caption2),    weight: .semibold) }
+    static var caption3: Font { .system(size: s(9,  .caption2),    weight: .bold) }
+    static var mono:     Font { .system(size: s(12, .footnote),    weight: .medium, design: .monospaced) }
+
+    /// The design sizes, so a test can assert the default category is a no-op.
+    static let designSizes: [(name: String, size: CGFloat, style: UIFont.TextStyle)] = [
+        ("display", 34, .largeTitle), ("title1", 28, .title1), ("title2", 22, .title2),
+        ("title3", 18, .title3), ("headline", 15, .headline), ("body", 15, .body),
+        ("field", 16, .body), ("callout", 14, .callout), ("subhead", 13, .subheadline),
+        ("footnote", 12, .footnote), ("caption1", 11, .caption1), ("caption2", 10, .caption2),
+        ("caption3", 9, .caption2), ("mono", 12, .footnote),
+    ]
 }
 
 // MARK: - Spacing
