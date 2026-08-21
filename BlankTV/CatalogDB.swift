@@ -10,11 +10,17 @@
 // migration that bakes in `pos` (provider order = keyset sort key) + covering
 // indexes + the multi-field FTS index from the start — no legacy migration dance.
 //
-// STEP 2 (isolated): schema + records + save / load / paging / search. NO consumer
-// yet — CatalogDiskCache stays the live path until the VMs are switched over
-// (step 4). Mirrors CatalogDiskCache.save(_:scope:) / load(scope:) so the swap is a
-// drop-in. If the store can't open, every call degrades to a safe no-op / nil and
-// the legacy JSON cache carries on unharmed.
+// THIS IS THE LIVE STORE. It holds the catalogue, it answers the cold start, and it
+// answers search. The JSON blob it replaced (`CatalogDiskCache`) is read-only now
+// and only for installs that predate the store being populated; nothing writes it.
+//
+// STILL NOT WIRED: the paged readers below (`pageChannels` / `pageMovies` /
+// `pageSeries`) have no consumer. The lists still hold the whole catalogue in
+// memory, because every call site — `vm.list(in:)`, `vm.movies` — is read
+// SYNCHRONOUSLY from inside a SwiftUI body, and turning ~30 of those into paged
+// reads at once is not a change anyone can verify in one step. That is its own task.
+//
+// If the store cannot open, every call here degrades to a safe no-op or nil.
 // ============================================================
 
 import Foundation
@@ -247,6 +253,23 @@ enum CatalogDB {
     }
 
     // MARK: - Load / populate guard (parallels CatalogDiskCache.load)
+    /// The stored catalogue and HOW OLD it is, regardless of the TTL.
+    ///
+    /// `load` applies the freshness window itself and returns nil past it, which is a
+    /// hard cliff: the caller cannot tell "nothing stored" from "stored, slightly
+    /// stale" and has to block on a full network parse either way. Stale-while-
+    /// revalidate needs the age, not a verdict — serve what is on disk NOW, refresh
+    /// behind it. Mirrors `CatalogDiskCache.read`, which is the API this replaces.
+    static func read(scope: String) -> (content: M3UContent, age: TimeInterval)? {
+        guard let c = load(scope: scope, ttl: .greatestFiniteMagnitude),
+              let q = dbPool else { return nil }
+        let savedAt = (try? q.read { db in
+            try Double.fetchOne(db, sql: "SELECT savedAt FROM catalog_meta WHERE scope = ?",
+                                arguments: [scope])
+        }) ?? nil
+        return (c, max(0, Date().timeIntervalSince1970 - (savedAt ?? 0)))
+    }
+
     static func load(scope: String, ttl: TimeInterval = CatalogDB.ttl) -> M3UContent? {
         guard let q = dbPool else { return nil }
         return try? q.read { db -> M3UContent? in
