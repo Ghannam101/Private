@@ -147,6 +147,64 @@ struct HostNormalisationTests {
     }
 }
 
+@Suite("AuthService.xtreamAPIURL")
+@MainActor
+struct XtreamAPIURLTests {
+
+    @Test("the plain case builds the player_api URL")
+    func plain() {
+        #expect(AuthService.xtreamAPIURL(base: "http://tv.example.com:8080",
+                                         username: "user", password: "pass")
+                == "http://tv.example.com:8080/player_api.php?username=user&password=pass")
+    }
+
+    // THE REASON THIS IS A FUNCTION AND NOT A STRING LITERAL.
+    //
+    // `&`, `=` and `+` are subtracted from `urlQueryAllowed` on purpose. Left
+    // unescaped, a password containing one of them splits the query — the line then
+    // authenticates as a DIFFERENT user, or fails with a message that explains
+    // nothing. Providers hand out passwords with symbols in them all the time.
+    @Test("an ampersand in the password cannot split the query")
+    func ampersand() {
+        let u = AuthService.xtreamAPIURL(base: "http://h", username: "a", password: "p&x=1")
+        #expect(u == "http://h/player_api.php?username=a&password=p%26x%3D1")
+        // Exactly two parameters, whatever the password contained.
+        #expect(u.components(separatedBy: "&").count == 2)
+    }
+
+    @Test("plus and equals are escaped too")
+    func plusAndEquals() {
+        let u = AuthService.xtreamAPIURL(base: "http://h", username: "a+b", password: "c=d")
+        #expect(u.contains("username=a%2Bb"))
+        #expect(u.contains("password=c%3Dd"))
+    }
+
+    @Test("a space survives as an escape rather than breaking the URL")
+    func space() {
+        let u = AuthService.xtreamAPIURL(base: "http://h", username: "a b", password: "c d")
+        #expect(URL(string: u) != nil, "the result must be a parseable URL")
+        #expect(!u.contains(" "))
+    }
+
+    @Test("the result always parses as a URL, for every symbol a provider might use")
+    func alwaysParseable() {
+        for pw in ["p@ss", "p/w", "p?w", "p#w", "p%w", "p&w", "p+w", "p=w", "p w", "كلمة"] {
+            let u = AuthService.xtreamAPIURL(base: "http://h:8080", username: "u", password: pw)
+            #expect(URL(string: u) != nil, "failed for password \(pw)")
+        }
+    }
+
+    @Test("it composes with normalizeXtreamHost, which is how both callers use it")
+    func composesWithNormalise() {
+        // switchPlaylist stores a bare host; loginXtream normalises first. The pair has
+        // to produce the same string either way, or a restored playlist points nowhere.
+        let base = AuthService.normalizeXtreamHost("tv.example.com:8080/get.php?x=1")
+        #expect(base == "http://tv.example.com:8080")
+        #expect(AuthService.xtreamAPIURL(base: base, username: "u", password: "p")
+                == "http://tv.example.com:8080/player_api.php?username=u&password=p")
+    }
+}
+
 // ============================================================
 // MARK: - Version comparison  (MainActor: ActivationService is main-actor isolated)
 // ============================================================

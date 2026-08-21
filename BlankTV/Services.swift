@@ -59,11 +59,7 @@ final class AuthService: ObservableObject {
             isLoading = false; return
         }
 
-        // Build the Xtream API URL; encode credentials so symbols don't break it.
-        let cs = CharacterSet.urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=+"))
-        let eu = u.addingPercentEncoding(withAllowedCharacters: cs) ?? u
-        let ep = pass.addingPercentEncoding(withAllowedCharacters: cs) ?? pass
-        let url = "\(base)/player_api.php?username=\(eu)&password=\(ep)"
+        let url = Self.xtreamAPIURL(base: base, username: u, password: pass)
 
         do {
             Store.shared.m3uURL = url
@@ -93,6 +89,23 @@ final class AuthService: ObservableObject {
 
     /// Normalize whatever the user types as a host into `scheme://host[:port]`
     /// (accepts "host", "host:port", "http://host:port", or a full get.php URL).
+    /// The Xtream API URL for a line: `<base>/player_api.php?username=&password=`.
+    ///
+    /// EXTRACTED, and not for tidiness. It was inline in `loginXtream`, so
+    /// `switchPlaylist` — the other place that has to produce this exact string —
+    /// did not produce it at all, and that is the defect this function exists to
+    /// close. One builder, one behaviour, and it is testable on its own.
+    ///
+    /// The encoding set subtracts `&=+` from `urlQueryAllowed`: a password containing
+    /// any of those would otherwise pass through unescaped and split the query, which
+    /// silently authenticates as a DIFFERENT user or fails with no useful message.
+    static func xtreamAPIURL(base: String, username: String, password: String) -> String {
+        let cs = CharacterSet.urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=+"))
+        let u = username.addingPercentEncoding(withAllowedCharacters: cs) ?? username
+        let p = password.addingPercentEncoding(withAllowedCharacters: cs) ?? password
+        return "\(base)/player_api.php?username=\(u)&password=\(p)"
+    }
+
     static func normalizeXtreamHost(_ raw: String) -> String {
         let trimmed = raw.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return "" }
@@ -207,11 +220,35 @@ final class AuthService: ObservableObject {
             mode = .m3u
             await PlaylistService.shared.reset()
         } else {
-            // The backend path, which has no pre-flight to call — it is validated by the
-            // token it does not have here. Left as it was rather than guessed at.
-            Keychain.shared.saveServerCredentials(host: p.url, user: p.username ?? "", pass: p.password ?? "")
-            Store.shared.loginMode = .xtream
-            mode = .xtream
+            // A LEGACY `.xtream` PLAYLIST, HEALED RATHER THAN HONOURED.
+            //
+            // No code in this build creates one — all three call sites of
+            // `upsertPlaylist` write `kind: .m3u`, because `loginXtream` stores its
+            // player_api URL in `m3uURL` and the two paths share one pipeline from
+            // there. But saved playlists live in the Keychain and outlive builds, so an
+            // install upgraded from an older version can still carry one.
+            //
+            // What stood here was broken in two ways at once, and silently:
+            //   · it never set `m3uURL`, which is the key EVERY downstream reader uses
+            //     — the catalogue, the SQLite scope, search — so switching to such a
+            //     playlist loaded the PREVIOUS one's catalogue;
+            //   · it set `loginMode = .xtream`, and no restore path accepts that, so
+            //     the user was logged out on the next launch.
+            //
+            // Rebuilding the URL from the stored host/user/pass turns it into exactly
+            // what a playlist created today looks like, so it heals on first use. There
+            // is no world in which the old branch was preferable to this.
+            let base = Self.normalizeXtreamHost(p.url)
+            guard !base.isEmpty, let user = p.username, let pass = p.password,
+                  !user.isEmpty, !pass.isEmpty else {
+                error = .server(L("error.invalid_credentials"))
+                return false
+            }
+            Keychain.shared.saveServerCredentials(host: base, user: user, pass: pass)
+            Store.shared.m3uURL   = Self.xtreamAPIURL(base: base, username: user, password: pass)
+            Store.shared.loginMode = .m3u      // the shared pipeline — see loginXtream
+            mode = .m3u
+            await PlaylistService.shared.reset()
         }
         error = nil
         activate(playlistID: p.id)              // leaves demo + per-playlist history/favorites/watchlist
