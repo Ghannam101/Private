@@ -197,6 +197,26 @@ enum L10n {
                          .es: "El motor de reproducción MobileVLCKit, de VideoLAN, se licencia bajo LGPL v2.1. Se distribuye como biblioteca enlazada dinámicamente y tienes derecho a obtener su código fuente y reenlazarla. Los enlaces llevan al texto de la licencia y al código."],
         "licenses.text":   [.ar: "نصّ الرخصة", .en: "Licence text", .fr: "Texte de la licence", .tr: "Lisans metni", .es: "Texto de la licencia"],
         "licenses.source": [.ar: "الشيفرة المصدرية", .en: "Source code", .fr: "Code source", .tr: "Kaynak kodu", .es: "Código fuente"],
+        // CC BY REQUIRES ATTRIBUTION, AND THERE WAS NONE.
+        //
+        // The app bundles six film posters and streams four films in demo mode. Every
+        // one is a Blender open movie under a Creative Commons Attribution licence —
+        // which grants the use we make of it and, in the same breath, obliges us to
+        // credit the creator and link to the licence. We were taking the grant and
+        // skipping the obligation, on artwork shown full-screen on the FIRST screen a
+        // reviewer sees.
+        //
+        // The licence VERSION is deliberately not claimed per film. Sources disagree
+        // (Big Buck Bunny is cited as both 2.5 and 3.0; the poster we ship says 3.0),
+        // and a confidently wrong version is worse than naming the family and pointing
+        // at the authoritative page. Credit + a link to the source + a link to the
+        // licence is what the licence actually asks for.
+        "licenses.content": [.ar: "محتوى العرض التجريبي وملصقات شاشة الدخول من أفلام Blender المفتوحة — من إنتاج Blender Foundation / Blender Studio، منشورة برخصة المشاع الإبداعي: النسبة (CC BY). لا يوفّر هذا التطبيق أي محتوى آخر.",
+                             .en: "The demo content and the sign-in screen artwork are Blender open movies — produced by the Blender Foundation / Blender Studio and released under a Creative Commons Attribution (CC BY) licence. This app provides no other content.",
+                             .fr: "Le contenu de démonstration et les visuels de l'écran de connexion sont des films libres Blender — produits par la Blender Foundation / Blender Studio et publiés sous licence Creative Commons Attribution (CC BY). Cette application ne fournit aucun autre contenu.",
+                             .tr: "Demo içeriği ve giriş ekranı görselleri Blender açık filmleridir — Blender Foundation / Blender Studio yapımı, Creative Commons Atıf (CC BY) lisansıyla yayımlanmıştır. Bu uygulama başka hiçbir içerik sağlamaz.",
+                             .es: "El contenido de demostración y las ilustraciones de la pantalla de inicio son películas abiertas de Blender — producidas por la Blender Foundation / Blender Studio y publicadas bajo una licencia Creative Commons Atribución (CC BY). Esta app no proporciona ningún otro contenido."],
+        "licenses.films":  [.ar: "الأفلام", .en: "The films", .fr: "Les films", .tr: "Filmler", .es: "Las películas"],
         "report.subject": [.ar: "إبلاغ عن محتوى مسيء", .en: "Report objectionable content", .fr: "Signalement de contenu", .tr: "Uygunsuz içerik bildirimi", .es: "Denuncia de contenido"],
         "report.body":  [.ar: "صف المحتوى الذي تريد الإبلاغ عنه، واسم القناة أو العمل إن أمكن:\n\n",
                          .en: "Describe the content you are reporting, with the channel or title if you can:\n\n",
