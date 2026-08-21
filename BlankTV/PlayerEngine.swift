@@ -722,9 +722,18 @@ final class AVPlayerVM: BasePlayerVM {
                            _ apply: @escaping @MainActor (AVMediaSelectionGroup?, AVPlayerItem) -> Void) {
         guard let pItem = avPlayer.currentItem else { return }
         let asset = pItem.asset
-        Task.detached(priority: .userInitiated) {
+        Task.detached(priority: .userInitiated) { [weak self] in
             let group = try? await asset.loadMediaSelectionGroup(for: characteristic)
-            await MainActor.run { apply(group, pItem) }
+            await MainActor.run {
+                // THE ITEM CAN CHANGE WHILE THIS IS IN FLIGHT — a zap, or the next
+                // episode. Without this guard the late result describes the PREVIOUS
+                // asset: it would list that asset's tracks against the new one, and
+                // refill the cache `load()` has just cleared with a group belonging to
+                // a playlist that is no longer playing. Dropping a stale answer is
+                // free; the live item's own load is already on its way.
+                guard let self, self.avPlayer.currentItem === pItem else { return }
+                apply(group, pItem)
+            }
         }
     }
 
