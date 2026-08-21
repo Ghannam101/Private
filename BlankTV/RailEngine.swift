@@ -180,22 +180,46 @@ enum RegionClassifier {
         "uae","امارات","emirat","kuwait","الكويت","قطر","qatar","دبي","dubai","اردن","jordan",
         "lebanon","لبنان","syria","سوري","iraq","عراق","maghreb","مغرب","tunis","تونس","algeri",
         "جزائر","yemen","يمن","oman","عمان","bahrain","بحرين","sudan","سودان","libya","ليبيا",
-        "palestin","فلسطين","islam","اسلام","قران","quran","نايل","nile","روتانا","rotana","abudhabi","ابوظبي"]
+        "palestin","فلسطين","islam","اسلام","قران","quran","نايل","nile","روتانا","rotana","abudhabi","abu dhabi","ابوظبي","ابو ظبي"]
     private static let european: [String] = [
         "uk","british","britain","bbc","itv","sky","germ","deutsch","france","french","canal",
         "ital","spain","span","españ","dutch","holland","portug","poland","polski","turk","türk",
         "greek","yunan","roman","serbia","croat","sweden","norway","denmark","finland","russia",
         "ukrain","euro","albania","الماني","فرنس","ايطال","اسبان","برتغال","يونان","روسي","تركي","اوروب"]
     private static let american: [String] = [
-        "usa","united states","america","hbo","espn","nbc"," abc","cbs","fox","disney","hulu",
+        "usa","united states","america","hbo","espn","nbc","abc","cbs","fox","disney","hulu",
         "peacock","paramount","latino","latin","brazil","brasil","mexic","argentin","colombia",
         "chile","peru","canada","canadian","امريك","لاتين","برازيل","مكسيك"]
 
+    // Folded ONCE, not per call. `region` runs over every category on the reorder
+    // page, and folding a fifty-entry key list inside that loop would reach into ICU
+    // fifty times per category for an answer that never changes.
+    private static let arabicKeys   = arabic.map(S8KFold.key)
+    private static let americanKeys = american.map(S8KFold.key)
+    private static let europeanKeys = european.map(S8KFold.key)
+
+    /// The region a provider category belongs to, or nil when nothing is certain.
+    ///
+    /// MATCHING IS WORD-INITIAL, NOT SUBSTRING, and that is the whole correctness of
+    /// this function. A plain `contains` filed three real channels wrongly:
+    ///
+    ///     "Romania TV"  → arabic    because R-oman-ia contains "oman"
+    ///     "Sukkar TV"   → european  because S-uk-kar contains "uk"
+    ///     "Duke TV"     → european  because D-uk-e   contains "uk"
+    ///
+    /// Requiring a word boundary IN FRONT of the match — and only in front — keeps
+    /// every deliberate stem in the lists working ("algeri" still matches Algeria,
+    /// "emirat" still matches Emirates, "ital" still matches Italia) while refusing a
+    /// match buried inside a longer word. "Romania" now lands on the European stem
+    /// "roman", which is where it always belonged.
+    ///
+    /// The name is folded so the Arabic keys survive hamza and harakat variation —
+    /// "الكويت" and "الكوَيت" are the same channel to a provider and must be to us.
     static func region(for name: String) -> ContentRegion? {
-        let l = " " + name.lowercased() + " "
-        if arabic.contains(where: { l.contains($0) })   { return .arabic }
-        if american.contains(where: { l.contains($0) }) { return .american }
-        if european.contains(where: { l.contains($0) }) { return .european }
+        let l = S8KFold.key(name)
+        if arabicKeys.contains(where:   { S8KFold.containsWord(l, $0) }) { return .arabic }
+        if americanKeys.contains(where: { S8KFold.containsWord(l, $0) }) { return .american }
+        if europeanKeys.contains(where: { S8KFold.containsWord(l, $0) }) { return .european }
         return nil
     }
 

@@ -1,4 +1,110 @@
 workflows:
+  # ==========================================================================
+  # UNIT TESTS — deliberately a SEPARATE workflow, not a step inside ios-release.
+  #
+  # Tests need a SIMULATOR, and that was the one part of this dependency set
+  # nobody had ever exercised. Two failed builds settled it, and both answers are
+  # recorded here so the next person does not re-derive them:
+  #
+  #   1. Every Xcode 26 simulator runtime on Apple Silicon is arm64-ONLY. Pinning
+  #      the build to x86_64 to run under Rosetta does not work; xcodebuild
+  #      refuses with "does not support any of iPhone 17 Pro's architectures".
+  #   2. MobileVLCKit 3.6 is an XCFRAMEWORK whose simulator slice is
+  #      `ios-arm64_i386_x86_64-simulator`. It has arm64. The Podfile's old
+  #      `EXCLUDED_ARCHS[sdk=iphonesimulator*] = arm64` was a fat-framework
+  #      workaround guarding against a problem that no longer exists, and it was
+  #      the sole reason (1) mattered. It is gone, and no arch overrides remain.
+  #
+  # STILL A SEPARATE WORKFLOW, on purpose. Test runs are free; release builds are
+  # not — Apple caps TestFlight uploads per day, and the three builds it took to
+  # learn the two facts above would have burned three of them. Tests gate merges
+  # here, not the shipping pipeline. `sdk=iphoneos` is untouched by any of this,
+  # so the IPA cannot be affected either way.
+  # ==========================================================================
+  ios-test:
+    name: BLANK TV — unit tests
+    max_build_duration: 30
+    instance_type: mac_mini_m2
+    environment:
+      vars:
+        XCODE_WORKSPACE: "BlankTV.xcworkspace"
+        XCODE_SCHEME: "BlankTV"
+      xcode: 26.3
+    scripts:
+      - name: Install CocoaPods
+        script: |
+          # Same CDN rate-limit dance as the release workflow — see the note there.
+          for n in 1 2 3 4 5; do
+            if [ "$n" -eq 5 ]; then
+              if pod install --repo-update; then exit 0; fi
+            else
+              if pod install; then exit 0; fi
+              echo "pod install failed (attempt $n/5) — retrying in $((n*20))s…"
+              sleep $((n*20))
+            fi
+          done
+          echo "pod install failed after 5 attempts (CocoaPods CDN 429?)"
+          exit 1
+      - name: Pick an available iPhone simulator
+        script: |
+          # Resolved at run time rather than hard-coded: a device NAME that is not
+          # on the image fails with "Unable to find a destination", which reads as
+          # a test failure and is not one. A UDID from the machine itself cannot be
+          # wrong about what the machine has.
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          runtimes = json.load(sys.stdin)['devices']
+          for rt in sorted(runtimes, reverse=True):
+              if 'iOS' not in rt:
+                  continue
+              for dev in runtimes[rt]:
+                  if dev.get('isAvailable') and 'iPhone' in dev.get('name', ''):
+                      print(dev['udid'])
+                      sys.exit(0)
+          sys.exit(1)
+          ")
+          if [ -z "$UDID" ]; then
+            echo "No available iPhone simulator on this image."
+            xcrun simctl list devices available
+            exit 1
+          fi
+          echo "Using simulator $UDID"
+          echo "SIM_UDID=$UDID" >> "$CM_ENV"
+      - name: Report the architectures MobileVLCKit actually ships
+        script: |
+          # Diagnostic, and it runs BEFORE the tests on purpose: whether this whole
+          # approach can work comes down to one fact — does the VLC binary carry an
+          # arm64 SIMULATOR slice? Printing it means the answer is in the log no
+          # matter which way the build below goes, instead of being inferred from a
+          # linker error.
+          echo "--- xcframeworks ---"
+          find Pods -maxdepth 3 -name "*.xcframework" -print 2>/dev/null || true
+          echo "--- slices ---"
+          find Pods -name "MobileVLCKit" -type f -perm +111 2>/dev/null | while read -r bin; do
+            echo "== $bin"
+            lipo -info "$bin" 2>/dev/null || file "$bin"
+          done
+          find Pods -name "*.xcframework" -maxdepth 3 2>/dev/null | while read -r xc; do
+            echo "== $xc"
+            ls -1 "$xc"
+          done
+      - name: Run unit tests
+        script: |
+          set -o pipefail
+          # No arch overrides. The Podfile no longer excludes arm64 for the
+          # simulator — the diagnostic step above is what proved that exclusion was
+          # protecting against nothing — so the native architecture just works.
+          xcodebuild test \
+            -workspace "$XCODE_WORKSPACE" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Debug \
+            -destination "id=$SIM_UDID" \
+            -derivedDataPath build/dd \
+            -resultBundlePath build/tests.xcresult \
+            CODE_SIGNING_ALLOWED=NO
+    artifacts:
+      - build/tests.xcresult
+
   ios-release:
     name: BLANK TV iOS
     max_build_duration: 60
@@ -59,6 +165,42 @@ workflows:
           done
           echo "pod install failed after 5 attempts (CocoaPods CDN 429?)"
           exit 1
+      # Tests run BEFORE signing, versioning and the archive, and that order is the
+      # point. Apple caps TestFlight uploads per day; this project has hit that cap
+      # and lost a day of device testing to it. Four minutes here is cheaper than
+      # discovering a regression after the upload slot is already spent.
+      #
+      # Signing is explicitly off for the test build so this step cannot disturb the
+      # keychain the archive depends on. The whole step is verbatim the one proven
+      # green in the `ios-test` workflow — see the note at the top of this file for
+      # the two architecture facts that made it work.
+      - name: Run unit tests before spending a release
+        script: |
+          set -o pipefail
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          runtimes = json.load(sys.stdin)['devices']
+          for rt in sorted(runtimes, reverse=True):
+              if 'iOS' not in rt:
+                  continue
+              for dev in runtimes[rt]:
+                  if dev.get('isAvailable') and 'iPhone' in dev.get('name', ''):
+                      print(dev['udid'])
+                      sys.exit(0)
+          sys.exit(1)
+          ")
+          if [ -z "$UDID" ]; then
+            echo "No available iPhone simulator on this image."
+            xcrun simctl list devices available
+            exit 1
+          fi
+          xcodebuild test \
+            -workspace "$XCODE_WORKSPACE" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Debug \
+            -destination "id=$UDID" \
+            -derivedDataPath build/test-dd \
+            CODE_SIGNING_ALLOWED=NO
       - name: Apply profiles
         script: |
           xcode-project use-profiles

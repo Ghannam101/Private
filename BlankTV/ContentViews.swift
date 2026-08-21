@@ -29,10 +29,7 @@ enum CatalogText {
     /// `localizedCaseInsensitiveContains` reaches into ICU and allocates on every
     /// call, and across thirty to fifty thousand titles that single call was the most
     /// expensive thing a browse page did while the user was typing.
-    static func fold(_ s: String) -> String {
-        s.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
-                  locale: nil)
-    }
+    static func fold(_ s: String) -> String { S8KFold.key(s) }
 
     /// Narrow a list that is already short — one folder, one sheet — by the same rule
     /// the catalogue-wide index uses, so a title that the main search finds can never
