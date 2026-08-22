@@ -1892,7 +1892,16 @@ actor PlaylistService {
                 // it on the actor's return path — for seconds — before a single one
                 // could ask for its first row. The content is already in hand; storing
                 // it is bookkeeping and belongs behind the user, not in front.
-                Task.detached(priority: .utility) { CatalogDB.save(built, scope: urlString) }
+                Task.detached(priority: .utility) {
+                    // MEASURED NOW, because it was the biggest hole in this app's
+                    // instrumentation. The `الكتالوج` sample closes above, before this
+                    // starts — so a quarter of a million rows going into SQLite was
+                    // invisible to every number the perf screen showed, and a playback
+                    // opened seconds later looked like it had a quiet device to itself.
+                    S8KPerf.workBegin("حفظ الكتالوج")
+                    CatalogDB.save(built, scope: urlString)
+                    S8KPerf.workFinish("حفظ الكتالوج")
+                }
             }
             return built
         }

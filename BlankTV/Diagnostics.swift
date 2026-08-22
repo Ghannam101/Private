@@ -250,6 +250,43 @@ enum S8KPerf {
         return try work()
     }
 
+    // MARK: - Background work, which is where the measurement had a hole
+    //
+    // `الكتالوج` closes when the parse returns — and the real work starts there:
+    // `CatalogDB.save` writes 281,000 rows to SQLite from a DETACHED task, after the
+    // sample has already been recorded and after the function has returned. Every
+    // number this file produced was blind to it, so a playback opened four seconds
+    // later looked like it had a quiet device to itself.
+    //
+    // This tracks work that outlives its own measurement: whether it is running right
+    // now, and how long ago it finished. Both belong on a playback event, because
+    // "was the disk busy when this stream was asked for" is not answerable afterwards.
+    private static var workStart: [String: TimeInterval] = [:]
+    private static var workEnd:   [String: TimeInterval] = [:]
+
+    static func workBegin(_ name: String) {
+        lock.lock(); workStart[name] = Date().timeIntervalSinceReferenceDate; workEnd[name] = nil; lock.unlock()
+    }
+
+    static func workFinish(_ name: String) {
+        let now = Date().timeIntervalSinceReferenceDate
+        lock.lock(); defer { lock.unlock() }
+        if let t0 = workStart.removeValue(forKey: name) {
+            samples.insert(Sample(name: name, ms: Int((now - t0) * 1000), note: "خلفية", at: Date()), at: 0)
+            if samples.count > cap { samples.removeLast(samples.count - cap) }
+        }
+        workEnd[name] = now
+    }
+
+    /// `inFlight` — running at this instant. `sinceMs` — how long since it last
+    /// finished, or -1 if it has never run this launch.
+    static func workState(_ name: String) -> (inFlight: Bool, sinceMs: Int) {
+        lock.lock(); defer { lock.unlock() }
+        if workStart[name] != nil { return (true, 0) }
+        guard let end = workEnd[name] else { return (false, -1) }
+        return (false, Int((Date().timeIntervalSinceReferenceDate - end) * 1000))
+    }
+
     /// Record one occurrence of `name` costing `elapsed` seconds.
     static func count(_ name: String, _ elapsed: TimeInterval) {
         lock.lock(); defer { lock.unlock() }

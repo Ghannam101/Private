@@ -267,6 +267,9 @@ class BasePlayerVM: NSObject, ObservableObject {
     /// Read both without mutating.
     private static var counts: (vms: Int, streams: Int) { bump() }
 
+    /// Whether the detached catalogue write is running, and how long since it finished.
+    private static var catalogSave: (inFlight: Bool, sinceMs: Int) { S8KPerf.workState("حفظ الكتالوج") }
+
     /// Guards the stream counter against a second `cleanup()`. `onDisappear` is not
     /// contractually once-only, and a double decrement would silently push the count
     /// negative and make every later reading meaningless.
@@ -288,6 +291,14 @@ class BasePlayerVM: NSObject, ObservableObject {
             // beside it so a leak can be told apart from a live stream.
             "streams_open": Self.counts.streams,
             "vms_alive":    Self.counts.vms,
+            // Was the device busy writing the catalogue when this stream was asked for?
+            // Two 28-second opens landed four seconds after a network catalogue load of
+            // 281,000 items — whose SQLite write runs DETACHED, after the `الكتالوج`
+            // sample has already closed, and was invisible to every number this app
+            // produced. A candidate with a mechanism, not a conclusion; these two fields
+            // are what turn it into one or kill it.
+            "catalog_saving":   Self.catalogSave.inFlight,
+            "catalog_since_ms": Self.catalogSave.sinceMs,
         ])
     }
 
