@@ -102,6 +102,9 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
 
     override init(item: ContentItem) {
         super.init(item: item)
+        // Before any media is opened, so the log covers the very first attempt — which
+        // is the attempt that fails.
+        VLCLog.enable()
         player.delegate = self
     }
 
@@ -215,6 +218,9 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
             // How long the user had already been staring at a black screen before the
             // app decided to try again.
             "after_ms":  Int(Date().timeIntervalSince(attemptStartedAt) * 1000),
+            // What libVLC itself said in the seconds before we gave up. Redacted: an
+            // Xtream URL carries the subscriber's credentials in its path.
+            "vlc":       VLCLog.redactedTail(14),
         ])
         // Anchor the "5s of real playback" / stuck-start checks to where the FRESH
         // player will resume from: the drop point for VOD, but 0 for LIVE (live
@@ -874,4 +880,72 @@ struct AirPlayButton: UIViewRepresentable {
         return v
     }
     func updateUIView(_ v: AVRoutePickerView, context: Context) {}
+}
+
+// MARK: - VLC's own log, captured
+//
+// Five hypotheses have now been refuted by measurement: the resume seek, catalogue
+// contention, the downloads-directory walk, a held Xtream connection slot, and the
+// container. What survives is precise but not yet explained — a first attempt that
+// produces no frame at all for 28 seconds, after which a rebuild succeeds in ~3.5s.
+//
+// Every measurement so far has been OURS, timing our own code from the outside. This
+// one asks libVLC directly. Its log says what actually happened on the wire: an HTTP
+// status, a refused connection, a demuxer that could not identify the stream. That is
+// the difference between another correlation and a cause.
+//
+// THE DEPRECATED API IS A DELIBERATE CHOICE. `VLCLibrary.loggers` is the modern
+// replacement, and it needs a class conforming to `VLCLogging` plus a bridged
+// `VLCLogLevel` enum. There is no compiler on this machine, so a protocol-conformance
+// or enum-bridging mistake costs a full CI round trip while the owner waits. These
+// three members are a BOOL, an int and a method taking NSString — bridging that cannot
+// surprise. Deprecation is a warning, not a failure, and 3.x still honours it.
+enum VLCLog {
+    private static var enabled = false
+
+    private static var fileURL: URL? {
+        Diagnostics.dir()?.appendingPathComponent("vlc.log")
+    }
+
+    /// Truncate and start capturing. Once per launch; cheap to call again.
+    static func enable() {
+        guard !enabled, let url = fileURL else { return }
+        enabled = true
+        // Start empty every launch. A log that grows across sessions makes the tail
+        // describe some earlier run, which is worse than no log — it would answer the
+        // question confidently and about the wrong playback.
+        try? Data().write(to: url)
+        let lib = VLCLibrary.shared()
+        // 1 = warnings and errors. Level 2 floods the file with per-frame chatter, and
+        // the cost of writing that during playback is itself a change to what we are
+        // trying to measure.
+        lib.debugLoggingLevel = 1
+        lib.debugLogging = true
+        _ = lib.setDebugLoggingToFile(url.path)
+    }
+
+    /// The last `n` lines, exactly as libVLC wrote them. On-device use only.
+    static func tail(_ n: Int) -> [String] {
+        guard let url = fileURL,
+              let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
+        return Array(lines.suffix(n))
+    }
+
+    /// The tail with every URL removed, short enough to travel.
+    ///
+    /// REDACTION IS NOT OPTIONAL HERE. An Xtream stream URL carries the subscriber's
+    /// username and password IN ITS PATH — `/movie/USER/PASS/123.mkv` — and libVLC logs
+    /// the URL it was handed. Sending this tail unredacted would ship the user's
+    /// provider credentials to the panel, inside an app whose entire privacy argument
+    /// is that credentials never leave the device.
+    static func redactedTail(_ n: Int, limit: Int = 600) -> String {
+        let joined = tail(n)
+            .map { line -> String in
+                line.replacingOccurrences(of: "[a-zA-Z][a-zA-Z0-9+.-]*://[^ \t]*",
+                                          with: "<url>", options: .regularExpression)
+            }
+            .joined(separator: " | ")
+        return String(joined.suffix(limit))
+    }
 }

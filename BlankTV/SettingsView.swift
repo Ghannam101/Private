@@ -1539,6 +1539,7 @@ struct PerfStatsView: View {
     @State private var samples = S8KPerf.recent
     @State private var tallies = S8KPerf.counted
     @State private var copied  = false
+    @State private var vlcCopied = false
     // iOS hands this app every crash, hang and disk-write exception it records, and
     // until now they were written to disk and never read by anything. Surfacing them
     // HERE, rather than building a new screen, because this is already where someone
@@ -1624,6 +1625,21 @@ struct PerfStatsView: View {
                 .buttonStyle(S8KButtonStyle())
                 .padding(.horizontal, S8KSpace.xl)
             }
+            // The engine's own account of the last minutes. Separate button because it
+            // is RAW — it still contains the stream URL, and an Xtream URL carries the
+            // subscriber's username and password in its path. What travels to the panel
+            // is redacted; what this copies is not, so it goes only where the owner
+            // deliberately pastes it.
+            Button(action: copyVLCLog) {
+                Text(vlcCopied ? "نُسخ ✓" : "نسخ سجلّ المشغّل (خام)")
+                    .font(S8KFont.callout.weight(.semibold)).foregroundColor(.s8kTextSecondary)
+                    .frame(maxWidth: .infinity).padding(.vertical, 13)
+                    .background(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
+                        .fill(Color.white.opacity(0.06)))
+                    .s8kMinTouch(2)
+            }
+            .buttonStyle(S8KButtonStyle())
+            .padding(.horizontal, S8KSpace.xl)
             Text("كل شيء هنا محلي على جهازك. لا يُرسَل أي قياس إلى أي خادم.")
                 .font(S8KFont.caption2).foregroundColor(.s8kTextTertiary)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -1691,6 +1707,16 @@ struct PerfStatsView: View {
         UIPasteboard.general.string = Diagnostics.crashReport()
         withAnimation { crashCopied = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { withAnimation { crashCopied = false } }
+    }
+
+    private func copyVLCLog() {
+        let lines = VLCLog.tail(120)
+        let header = "app " + PanelClient.appVersion
+        UIPasteboard.general.string = lines.isEmpty
+            ? "لا يوجد سجلّ بعد — شغّل شيئاً على محرّك VLC ثم عد."
+            : ([header, ""] + lines).joined(separator: "\n")
+        withAnimation { vlcCopied = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { withAnimation { vlcCopied = false } }
     }
 
     private func copy() {
