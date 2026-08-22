@@ -114,6 +114,12 @@ workflows:
     environment:
       groups:
         - codesign
+        # BLANKTV_APP_KEY — the panel's registration secret, stored encrypted in
+        # Codemagic rather than here. A buyer receives this repository under the
+        # resale model, and a key committed to it would hand every buyer the owner's
+        # panel credential. `ios-test` deliberately does NOT import this group: it
+        # publishes nothing and has no business holding the secret.
+        - panel
       vars:
         XCODE_PROJECT: "BlankTV.xcodeproj"
         XCODE_WORKSPACE: "BlankTV.xcworkspace"
