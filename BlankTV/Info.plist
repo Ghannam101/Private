@@ -6,6 +6,16 @@
 	<string>Dark</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>BLANKTVPanelKey</key>
+	<!-- EMPTY HERE ON PURPOSE, AND IT MUST STAY EMPTY IN THIS REPOSITORY.
+	     Codemagic overwrites this at build time from the BLANKTV_APP_KEY environment
+	     variable (see codemagic.yaml). The reason is the resale model: a buyer receives
+	     this source, and a key committed here would hand every buyer the owner's panel
+	     credential along with the app. An empty value makes PanelConfig.isConfigured
+	     false, which turns the whole telemetry client off — the correct behaviour for a
+	     measurement system that cannot identify itself, and it means a local build
+	     never reports into the owner's live panel by accident. -->
+	<string></string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

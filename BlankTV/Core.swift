@@ -655,12 +655,32 @@ final class Keychain {
 
     private enum Key: String {
         case token, host, user, pass, userID, tokenExpiry, deviceID, m3uURL, playlists
+        case panelToken
     }
 
     /// Persistent device identity (survives app reinstall — stays in Keychain)
     var deviceID: String? {
         get { load(.deviceID) }
         set { newValue == nil ? delete(.deviceID) : save(.deviceID, value: newValue!) }
+    }
+
+    /// The per-device token the owner panel issues at registration.
+    ///
+    /// Here, and beside `deviceID` rather than beside the account credentials, because
+    /// it identifies the INSTALL and not the user: signing out of one provider and into
+    /// another is the same phone, and re-registering on every logout would fork one
+    /// device's history into a new row each time. It survives reinstall for the same
+    /// reason `deviceID` does — they are two halves of one identity, and a token whose
+    /// device_id has been restored while the token itself has not is a token the panel
+    /// will refuse.
+    ///
+    /// Not a secret the user owns; a secret the DEVICE owns. But it is a bearer
+    /// credential that can write to the panel, so it belongs in the Keychain and not in
+    /// UserDefaults — which is an unencrypted plist that goes verbatim into an
+    /// unencrypted backup, the exact reasoning already written above for `m3uURL`.
+    var panelToken: String? {
+        get { load(.panelToken) }
+        set { newValue == nil ? delete(.panelToken) : save(.panelToken, value: newValue!) }
     }
 
     /// The playlist URL. For an Xtream line this CONTAINS the username and password

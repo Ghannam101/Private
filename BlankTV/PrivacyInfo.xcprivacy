@@ -7,7 +7,85 @@
 	<key>NSPrivacyTrackingDomains</key>
 	<array/>
 	<key>NSPrivacyCollectedDataTypes</key>
-	<array/>
+	<!-- WAS EMPTY, AND WAS TRUE WHEN IT WAS. The app talked to the user's provider and
+	     to nothing else, and MetricKit payloads never left the device — Apple's own
+	     definition is that data processed only on device is not "collected".
+	     PanelClient changes that: measurements now leave the device for the owner's
+	     panel, so they are declared here and on the App Privacy card.
+
+	     NOT TRACKING, and the distinction is Apple's own: tracking means linking this
+	     data with THIRD-PARTY data for advertising, or handing it to a data broker.
+	     This goes to one first-party server, for measurement. No ATT prompt applies.
+
+	     `Linked` is false throughout because there is nothing to link TO. The app has no
+	     accounts and no sign-in of ours; the identifier is a SHA-256 of the vendor id
+	     with the bundle id, and nothing anywhere maps it to a person.
+
+	     Crash Data is deliberately ABSENT. MetricKit payloads are written to Application
+	     Support and read back on the device; nothing transmits them. If that ever
+	     changes, this list changes with it in the same commit. -->
+	<array>
+		<dict>
+			<!-- The per-install identity. Without it a measurement cannot be attributed
+			     to one device, and "startup is slow" could not be told apart from "one
+			     device on one bad network is slow". -->
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeDeviceID</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+			</array>
+		</dict>
+		<dict>
+			<!-- Startup time and rebuffer durations — the CTA-2066 measurements. -->
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePerformanceData</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+			</array>
+		</dict>
+		<dict>
+			<!-- Playback failure reasons, and the device model and OS version that
+			     scope them. -->
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeOtherDiagnosticData</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+			</array>
+		</dict>
+		<dict>
+			<!-- The heartbeat carries the TITLE of what is playing, so a live session on
+			     the panel says what is being watched. That is product interaction and it
+			     is the most sensitive field here, which is exactly why it is declared
+			     rather than filed under diagnostics. -->
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeProductInteraction</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>
 		<dict>
