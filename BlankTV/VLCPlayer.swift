@@ -67,6 +67,9 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
     /// the resume jump, which is the one part of opening a half-watched movie that
     /// nothing in this app has ever timed.
     private var awaitingResumeLanding = false
+    /// When the CURRENT attempt handed a URL to VLC. Reset on every `setup()`, so a
+    /// retry measures its own wait rather than the whole session's.
+    private var attemptStartedAt = Date()
     /// The live render surface — used to size the "fill" crop to the actual screen.
     private weak var surfaceView: UIView?
     /// Fires if playback never starts within a grace window (stuck on "buffering"),
@@ -188,6 +191,22 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
     private func scheduleRetry() -> Bool {
         guard retryCount < maxRetries, streamURL != nil else { return false }
         retryCount += 1
+        // THE SILENT RECOVERY IS NOW VISIBLE, and it was the biggest blind spot in the
+        // measurement. This path clears `errorMsg` and returns true, so no
+        // `playback_failed` is ever emitted — the app healed itself and reported only
+        // a slow start. A 31.2s open in the first real session matches this exactly:
+        // a 28s start watchdog, a 0.6s backoff, and a rebuild that then took 2.6s.
+        //
+        // If that reading is right, the problem is not "playback is slow" but "the
+        // first attempt produces nothing" — a different defect with a different fix,
+        // and the difference was invisible until this line.
+        PanelClient.shared.track("playback_retry", [
+            "attempt":   retryCount,
+            "kind":      isLive ? "live" : "vod",
+            // How long the user had already been staring at a black screen before the
+            // app decided to try again.
+            "after_ms":  Int(Date().timeIntervalSince(attemptStartedAt) * 1000),
+        ])
         // Anchor the "5s of real playback" / stuck-start checks to where the FRESH
         // player will resume from: the drop point for VOD, but 0 for LIVE (live
         // rebuild does NOT seek — its clock restarts from ~0, so anchoring to the
@@ -328,6 +347,7 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
         // So a small number here does NOT mean playback started quickly; it means the
         // main thread was not blocked doing it. Time-to-picture is the separate
         // "التشغيل ← أول إطار" chain, and the two answer different questions.
+        attemptStartedAt = Date()
         S8KPerf.measure("بدء المحرّك") { () -> Void in
             player.media = makeMedia(url)
             player.play()
@@ -645,6 +665,7 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
     // progress / fmt / currentFmt / durationFmt / saveProgress now live in
     // BasePlayerVM (shared by both engines).
     override func cleanup() {
+        reportCleanup()
         cancelPendingSkip()
         startWatchdog?.invalidate(); startWatchdog = nil
         retryTimer?.invalidate(); retryTimer = nil

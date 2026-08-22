@@ -117,11 +117,37 @@ class BasePlayerVM: NSObject, ObservableObject {
         // builds a second VM through here and the mark is already spent, and the
         // next-episode path never taps at all.
         S8KPerf.end("اللمسة ← المشغّل")
+        // Counted BEFORE reporting, so `players_alive` includes this one: a clean open
+        // reads 1, and 2 means the previous player was still in memory when this
+        // stream was asked for.
+        _ = Self.bumpLive(+1)
         reportRequested()
     }
 
     /// The end of a session, wherever it ends. See `reportEnded`.
-    deinit { reportEnded() }
+    deinit {
+        let remaining = Self.bumpLive(-1)
+        reportEnded()
+        // `via: deinit` — the view model was actually deallocated. `cleanup()` emits
+        // the same event with `via: cleanup`. Both are recorded because they answer
+        // DIFFERENT questions: cleanup stops VLC and releases the connection, deinit
+        // means the object is gone. Seeing one without the other is the finding —
+        // `playback_ended` has never once been recorded for a movie or an episode,
+        // and until these two are separated there is no way to know which half failed.
+        PanelClient.shared.track("player_released", ["via": "deinit", "players_alive": remaining])
+        PanelClient.shared.flush()
+    }
+
+    /// Called by each engine's `cleanup()` override. Not merged into `reportEnded`:
+    /// cleanup can run without deinit and deinit can run without cleanup, and telling
+    /// those two apart is the entire point.
+    func reportCleanup() {
+        PanelClient.shared.track("player_released", [
+            "via":           "cleanup",
+            "kind":          contentKind,
+            "players_alive": Self.liveNow,
+        ])
+    }
 
     func setItem(_ i: ContentItem) {
         // BEFORE `item` is reassigned. `reportEnded` reads `contentKind` off `item`, so
@@ -179,6 +205,41 @@ class BasePlayerVM: NSObject, ObservableObject {
         }
     }
 
+    /// The container the provider says this is. Reported because the first measurement
+    /// showed the SAME engine opening the SAME kind of content in 2.3s, 10.2s and
+    /// 31.2s inside one session — so whatever varies is per-stream, and the container
+    /// is the first per-stream property worth ruling in or out.
+    private var contentExt: String {
+        switch item {
+        case .live:                return "m3u8"
+        case .movie(let m):        return m.containerExtension.isEmpty ? "?" : m.containerExtension
+        case .episode(let ep, _):  return ep.containerExtension.isEmpty ? "?" : ep.containerExtension
+        }
+    }
+
+    /// HOW MANY PLAYER VIEW MODELS EXIST RIGHT NOW.
+    ///
+    /// This is a measurement, not a guard, and it exists to settle one question with
+    /// evidence instead of argument: when a new stream is opened, is the PREVIOUS
+    /// player still alive?
+    ///
+    /// It matters because Xtream lines cap concurrent connections — often at one — so
+    /// a player that has not been torn down still holds the slot the next stream needs,
+    /// and the next stream waits for the server to reap it. That would explain a first
+    /// attempt producing no frame for 28 seconds and a rebuild then succeeding in 2.6.
+    ///
+    /// It would ALSO be explained by a slow provider, or by the container, or by
+    /// something not yet thought of. `cleanup()` does call `player.stop()`, and it is
+    /// called from `onDisappear` — so the leak is plausible and unproven, which is
+    /// exactly why it is being counted rather than assumed.
+    private static let liveCountLock = NSLock()
+    private static var liveCount = 0
+    private static func bumpLive(_ d: Int) -> Int {
+        liveCountLock.lock(); defer { liveCountLock.unlock() }
+        liveCount += d
+        return liveCount
+    }
+
     /// The viewer asked for video. Everything else is measured from here, including
     /// the ones who never get a picture at all.
     func reportRequested() {
@@ -186,8 +247,17 @@ class BasePlayerVM: NSObject, ObservableObject {
         startedAt = nil
         bufferingSince = nil
         reportedFailure = false
-        PanelClient.shared.track("playback_requested", ["kind": contentKind])
+        PanelClient.shared.track("playback_requested", [
+            "kind": contentKind,
+            "ext":  contentExt,
+            // >1 means a previous player was still in memory when this one opened. On a
+            // line that allows one connection, that is the whole question.
+            "players_alive": Self.liveNow,
+        ])
     }
+
+    /// Read without mutating — `bumpLive(0)` returns the current count under the lock.
+    private static var liveNow: Int { bumpLive(0) }
 
     private func reportStarted(engine: String) {
         let now = Date()
@@ -196,9 +266,10 @@ class BasePlayerVM: NSObject, ObservableObject {
             "startup_ms": Int(now.timeIntervalSince(requestedAt) * 1000),
             "engine":     engine.isEmpty ? "unknown" : engine,
             "kind":       contentKind,
-            // Whether this open had to seek to a saved position — the leading
-            // hypothesis for the delay the owner reports, and the one field that lets
-            // the panel answer it across every device instead of one.
+            "ext":        contentExt,
+            // The resume hypothesis. The first real measurement came back `false` on
+            // both slow opens, which killed it — kept because a refuted field that
+            // keeps proving itself refuted is cheaper than re-arguing it.
             "resume":     resumeTarget > 0.02 && resumeTarget < 0.95,
         ])
         PanelClient.shared.startHeartbeat(content: nowPlayingTitle.0)
@@ -546,6 +617,7 @@ final class AVPlayerVM: BasePlayerVM {
     }
 
     override func cleanup() {
+        reportCleanup()
         saveProgress()
         teardownObservers()
         avPlayer.pause()
