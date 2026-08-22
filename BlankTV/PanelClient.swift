@@ -74,19 +74,29 @@ final class PanelClient {
     /// the panel returns the existing token for a device it already knows, so a
     /// reinstall that restored the Keychain identity keeps its history instead of
     /// forking into a second row.
-    private func withToken(_ use: @escaping (String) -> Void) {
+    /// ALWAYS calls back, with `nil` when no token could be had.
+    ///
+    /// It used to call back only on success, and that was a defect that would have
+    /// frozen telemetry permanently: `flush()` sets `flushing = true` and clears it in
+    /// the completion, so a `withToken` that returned silently — because a registration
+    /// was already in flight, or because the registration failed — left `flushing`
+    /// stuck true for the life of the process. Every later flush would return at its
+    /// own guard, the queue would fill to its cap, and nothing anywhere would say so.
+    ///
+    /// A callback with an error path is not optional in code that owns a lock flag.
+    private func withToken(_ use: @escaping (String?) -> Void) {
         if let t = Keychain.shared.panelToken, !t.isEmpty { use(t); return }
 
         lock.lock()
         // One registration in flight, not one per queued event: without this a burst
         // of events on a fresh install fires a burst of identical registrations and
         // spends the endpoint's rate limit on itself.
-        if registering { lock.unlock(); return }
+        if registering { lock.unlock(); use(nil); return }
         registering = true
         lock.unlock()
 
         guard let url = PanelConfig.baseURL?.appendingPathComponent("register") else {
-            lock.lock(); registering = false; lock.unlock(); return
+            lock.lock(); registering = false; lock.unlock(); use(nil); return
         }
         var r = URLRequest(url: url)
         r.httpMethod = "POST"
@@ -100,7 +110,7 @@ final class PanelClient {
             self.lock.lock(); self.registering = false; self.lock.unlock()
             guard let data,
                   let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let token = obj["token"] as? String, !token.isEmpty else { return }
+                  let token = obj["token"] as? String, !token.isEmpty else { use(nil); return }
             Keychain.shared.panelToken = token
             use(token)
         }.resume()
@@ -113,11 +123,20 @@ final class PanelClient {
         [
             "device_id":   DeviceIdentity.current,
             "platform":    "ios",
-            "model":       UIDevice.current.model,
-            "os_version":  UIDevice.current.systemVersion,
+            "model":       device.model,
+            "os_version":  device.os,
             "app_version": Self.appVersion,
         ]
     }
+
+    /// Read from UIKit ONCE. `identity()` is built on every heartbeat and every batch,
+    /// from whatever thread called — and `UIDevice.current` is a UIKit accessor, which
+    /// the main-thread checker is entitled to complain about. Neither value can change
+    /// while the process lives, so reading them repeatedly bought nothing and risked a
+    /// warning on a background thread.
+    private static let device: (model: String, os: String) = {
+        (UIDevice.current.model, UIDevice.current.systemVersion)
+    }()
 
     static var appVersion: String {
         let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
@@ -130,22 +149,47 @@ final class PanelClient {
     /// Beat while something is playing. `content` is the human title, so a live session
     /// on the panel says what is being watched rather than only that someone is there.
     func startHeartbeat(content: String?) {
-        stopHeartbeat()
-        guard PanelConfig.isConfigured else { return }
-        sendHeartbeat(content: content)
-        // `.common` so the beat survives a scroll. The default run-loop mode is paused
-        // while a UIScrollView tracks a finger, and a viewer browsing the guide would
-        // otherwise blink out of the online column for as long as their thumb moves.
-        let t = Timer(timeInterval: PanelConfig.heartbeatInterval, repeats: true) { [weak self] _ in
-            self?.sendHeartbeat(content: content)
+        Self.onMain { [weak self] in
+            guard let self else { return }
+            self.killBeat()
+            guard PanelConfig.isConfigured else { return }
+            self.sendHeartbeat(content: content)
+            // `.common` so the beat survives a scroll. The default run-loop mode is
+            // paused while a UIScrollView tracks a finger, and a viewer browsing the
+            // guide would otherwise blink out of the online column for as long as
+            // their thumb keeps moving.
+            let t = Timer(timeInterval: PanelConfig.heartbeatInterval, repeats: true) { [weak self] _ in
+                self?.sendHeartbeat(content: content)
+            }
+            RunLoop.main.add(t, forMode: .common)
+            self.beat = t
         }
-        RunLoop.main.add(t, forMode: .common)
-        beat = t
     }
 
     func stopHeartbeat() {
+        Self.onMain { [weak self] in self?.killBeat() }
+    }
+
+    /// MAIN THREAD ONLY, and that is the whole reason this pair exists.
+    ///
+    /// `Timer.invalidate()` must be sent on the thread that scheduled the timer —
+    /// Apple states it plainly, and calling it from anywhere else is undefined rather
+    /// than merely discouraged. `stopHeartbeat` is reached from `reportEnded`, which is
+    /// reached from `BasePlayerVM.deinit`, and a SwiftUI `@StateObject` is not
+    /// guaranteed to be released on the main thread. So the one path most likely to
+    /// run off-main was the one calling invalidate directly.
+    ///
+    /// It would never have shown up in a test: the corruption is a run loop holding a
+    /// reference to a timer nobody owns any more, on a device, later.
+    private func killBeat() {
         beat?.invalidate()
         beat = nil
+    }
+
+    /// Already on main → run now, so a heartbeat that starts with the first frame is
+    /// not deferred by a run-loop hop. Otherwise hop.
+    private static func onMain(_ work: @escaping () -> Void) {
+        if Thread.isMainThread { work() } else { DispatchQueue.main.async(execute: work) }
     }
 
     private func sendHeartbeat(content: String?) {
@@ -209,6 +253,10 @@ final class PanelClient {
     private func post(_ path: String, body: [String: Any], done: @escaping (Bool) -> Void) {
         guard let url = PanelConfig.baseURL?.appendingPathComponent(path) else { done(false); return }
         withToken { token in
+            // No token — a registration is already in flight, or it failed. Report the
+            // failure rather than swallowing it: the caller's queue keeps its batch and
+            // its `flushing` flag is cleared, so the next attempt is free to run.
+            guard let token else { done(false); return }
             var r = URLRequest(url: url)
             r.httpMethod = "POST"
             r.timeoutInterval = 20
