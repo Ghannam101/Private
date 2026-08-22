@@ -212,6 +212,23 @@ workflows:
           NEW_BUILD_NUMBER=$(($PROJECT_BUILD_NUMBER + 2))
           agvtool new-version -all "$NEW_BUILD_NUMBER"
           echo "CURRENT_PROJECT_VERSION set to $NEW_BUILD_NUMBER"
+      - name: Inject the panel key
+        script: |
+          cd "$CM_BUILD_DIR"
+          # The key is NOT in the repository. A buyer receives this source under the
+          # resale model, and a key committed here would ship the owner's panel
+          # credential to every buyer. Set BLANKTV_APP_KEY in the Codemagic environment.
+          #
+          # Absent, this step says so and does nothing: Info.plist keeps its empty
+          # string, PanelConfig.isConfigured stays false, and the telemetry client is
+          # silent. A build that quietly reports nothing is a bug worth reading in the
+          # log, so it is announced rather than skipped in silence.
+          if [ -z "$BLANKTV_APP_KEY" ]; then
+            echo "WARNING: BLANKTV_APP_KEY is unset — telemetry will be DISABLED in this build."
+          else
+            plutil -replace BLANKTVPanelKey -string "$BLANKTV_APP_KEY" BlankTV/Info.plist
+            echo "panel key injected (${#BLANKTV_APP_KEY} chars)"
+          fi
       - name: Build ipa
         script: |
           xcode-project build-ipa \

@@ -71,12 +71,16 @@ class BasePlayerVM: NSObject, ObservableObject {
     @Published var hasFirstFrame:  Bool   = false
     @Published var isPlaying:      Bool   = false
     @Published var isLoading:      Bool   = true
-    @Published var buffering:      Bool   = false
+    /// Observed rather than merely published, so the rebuffer measurement lives in ONE
+    /// place instead of being sprinkled through two engines that would drift apart.
+    @Published var buffering:      Bool   = false { didSet { noteBuffering(oldValue) } }
     // True only while a silent auto-retry is in flight (VLC engine) — lets the
     // spinner say "reconnecting" instead of "buffering" so the user knows we're
     // recovering, not stuck. Cleared the moment playback resumes or fails for good.
     @Published var reconnecting:   Bool   = false
-    @Published var errorMsg:       String? = nil
+    /// Same reasoning as `buffering`: every terminal failure in either engine ends up
+    /// assigned here, which makes this the only choke point both share.
+    @Published var errorMsg:       String? = nil { didSet { noteError(oldValue) } }
     @Published var currentTime:    Double = 0       // seconds
     @Published var duration:       Double = 0       // seconds (0 for live)
     @Published var isMuted:        Bool   = false
@@ -113,11 +117,27 @@ class BasePlayerVM: NSObject, ObservableObject {
         // builds a second VM through here and the mark is already spent, and the
         // next-episode path never taps at all.
         S8KPerf.end("اللمسة ← المشغّل")
+        reportRequested()
     }
+
+    /// The end of a session, wherever it ends. See `reportEnded`.
+    deinit { reportEnded() }
+
     func setItem(_ i: ContentItem) {
+        // BEFORE `item` is reassigned. `reportEnded` reads `contentKind` off `item`, so
+        // closing the session after the swap would file the episode you just finished
+        // under the one you just started — and on a zap from a movie to a channel it
+        // would move the watch time between content types entirely.
+        //
+        // Ended here rather than only in deinit because a zap or a next episode reuses
+        // this same VM: without this the two sessions merge into one that appears to
+        // last as long as the player stayed open.
+        reportEnded()
+
         item = i; hasFirstFrame = false
         // Chain two: tap -> first video frame. Closed by `markFirstFrame` below.
         S8KPerf.begin("التشغيل ← أول إطار")
+        reportRequested()
     }
 
     /// The single place either engine declares "there is a picture". Centralised so
@@ -132,6 +152,99 @@ class BasePlayerVM: NSObject, ObservableObject {
         guard !hasFirstFrame else { return }
         S8KPerf.end("التشغيل ← أول إطار", note)
         hasFirstFrame = true   // no animation: nothing observes this any more
+        reportStarted(engine: note)
+    }
+
+    // MARK: - CTA-2066 telemetry
+    //
+    // The Consumer Technology Association's streaming QoE standard, and its vocabulary
+    // rather than one invented here: "startup time" then means what it means everywhere,
+    // and the panel reading these needs no translation layer.
+    //
+    // All of it lives in the BASE class on purpose. Both engines inherit it, so the two
+    // cannot drift into measuring different things and calling them the same name — the
+    // failure mode that makes a metric worse than no metric.
+
+    private var requestedAt   = Date()
+    private var startedAt:      Date?
+    private var bufferingSince: Date?
+    private var reportedFailure = false
+
+    /// movie / episode / live — the dimension every QoE number wants splitting by.
+    private var contentKind: String {
+        switch item {
+        case .live:    return "live"
+        case .movie:   return "movie"
+        case .episode: return "episode"
+        }
+    }
+
+    /// The viewer asked for video. Everything else is measured from here, including
+    /// the ones who never get a picture at all.
+    func reportRequested() {
+        requestedAt = Date()
+        startedAt = nil
+        bufferingSince = nil
+        reportedFailure = false
+        PanelClient.shared.track("playback_requested", ["kind": contentKind])
+    }
+
+    private func reportStarted(engine: String) {
+        let now = Date()
+        startedAt = now
+        PanelClient.shared.track("playback_started", [
+            "startup_ms": Int(now.timeIntervalSince(requestedAt) * 1000),
+            "engine":     engine.isEmpty ? "unknown" : engine,
+            "kind":       contentKind,
+            // Whether this open had to seek to a saved position — the leading
+            // hypothesis for the delay the owner reports, and the one field that lets
+            // the panel answer it across every device instead of one.
+            "resume":     resumeTarget > 0.02 && resumeTarget < 0.95,
+        ])
+        PanelClient.shared.startHeartbeat(content: nowPlayingTitle.0)
+    }
+
+    private func noteError(_ old: String?) {
+        guard let msg = errorMsg, !msg.isEmpty, old == nil, !reportedFailure else { return }
+        reportedFailure = true
+        PanelClient.shared.track("playback_failed", [
+            "kind":      contentKind,
+            "reason":    msg,
+            // A failure BEFORE the first frame is a start failure; one after it is an
+            // interruption. The standard counts them differently and so should we.
+            "had_frame": hasFirstFrame,
+            "after_ms":  Int(Date().timeIntervalSince(requestedAt) * 1000),
+        ])
+        PanelClient.shared.flush()
+    }
+
+    private func noteBuffering(_ old: Bool) {
+        // Only stalls AFTER playback began are rebuffering. The wait before the first
+        // frame is startup time, and counting it twice would inflate both.
+        guard hasFirstFrame else { bufferingSince = nil; return }
+        if buffering, !old {
+            bufferingSince = Date()
+        } else if !buffering, let since = bufferingSince {
+            bufferingSince = nil
+            let ms = Int(Date().timeIntervalSince(since) * 1000)
+            // Below a quarter second nobody saw a stall. Recording those would bury the
+            // ones that matter in noise and make the ratio meaningless.
+            if ms >= 250 { PanelClient.shared.track("rebuffer", ["ms": ms, "kind": contentKind]) }
+        }
+    }
+
+    /// Closes the session. In `deinit` because it is the only point BOTH engines are
+    /// guaranteed to reach: `cleanup()` is overridden by each of them and an override
+    /// that forgets `super` would silently lose every ended session.
+    private func reportEnded() {
+        PanelClient.shared.stopHeartbeat()
+        if let started = startedAt {
+            PanelClient.shared.track("playback_ended", [
+                "kind":       contentKind,
+                "watched_ms": Int(Date().timeIntervalSince(started) * 1000),
+            ])
+        }
+        PanelClient.shared.flush()
     }
 
     /// Start the mid-stream stall monitor (call from each engine's setup()).
