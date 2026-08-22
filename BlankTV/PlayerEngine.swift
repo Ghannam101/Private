@@ -117,35 +117,49 @@ class BasePlayerVM: NSObject, ObservableObject {
         // builds a second VM through here and the mark is already spent, and the
         // next-episode path never taps at all.
         S8KPerf.end("اللمسة ← المشغّل")
-        // Counted BEFORE reporting, so `players_alive` includes this one: a clean open
-        // reads 1, and 2 means the previous player was still in memory when this
-        // stream was asked for.
-        _ = Self.bumpLive(+1)
+        // Counted BEFORE reporting, so both numbers include this one: a clean open
+        // reads streams_open = 1. Anything higher means some other player was set up
+        // and never cleaned up.
+        _ = Self.bump(vms: +1, streams: +1)
         reportRequested()
     }
 
     /// The end of a session, wherever it ends. See `reportEnded`.
     deinit {
-        let remaining = Self.bumpLive(-1)
+        // Not cleaned up before being released — so its stream was never stopped, and
+        // whatever slot it held was released by the OS rather than by us. That is the
+        // leak signature, and it is worth more than the counter alone.
+        let leaked = !cleanedUp
+        let c = Self.bump(vms: -1, streams: leaked ? -1 : 0)
+        // BEFORE reportEnded, and the order is the fix for a real defect. reportEnded
+        // ends with flush(), which snapshots the batch and raises `flushing`; a track()
+        // after it appends to a queue whose flush has already departed, and the second
+        // flush() returns at its own guard. The two events would then have had
+        // different delivery odds — and comparing them is the entire point.
+        PanelClient.shared.track("player_released", [
+            "via":          "deinit",
+            "kind":         contentKind,
+            "ext":          contentExt,
+            "leaked":       leaked,
+            "vms_alive":    c.vms,
+            "streams_open": c.streams,
+        ])
         reportEnded()
-        // `via: deinit` — the view model was actually deallocated. `cleanup()` emits
-        // the same event with `via: cleanup`. Both are recorded because they answer
-        // DIFFERENT questions: cleanup stops VLC and releases the connection, deinit
-        // means the object is gone. Seeing one without the other is the finding —
-        // `playback_ended` has never once been recorded for a movie or an episode,
-        // and until these two are separated there is no way to know which half failed.
-        PanelClient.shared.track("player_released", ["via": "deinit", "players_alive": remaining])
-        PanelClient.shared.flush()
     }
 
     /// Called by each engine's `cleanup()` override. Not merged into `reportEnded`:
     /// cleanup can run without deinit and deinit can run without cleanup, and telling
     /// those two apart is the entire point.
     func reportCleanup() {
+        guard !cleanedUp else { return }
+        cleanedUp = true
+        let c = Self.bump(streams: -1)
         PanelClient.shared.track("player_released", [
-            "via":           "cleanup",
-            "kind":          contentKind,
-            "players_alive": Self.liveNow,
+            "via":          "cleanup",
+            "kind":         contentKind,
+            "ext":          contentExt,
+            "vms_alive":    c.vms,
+            "streams_open": c.streams,
         ])
     }
 
@@ -197,7 +211,7 @@ class BasePlayerVM: NSObject, ObservableObject {
     private var reportedFailure = false
 
     /// movie / episode / live — the dimension every QoE number wants splitting by.
-    private var contentKind: String {
+    var contentKind: String {
         switch item {
         case .live:    return "live"
         case .movie:   return "movie"
@@ -209,7 +223,7 @@ class BasePlayerVM: NSObject, ObservableObject {
     /// showed the SAME engine opening the SAME kind of content in 2.3s, 10.2s and
     /// 31.2s inside one session — so whatever varies is per-stream, and the container
     /// is the first per-stream property worth ruling in or out.
-    private var contentExt: String {
+    var contentExt: String {
         switch item {
         case .live:                return "m3u8"
         case .movie(let m):        return m.containerExtension.isEmpty ? "?" : m.containerExtension
@@ -217,28 +231,46 @@ class BasePlayerVM: NSObject, ObservableObject {
         }
     }
 
-    /// HOW MANY PLAYER VIEW MODELS EXIST RIGHT NOW.
-    ///
-    /// This is a measurement, not a guard, and it exists to settle one question with
-    /// evidence instead of argument: when a new stream is opened, is the PREVIOUS
-    /// player still alive?
-    ///
-    /// It matters because Xtream lines cap concurrent connections — often at one — so
-    /// a player that has not been torn down still holds the slot the next stream needs,
-    /// and the next stream waits for the server to reap it. That would explain a first
-    /// attempt producing no frame for 28 seconds and a rebuild then succeeding in 2.6.
-    ///
-    /// It would ALSO be explained by a slow provider, or by the container, or by
-    /// something not yet thought of. `cleanup()` does call `player.stop()`, and it is
-    /// called from `onDisappear` — so the leak is plausible and unproven, which is
-    /// exactly why it is being counted rather than assumed.
-    private static let liveCountLock = NSLock()
-    private static var liveCount = 0
-    private static func bumpLive(_ d: Int) -> Int {
-        liveCountLock.lock(); defer { liveCountLock.unlock() }
-        liveCount += d
-        return liveCount
+    // TWO COUNTERS, BECAUSE THEY ANSWER TWO QUESTIONS AND THE FIRST DRAFT CONFLATED THEM.
+    //
+    // The first version counted view-model OBJECTS: +1 in init, -1 in deinit. An
+    // adversarial review killed it, and it was right to. What holds an Xtream
+    // connection slot is a player that has not been STOPPED, and `cleanup()` is what
+    // stops it — while `deinit` is what releases the object. A view model that has been
+    // fully cleaned up but not yet deallocated read identically to one still streaming,
+    // so the number could not answer the question it was added for.
+    //
+    // Worse, it would have answered it WRONGLY, on exactly the population under study:
+    //
+    //   • Auto-failover changes `.id` on PlayerEngineView, so SwiftUI builds the new
+    //     @StateObject while the old view is still installed. Failover happens AFTER a
+    //     slow or failed open — every case being investigated would have reported the
+    //     "leaked player" signature, and none of them is a leak.
+    //   • The Live tab's inline preview owns its own view model, and this file already
+    //     documents that a cover presented over it does NOT disappear it. It is only
+    //     paused — and pause does not close the connection.
+    //
+    // So: `streams_open` counts players that were set up and not yet cleaned up. That
+    // is the quantity that maps to a connection slot. `vms_alive` keeps the object
+    // count, for the separate and still-open question of whether anything leaks.
+    private static let countLock = NSLock()
+    private static var vmsAlive = 0
+    private static var streamsOpen = 0
+
+    private static func bump(vms: Int = 0, streams: Int = 0) -> (vms: Int, streams: Int) {
+        countLock.lock(); defer { countLock.unlock() }
+        vmsAlive += vms
+        streamsOpen += streams
+        return (vmsAlive, streamsOpen)
     }
+
+    /// Read both without mutating.
+    private static var counts: (vms: Int, streams: Int) { bump() }
+
+    /// Guards the stream counter against a second `cleanup()`. `onDisappear` is not
+    /// contractually once-only, and a double decrement would silently push the count
+    /// negative and make every later reading meaningless.
+    private var cleanedUp = false
 
     /// The viewer asked for video. Everything else is measured from here, including
     /// the ones who never get a picture at all.
@@ -250,14 +282,14 @@ class BasePlayerVM: NSObject, ObservableObject {
         PanelClient.shared.track("playback_requested", [
             "kind": contentKind,
             "ext":  contentExt,
-            // >1 means a previous player was still in memory when this one opened. On a
-            // line that allows one connection, that is the whole question.
-            "players_alive": Self.liveNow,
+            // `streams_open` includes this one, so a clean open reads 1. Above that,
+            // some other player was set up and never cleaned up — which on a line that
+            // allows one connection is the whole question. `vms_alive` is carried
+            // beside it so a leak can be told apart from a live stream.
+            "streams_open": Self.counts.streams,
+            "vms_alive":    Self.counts.vms,
         ])
     }
-
-    /// Read without mutating — `bumpLive(0)` returns the current count under the lock.
-    private static var liveNow: Int { bumpLive(0) }
 
     private func reportStarted(engine: String) {
         let now = Date()

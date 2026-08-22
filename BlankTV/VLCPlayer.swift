@@ -202,7 +202,16 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
         // and the difference was invisible until this line.
         PanelClient.shared.track("playback_retry", [
             "attempt":   retryCount,
-            "kind":      isLive ? "live" : "vod",
+            // `contentKind`, not a private "live"/"vod" vocabulary of its own. The first
+            // draft used one, which meant this event could never be joined to
+            // playback_started on `kind` for VOD — and that join is the whole theory.
+            "kind":      contentKind,
+            "ext":       contentExt,
+            // A retry BEFORE the first frame is a failed start. One after it is a
+            // mid-stream recovery, and it reaches this same funnel from the stall
+            // monitor — without this flag a 40-minute watch that stalls once is
+            // indistinguishable from an open that never produced a picture.
+            "had_frame": hasFirstFrame,
             // How long the user had already been staring at a black screen before the
             // app decided to try again.
             "after_ms":  Int(Date().timeIntervalSince(attemptStartedAt) * 1000),
@@ -243,6 +252,11 @@ final class VLCPlayerVM: BasePlayerVM, VLCMediaPlayerDelegate {
     /// lists makes the .playing handler re-discover this stream's tracks and re-apply
     /// the remembered subtitle/audio language + custom subtitle size.
     private func rebuildAndPlay() {
+        // Each attempt times ITSELF. Without this the retry's `after_ms` kept the first
+        // attempt's start, so attempt 2 of the 31s case would have reported ~29.8s of
+        // black screen when the real wait was ~1.2s — and the doc comment on
+        // `attemptStartedAt` claimed otherwise, which is worse than not measuring.
+        attemptStartedAt = Date()
         guard let url = streamURL else {
             reconnecting = false
             errorMsg = L("player.err.failed"); isLoading = false; return
