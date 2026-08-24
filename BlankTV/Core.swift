@@ -1807,6 +1807,43 @@ actor PlaylistService {
     /// enough to keep two revalidations from overlapping: actor isolation makes the
     /// check and the set one step.
     private var revalidating = false
+
+    /// Set when a stale-while-revalidate refresh was WANTED but held back because
+    /// something was playing.
+    private var revalidationDeferred = false
+
+    /// Refresh — unless a stream is open, in which case wait for it to close.
+    ///
+    /// MEASURED, NOT ASSUMED. On 24 August the owner's device opened a movie in 1,205ms
+    /// with only the disk catalogue loaded; after a network refresh of 281,623 items the
+    /// next three opens took 5,162ms, 3,356ms and 4,083ms and stalled for 2,407 + 277 +
+    /// 1,415 + 3,126ms. The mechanism is not mysterious: that refresh downloads from the
+    /// SAME Xtream server the player is streaming from, spending one of the connections
+    /// those lines ration, and then writes a quarter of a million rows to SQLite.
+    ///
+    /// Nothing is lost by waiting. Stale-while-revalidate already promises the user a
+    /// stale catalogue now; this only extends "now" to the end of what they are
+    /// watching. A pull-to-refresh still forces a fetch immediately — the user asking
+    /// for fresh data is a different thing from the app deciding to go and get it.
+    ///
+    /// If playback never stops, the refresh waits for the next launch. That is what a
+    /// 12-hour TTL was always willing to accept, and `load()` re-arms this on every
+    /// catalogue read, so an idle moment is all it takes.
+    func revalidateWhenIdle() async {
+        if BasePlayerVM.isPlaybackActive {
+            revalidationDeferred = true
+            return
+        }
+        await revalidate()
+    }
+
+    /// Called when the last stream closes.
+    func revalidateIfDeferred() async {
+        guard revalidationDeferred else { return }
+        revalidationDeferred = false
+        await revalidate()
+    }
+
     func revalidate() async {
         if revalidating { return }
         revalidating = true
@@ -1867,7 +1904,7 @@ actor PlaylistService {
             // flight right now is THIS one — so it would hand back the same stale
             // catalogue and the revalidation would silently never happen.
             if cached.age >= CatalogDB.ttl {
-                Task.detached(priority: .utility) { await PlaylistService.shared.revalidate() }
+                Task.detached(priority: .utility) { await PlaylistService.shared.revalidateWhenIdle() }
             }
             return cached.content
         }

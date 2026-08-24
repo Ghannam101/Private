@@ -154,6 +154,11 @@ class BasePlayerVM: NSObject, ObservableObject {
         guard !cleanedUp else { return }
         cleanedUp = true
         let c = Self.bump(streams: -1)
+        // The last stream just closed. If a catalogue refresh was held back because
+        // something was playing, this is the moment it is free to run.
+        if c.streams == 0 {
+            Task.detached(priority: .utility) { await PlaylistService.shared.revalidateIfDeferred() }
+        }
         PanelClient.shared.track("player_released", [
             "via":          "cleanup",
             "kind":         contentKind,
@@ -266,6 +271,14 @@ class BasePlayerVM: NSObject, ObservableObject {
 
     /// Read both without mutating.
     private static var counts: (vms: Int, streams: Int) { bump() }
+
+    /// True while ANY engine has a stream set up and not yet cleaned up.
+    ///
+    /// Read by the catalogue's revalidation so a 281,000-item refresh does not run
+    /// against a live stream. It counts the Live tab's inline preview too, and that is
+    /// correct rather than a flaw: the preview is a real stream on the same line, using
+    /// the same bandwidth and the same rationed Xtream connection.
+    static var isPlaybackActive: Bool { counts.streams > 0 }
 
     /// Whether the detached catalogue write is running, and how long since it finished.
     private static var catalogSave: (inFlight: Bool, sinceMs: Int) { S8KPerf.workState("حفظ الكتالوج") }
