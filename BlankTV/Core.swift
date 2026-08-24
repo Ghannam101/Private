@@ -2092,6 +2092,47 @@ actor PlaylistService {
 
     // MARK: ── Xtream API direct loading ──────────────
 
+    /// The three lists that make a catalogue big. Only these are worth reporting on —
+    /// the category calls are a few kilobytes and would just add noise.
+    private static let bigActions: Set<String> = ["get_live_streams", "get_vod_streams", "get_series"]
+
+    /// MEASURE BEFORE BUILDING. The recommendation on the table is HTTP conditional
+    /// requests: send `If-None-Match`, get `304 Not Modified`, and turn a 70MB refresh
+    /// into ~300 bytes when nothing changed. It is the highest-leverage idea in this
+    /// project — and it only works if the PROVIDER emits a validator.
+    ///
+    /// `player_api.php` is dynamic PHP, and most such endpoints emit no `ETag` and no
+    /// `Last-Modified` at all. Building the whole conditional layer on the hope that
+    /// this one does would be exactly the guess that has already cost this
+    /// investigation six refuted hypotheses. So: one event, no behaviour change, and
+    /// the answer arrives with the next catalogue refresh.
+    ///
+    /// It settles three things at once:
+    ///   • `etag` / `last_modified` — is conditional caching even available?
+    ///   • `bytes` — the REAL payload size, which has been estimated all week. This is
+    ///     the decompressed length, so it is also the size the parser must hold.
+    ///   • `encoding` — whether the provider is compressing at all. URLSession already
+    ///     asks for `br, gzip` and decodes transparently, so this needs no client work.
+    ///
+    /// The URL is never recorded: an Xtream API URL carries the subscriber's username
+    /// and password in its query string.
+    private static func noteCatalogHTTP(_ action: String?, _ response: URLResponse, bytes: Int, since: Date) {
+        guard let action, bigActions.contains(action),
+              let http = response as? HTTPURLResponse else { return }
+        let header = { (name: String) -> String? in
+            http.allHeaderFields.first { ($0.key as? String)?.lowercased() == name }?.value as? String
+        }
+        PanelClient.shared.track("catalog_http", [
+            "action":        action,
+            "bytes":         bytes,
+            "ms":            Int(Date().timeIntervalSince(since) * 1000),
+            "etag":          header("etag") != nil,
+            "last_modified": header("last-modified") != nil,
+            "encoding":      header("content-encoding") ?? "none",
+            "status":        http.statusCode,
+        ])
+    }
+
     private func apiData(_ xd: XtreamDirect, action: String?, timeout: TimeInterval = 22) async throws -> Data {
         guard let url = xd.apiURL(action: action) else {
             throw AppError.server(L("error.invalid_server"))
@@ -2109,9 +2150,13 @@ actor PlaylistService {
             req.setValue(ua,    forHTTPHeaderField: "User-Agent")
             req.setValue("*/*", forHTTPHeaderField: "Accept")
             do {
+                let t0 = Date()
                 let (data, response) = try await URLSession.shared.data(for: req)
                 let status = (response as? HTTPURLResponse)?.statusCode ?? 200
-                if (200...299).contains(status) { return data }
+                if (200...299).contains(status) {
+                    Self.noteCatalogHTTP(action, response, bytes: data.count, since: t0)
+                    return data
+                }
                 // non-2xx (e.g. 403 UA block) → try the next UA
             } catch {
                 // A TIMEOUT won't be fixed by a different UA (same host/network) →
