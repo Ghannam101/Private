@@ -218,7 +218,7 @@ struct SettingsProV2: View {
                 Text(L("accounts.switch")).font(S8KFont.caption2.weight(.bold))
                 Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
             }
-            .foregroundColor(.s8kGoldMid)
+            .foregroundColor(.s8kAccentText)
             .padding(.horizontal, 11).padding(.vertical, 5)
             .background(Capsule().fill(Color.s8kGoldMid.opacity(0.12)))
             .overlay(Capsule().strokeBorder(Color.s8kBorderGold, lineWidth: 1))
@@ -628,7 +628,7 @@ struct EngineStatsView: View {
                 SetUI.divider(); statRow(L("diag.failovers"), "\(s.failovers)  ·  \(pct(EngineStats.shared.failoverRate))")
             }
             Button(action: { EngineStats.shared.reset(); refresh() }) {
-                Text(L("diag.reset")).font(S8KFont.callout.weight(.semibold)).foregroundColor(.s8kGoldMid)
+                Text(L("diag.reset")).font(S8KFont.callout.weight(.semibold)).foregroundColor(.s8kAccentText)
                     .frame(maxWidth: .infinity).padding(.vertical, 13)
                     .background(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous).fill(Color.s8kGoldMid.opacity(0.10)))
                     .overlay(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous).strokeBorder(Color.s8kBorderGold, lineWidth: 1))
@@ -647,7 +647,7 @@ struct EngineStatsView: View {
 
     private func statRow(_ title: String, _ value: String) -> some View {
         HStack(spacing: 12) {
-            Text(value).font(.system(size: 13, weight: .bold, design: .monospaced)).foregroundColor(.s8kGoldMid).lineLimit(1)
+            Text(value).font(.system(size: 13, weight: .bold, design: .monospaced)).foregroundColor(.s8kAccentText).lineLimit(1)
             Spacer(minLength: 8)
             Text(title).font(S8KFont.callout.weight(.semibold)).foregroundColor(.s8kTextPrimary).lineLimit(1)
         }
@@ -768,7 +768,7 @@ struct AccountSwitcherView: View {
                 ZStack {
                     Circle().fill(Color.white.opacity(0.04)).frame(width: 88, height: 88)
                         .overlay(Circle().strokeBorder(Color.s8kBorderGold, style: StrokeStyle(lineWidth: 2, dash: [6, 5])))
-                    Image(systemName: "plus").font(.system(size: 32, weight: .bold)).foregroundColor(.s8kGoldMid)
+                    Image(systemName: "plus").font(.system(size: 32, weight: .bold)).foregroundColor(.s8kAccentText)
                 }.padding(5)
             }.buttonStyle(S8KButtonStyle())
             .accessibilityLabel(L("a11y.add_account"))
@@ -846,7 +846,7 @@ struct PlaylistsView: View {
             .navigationTitle(L("playlists.title")).navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(L("common.close")) { dismiss() }.foregroundColor(.s8kGoldMid)
+                    Button(L("common.close")) { dismiss() }.foregroundColor(.s8kAccentText)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 14) {
@@ -854,11 +854,11 @@ struct PlaylistsView: View {
                             switching = true
                             Task { await auth.refreshContent(); switching = false; dismiss() }
                         }) {
-                            Image(systemName: "arrow.clockwise").foregroundColor(.s8kGoldMid)
+                            Image(systemName: "arrow.clockwise").foregroundColor(.s8kAccentText)
                         }
                         .accessibilityLabel(L("a11y.refresh"))
                         Button(action: { showAdd = true }) {
-                            Image(systemName: "plus").foregroundColor(.s8kGoldMid)
+                            Image(systemName: "plus").foregroundColor(.s8kAccentText)
                         }
                         .accessibilityLabel(L("a11y.add_account"))
                     }
@@ -979,7 +979,7 @@ struct AddPlaylistView: View {
             }
             .navigationTitle(L("playlists.add")).navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarLeading) {
-                Button(L("common.cancel")) { dismiss() }.foregroundColor(.s8kGoldMid) } }
+                Button(L("common.cancel")) { dismiss() }.foregroundColor(.s8kAccentText) } }
         }
         .presentationDetents([.medium, .large])
     }
@@ -1028,7 +1028,7 @@ struct AboutView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(L("common.close")) { dismiss() }.foregroundColor(.s8kGoldMid)
+                    Button(L("common.close")) { dismiss() }.foregroundColor(.s8kAccentText)
                 }
             }
         }
@@ -1069,7 +1069,7 @@ struct PINEntryView: View {
             // than a short window (landscape / small Mac window) or a large text size.
             ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 24) {
-                Image(systemName: "lock.shield.fill").font(.system(size: 40)).foregroundColor(.s8kGoldMid)
+                Image(systemName: "lock.shield.fill").font(.system(size: 40)).foregroundColor(.s8kAccentText)
                 Text(title).font(S8KFont.headline).foregroundColor(.s8kTextPrimary)
                     .multilineTextAlignment(.center)
                 HStack(spacing: 16) {
@@ -1089,7 +1089,7 @@ struct PINEntryView: View {
                         // most this can take without reaching into a neighbour.
                         Text(L("pin.forgot")).s8kMinTouch(h: 12, v: 12)
                     }
-                        .font(S8KFont.caption1).foregroundColor(.s8kGoldMid)
+                        .font(S8KFont.caption1).foregroundColor(.s8kAccentText)
                 }
                 Button { onDone(nil) } label: {
                     Text(L("common.cancel")).s8kMinTouch(h: 12, v: 13)   // see the note above
@@ -1166,7 +1166,7 @@ struct ParentalGate<Content: View>: View {
                 ZStack {
                     Color.s8kBlack.ignoresSafeArea()
                     VStack(spacing: 16) {
-                        Image(systemName: "lock.fill").font(.system(size: 46)).foregroundColor(.s8kGoldMid)
+                        Image(systemName: "lock.fill").font(.system(size: 46)).foregroundColor(.s8kAccentText)
                         Text(L("gate.locked")).font(S8KFont.title3).foregroundColor(.s8kTextPrimary)
                         Text(L("gate.protected")).font(S8KFont.callout).foregroundColor(.s8kTextSecondary)
                         GoldButton(title: L("gate.enter_pin"), icon: "lock.open.fill") { showPIN = true }
@@ -1255,7 +1255,7 @@ struct ParentalControlView: View {
             Spacer()
             Text(L("pc.title")).font(S8KFont.title3).foregroundColor(.s8kTextPrimary)
             Spacer()
-            Button(L("common.close")) { dismiss() }.foregroundColor(.s8kGoldMid)
+            Button(L("common.close")) { dismiss() }.foregroundColor(.s8kAccentText)
         }
         .padding(.horizontal, S8KSpace.xl).padding(.top, max(50, metrics.safeTop + S8KSpace.sm)).padding(.bottom, S8KSpace.lg)
     }
@@ -1339,7 +1339,7 @@ struct ParentalControlView: View {
     private var recoveryDisplay: some View {
         VStack(spacing: 18) {
             header
-            Image(systemName: "key.horizontal.fill").font(.system(size: 40)).foregroundColor(.s8kGoldMid)
+            Image(systemName: "key.horizontal.fill").font(.system(size: 40)).foregroundColor(.s8kAccentText)
             Text(L("pc.recovery_title")).font(S8KFont.headline).foregroundColor(.s8kTextPrimary)
             Text(L("pc.recovery_hint")).font(S8KFont.callout).foregroundColor(.s8kTextSecondary)
                 .multilineTextAlignment(.center).padding(.horizontal, S8KSpace.xl)
@@ -1349,7 +1349,7 @@ struct ParentalControlView: View {
                 .padding(.vertical, 14).padding(.horizontal, 24)
                 .background(Color.s8kSurface).clipShape(RoundedRectangle(cornerRadius: S8KRadius.md))
             Button(action: { UIPasteboard.general.string = recoveryCode }) {
-                Label(L("actgate.copy_id"), systemImage: "doc.on.doc").font(S8KFont.subhead).foregroundColor(.s8kGoldMid)
+                Label(L("actgate.copy_id"), systemImage: "doc.on.doc").font(S8KFont.subhead).foregroundColor(.s8kAccentText)
                     // ~20 → 44pt tall. The code panel above and the Saved button below are
                     // 18 and 24pt away, so 12 a side clears both.
                     .s8kMinTouch(h: 12, v: 12)
@@ -1363,7 +1363,7 @@ struct ParentalControlView: View {
     private var recoveryEntryView: some View {
         VStack(spacing: 16) {
             header
-            Image(systemName: "key.horizontal").font(.system(size: 38)).foregroundColor(.s8kGoldMid)
+            Image(systemName: "key.horizontal").font(.system(size: 38)).foregroundColor(.s8kAccentText)
             Text(L("recovery.enter")).font(S8KFont.headline).foregroundColor(.s8kTextPrimary)
                 .multilineTextAlignment(.center).padding(.horizontal, S8KSpace.xl)
             TextField("", text: $recoveryEntry,
@@ -1433,7 +1433,7 @@ struct LockedCategoriesView: View {
                     HStack(spacing: 14) {
                         Button(action: { parental.setLockedBulk(kind, ids: filtered.map { $0.id }, true) }) {
                             Label(L("locked.lock_all"), systemImage: "lock.fill")
-                                .font(S8KFont.caption1.weight(.semibold)).foregroundColor(.s8kGoldMid)
+                                .font(S8KFont.caption1.weight(.semibold)).foregroundColor(.s8kAccentText)
                                 // ~16 → 40pt tall. 12 is the ceiling: the search field is
                                 // 12pt above and the category list starts 8pt below, and
                                 // both of those take touches of their own.
@@ -1478,7 +1478,7 @@ struct LockedCategoriesView: View {
             .navigationTitle(L("app.locked_cats")).navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarLeading) {
                 Button(L("common.close")) { if let onClose { onClose() } else { dismiss() } }
-                    .foregroundColor(.s8kGoldMid) } }
+                    .foregroundColor(.s8kAccentText) } }
         }
     }
 
@@ -1582,7 +1582,7 @@ struct PerfStatsView: View {
             HStack(spacing: 10) {
                 Button(action: copy) {
                     Text(copied ? "نُسخ ✓" : "نسخ الكل")
-                        .font(S8KFont.callout.weight(.semibold)).foregroundColor(.s8kGoldMid)
+                        .font(S8KFont.callout.weight(.semibold)).foregroundColor(.s8kAccentText)
                         .frame(maxWidth: .infinity).padding(.vertical, 13)
                         .background(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
                             .fill(Color.s8kGoldMid.opacity(0.10)))

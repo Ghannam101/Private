@@ -769,7 +769,7 @@ struct DownloadsView: View {
     @ToolbarContentBuilder
     private var bar: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            Button(L("common.close")) { dismiss() }.foregroundColor(.s8kGoldMid)
+            Button(L("common.close")) { dismiss() }.foregroundColor(.s8kAccentText)
         }
         if !svc.items.isEmpty {
             ToolbarItem(placement: .topBarTrailing) {
@@ -802,7 +802,7 @@ struct DownloadsView: View {
         let low = known && free < DownloadBudget.lowWaterMark
         return VStack(spacing: 8) {
             HStack(spacing: 10) {
-                Image(systemName: "internaldrive.fill").font(.system(size: 15)).foregroundColor(.s8kGoldMid)
+                Image(systemName: "internaldrive.fill").font(.system(size: 15)).foregroundColor(.s8kAccentText)
                 Text(L("downloads.storage_used")).font(S8KFont.caption1).foregroundColor(.s8kTextSecondary)
                 Spacer()
                 Text(svc.usedBytes > 0 ? DownloadByteText.string(svc.usedBytes) : "0")
@@ -909,7 +909,7 @@ struct DownloadsView: View {
     private func actionButton(_ icon: String, size: CGFloat, a11y: String,
                               action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: icon).font(.system(size: size)).foregroundColor(.s8kGoldMid)
+            Image(systemName: icon).font(.system(size: size)).foregroundColor(.s8kAccentText)
                 // 28-30pt glyphs. 8 vertically clears 44 inside the 84pt row; 6 is half
                 // the 12pt gap to the delete button, so pause/resume and delete cannot
                 // reach into each other.
@@ -948,7 +948,7 @@ struct DownloadControl: View {
                     Text("\(Int((it?.progress ?? 0) * 100))%")
                         .font(.system(size: max(10, size * 0.5), weight: .bold, design: .rounded))
                         .monospacedDigit()
-                        .foregroundColor(.s8kGoldMid)
+                        .foregroundColor(.s8kAccentText)
                 }
                 glyph(for: it?.state, progress: it?.progress ?? 0)
             }
@@ -1015,7 +1015,7 @@ struct DownloadControl: View {
             Circle().trim(from: 0, to: max(0.02, CGFloat(progress)))
                 .stroke(S8KGradient.goldFlat, style: StrokeStyle(lineWidth: 2, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-            Image(systemName: symbol).font(.system(size: size * 0.34)).foregroundColor(.s8kGoldMid)
+            Image(systemName: symbol).font(.system(size: size * 0.34)).foregroundColor(.s8kAccentText)
         }
         .frame(width: size, height: size)
     }

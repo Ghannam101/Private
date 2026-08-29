@@ -860,7 +860,7 @@ struct PlayerEngineView: View {
             }
             VStack(alignment: .trailing, spacing: 6) {
                 Text(L("play.next_episode"))
-                    .font(S8KFont.caption2.weight(.semibold)).foregroundColor(.s8kGoldMid)
+                    .font(S8KFont.caption2.weight(.semibold)).foregroundColor(.s8kAccentText)
                 Text("\(L("episode.number")) \(ep.episodeNumber)")
                     .font(S8KFont.subhead).foregroundColor(.white).lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -997,7 +997,7 @@ struct PlayerEngineView: View {
                             Image(systemName: "moon.fill").font(.system(size: 10))
                             Text(sleepText).font(.system(size: 11, weight: .semibold, design: .monospaced))
                         }
-                        .foregroundColor(.s8kGoldMid)
+                        .foregroundColor(.s8kAccentText)
                         .padding(.horizontal, 10).padding(.vertical, 4)
                         .s8kPlayerSurface(Capsule())
                         .frame(maxWidth: .infinity, alignment: .trailing)
@@ -1313,7 +1313,7 @@ struct PlayerEngineView: View {
                             ForEach([15, 30, 45, 60, 90, 120], id: \.self) { mins in
                                 Button(action: { Store.shared.sleepTimerMins = mins; startSleep(mins: mins); showSleepSheet = false }) {
                                     HStack {
-                                        Image(systemName: "moon.stars.fill").foregroundColor(.s8kGoldMid)
+                                        Image(systemName: "moon.stars.fill").foregroundColor(.s8kAccentText)
                                         Text("\(mins) \(L("unit.minute"))").font(S8KFont.headline).foregroundColor(.white)
                                         Spacer()
                                         Image(systemName: "chevron.left").font(.system(size: 12)).foregroundColor(.s8kTextDisabled)
@@ -1332,7 +1332,7 @@ struct PlayerEngineView: View {
             }
             .navigationTitle(L("play.sleep.title")).navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarLeading) {
-                Button(L("common.close")) { showSleepSheet = false }.foregroundColor(.s8kGoldMid) } }
+                Button(L("common.close")) { showSleepSheet = false }.foregroundColor(.s8kAccentText) } }
         }
         .presentationDetents([.medium, .large])
     }

@@ -224,7 +224,7 @@ struct LoginView: View {
                                              keyboard: .URL, contentType: .URL, disableAutocorrect: true, capitalization: .never)
                                 Text(L("login.server_hint"))
                                     .font(S8KFont.caption2)
-                                    .foregroundColor(.s8kGoldMid.opacity(0.8))
+                                    .foregroundColor(.s8kAccentText.opacity(0.8))
                                     .frame(maxWidth: .infinity, alignment: .trailing)
                             }
                             S8KTextField(placeholder: L("login.username"), icon: "person.fill", text: $username, ltr: true,
@@ -303,10 +303,10 @@ struct LoginView: View {
                             .font(S8KFont.caption2).foregroundColor(.s8kTextDisabled)
                         HStack(spacing: 4) {
                             Button(L("set.privacy")) { showPrivacy = true }
-                                .font(S8KFont.caption2).foregroundColor(.s8kGoldMid)
+                                .font(S8KFont.caption2).foregroundColor(.s8kAccentText)
                             Text(L("login.and")).font(S8KFont.caption2).foregroundColor(.s8kTextDisabled)
                             Button(L("set.terms")) { showTerms = true }
-                                .font(S8KFont.caption2).foregroundColor(.s8kGoldMid)
+                                .font(S8KFont.caption2).foregroundColor(.s8kAccentText)
                         }
                     }
                     .padding(.top, 26)
@@ -422,7 +422,7 @@ struct PrivacyView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(L("common.close")) { dismiss() }
-                        .foregroundColor(.s8kGoldMid)
+                        .foregroundColor(.s8kAccentText)
                 }
             }
         }
@@ -519,7 +519,7 @@ struct LicensesView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(L("common.close")) { dismiss() }
-                        .foregroundColor(.s8kGoldMid)
+                        .foregroundColor(.s8kAccentText)
                 }
             }
         }
@@ -531,7 +531,7 @@ struct LicensesView: View {
                        _ licenceURL: String?, _ sourceURL: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(name).font(S8KFont.subhead).foregroundColor(.s8kTextPrimary)
-            Text(licence).font(S8KFont.caption2).foregroundColor(.s8kGoldMid)
+            Text(licence).font(S8KFont.caption2).foregroundColor(.s8kAccentText)
             Text(body).font(S8KFont.caption2).foregroundColor(.s8kTextSecondary)
                 .lineSpacing(3).multilineTextAlignment(.leading)
             HStack(spacing: 14) {
@@ -543,7 +543,7 @@ struct LicensesView: View {
                 }
             }
             .font(S8KFont.caption2.weight(.semibold))
-            .foregroundColor(.s8kGoldMid)
+            .foregroundColor(.s8kAccentText)
             .padding(.top, 2)
         }
         // Latin licence text stays left-aligned even under an Arabic UI: a paragraph of
@@ -579,7 +579,7 @@ struct TermsView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(L("common.close")) { dismiss() }
-                        .foregroundColor(.s8kGoldMid)
+                        .foregroundColor(.s8kAccentText)
                 }
             }
         }
@@ -790,7 +790,7 @@ struct SubscriptionsGateView: View {
             if let u = S8KBrand.supportURL {
                 Button(action: { UIApplication.shared.open(u) }) {
                     Text(L("login.need_help")).font(S8KFont.caption1.weight(.semibold))
-                        .foregroundColor(.s8kGoldMid)
+                        .foregroundColor(.s8kAccentText)
                         .frame(maxWidth: .infinity, minHeight: 40)
                 }
                 .buttonStyle(S8KButtonStyle())

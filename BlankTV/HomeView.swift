@@ -557,7 +557,7 @@ private extension HomeView {
                         }
                         Spacer()
                         Button(action: { withAnimation { editingHistory = false } }) {
-                            Text(L("common.done")).font(S8KFont.caption1.weight(.bold)).foregroundColor(.s8kGoldMid)
+                            Text(L("common.done")).font(S8KFont.caption1.weight(.bold)).foregroundColor(.s8kAccentText)
                                 .s8kMinTouch(h: 12, v: 12)   // see the note above
                         }
                     } else {
@@ -566,7 +566,7 @@ private extension HomeView {
                                 Text(L("home.see_all")).font(S8KFont.caption1.weight(.semibold))
                                 Image(systemName: "chevron.left").font(.system(size: 10, weight: .bold))
                             }
-                            .foregroundColor(.s8kGoldMid)
+                            .foregroundColor(.s8kAccentText)
                             .s8kMinTouch(h: 12, v: 12)       // see the note above
                         }
                         Spacer()
@@ -1346,7 +1346,7 @@ struct ChannelCardSheet: View {
                         .padding(.horizontal, 24)
                     if !channel.groupTitle.isEmpty {
                         Text(channel.groupTitle)
-                            .font(S8KFont.caption1).foregroundColor(.s8kGoldMid)
+                            .font(S8KFont.caption1).foregroundColor(.s8kAccentText)
                             .padding(.horizontal, 12).padding(.vertical, 5)
                             .background(Color.s8kGoldMid.opacity(0.1))
                             .clipShape(Capsule())
@@ -1416,7 +1416,7 @@ struct WatchHistoryPage: View {
                         // layout cell only and leave the gesture on the ~44×17 text.
                         Text(L("common.close")).s8kMinTouch(h: 12, v: 12)
                     }
-                        .font(S8KFont.subhead).foregroundColor(.s8kGoldMid)
+                        .font(S8KFont.subhead).foregroundColor(.s8kAccentText)
                 }
                 .padding(.horizontal, S8KSpace.xl).padding(.top, max(56, metrics.safeTop + S8KSpace.md)).padding(.bottom, S8KSpace.md)
 
@@ -1526,7 +1526,7 @@ private struct HomeSearchOverlay: View {
             VStack(alignment: .trailing, spacing: 3) {
                 Text(r.title).font(S8KFont.subhead).foregroundColor(.s8kTextPrimary).lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .trailing)
-                Text(r.type.label).font(S8KFont.caption2).foregroundColor(.s8kGoldMid)
+                Text(r.type.label).font(S8KFont.caption2).foregroundColor(.s8kAccentText)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
             Image(systemName: "chevron.left").font(.system(size: 12, weight: .semibold))
@@ -1599,7 +1599,7 @@ struct AlertsView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(L("common.close")) {
                         if let onClose { onClose() } else { dismiss() }
-                    }.foregroundColor(.s8kGoldMid)
+                    }.foregroundColor(.s8kAccentText)
                 }
             }
         }

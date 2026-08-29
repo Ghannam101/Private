@@ -392,7 +392,7 @@ struct FolderScreenHeader: View {
     private func backButton(action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: "chevron.right")
-                .font(.system(size: 15, weight: .bold)).foregroundColor(.s8kGoldMid)
+                .font(.system(size: 15, weight: .bold)).foregroundColor(.s8kAccentText)
                 .frame(width: 38, height: 38)
                 .background(Color.s8kSurface)
                 .clipShape(RoundedRectangle(cornerRadius: S8KRadius.sm, style: .continuous))
@@ -512,7 +512,7 @@ struct FolderPickerSheet: View {
             }
             .navigationTitle(title).navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarLeading) {
-                Button(L("common.close")) { dismiss() }.foregroundColor(.s8kGoldMid) } }
+                Button(L("common.close")) { dismiss() }.foregroundColor(.s8kAccentText) } }
         }
         .presentationDetents([.large])
     }
@@ -539,7 +539,7 @@ struct FolderSidebar: View {
                 if let onReorder {
                     Button(action: onReorder) {
                         Image(systemName: "arrow.up.arrow.down")
-                            .font(.system(size: 13, weight: .bold)).foregroundColor(.s8kGoldMid)
+                            .font(.system(size: 13, weight: .bold)).foregroundColor(.s8kAccentText)
                             .frame(width: 34, height: 34)
                             .background(Color.s8kElevated).clipShape(Circle())
                             .overlay(Circle().strokeBorder(Color.s8kBorder, lineWidth: 1))
@@ -705,12 +705,12 @@ struct CategoryShelf<Cell: View>: View {
                     Text(category.name).font(S8KFont.title3).foregroundColor(.s8kTextPrimary).lineLimit(1)
                     if locked {
                         Image(systemName: "lock.fill").font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.s8kGoldMid)
+                            .foregroundColor(.s8kAccentText)
                     }
                     if count > 0 {
                         Text("\(count)")
                             .font(S8KFont.caption1.weight(.bold))
-                            .foregroundColor(.s8kGoldMid)
+                            .foregroundColor(.s8kAccentText)
                             .padding(.horizontal, 7).padding(.vertical, 2)
                             .background(Color.s8kGoldMid.opacity(0.12)).clipShape(Capsule())
                     }
@@ -719,7 +719,7 @@ struct CategoryShelf<Cell: View>: View {
                         Text(gated ? L("gate.enter_pin") : L("common.all")).font(S8KFont.caption1.weight(.semibold))
                         Image(systemName: gated ? "lock.fill" : "chevron.left").font(.system(size: 10, weight: .bold))
                     }
-                    .foregroundColor(.s8kGoldMid)
+                    .foregroundColor(.s8kAccentText)
                 }
                 .padding(.horizontal, S8KSpace.xl)
                 // The row has a Spacer in the middle, and a Spacer draws nothing — so
@@ -1175,7 +1175,7 @@ private struct LivePreviewEngine: View {
                         .multilineTextAlignment(.center).padding(.horizontal, 20)
                     Button(action: { vm.errorMsg = nil; vm.setup() }) {
                         Label(L("common.retry"), systemImage: "arrow.clockwise")
-                            .font(S8KFont.caption1.weight(.semibold)).foregroundColor(.s8kGoldMid)
+                            .font(S8KFont.caption1.weight(.semibold)).foregroundColor(.s8kAccentText)
                             // ~14pt of text → 44pt tall. It is the only control on the
                             // error overlay, and the only thing within 15pt of it is the
                             // error message itself, which takes no touches.
@@ -2171,7 +2171,7 @@ struct CategoryOrderEditor: View {
                                 Store.shared.setCategoryOrder(arranged, section)
                                 onSaved(); dismiss()
                             }
-                            .foregroundColor(.s8kGoldMid).fontWeight(.bold)
+                            .foregroundColor(.s8kAccentText).fontWeight(.bold)
                         }
                     }
             }
@@ -2220,7 +2220,7 @@ struct CategoryOrderEditor: View {
                         Image(systemName: r.icon).font(.system(size: 11, weight: .bold))
                         Text(r.title).font(S8KFont.caption2.weight(.bold))
                     }
-                    .foregroundColor(.s8kGoldMid)
+                    .foregroundColor(.s8kAccentText)
                     .padding(.horizontal, 10).padding(.vertical, 7)
                     .background(Color.s8kGoldMid.opacity(0.10)).clipShape(Capsule())
                     .overlay(Capsule().strokeBorder(Color.s8kBorderGold, lineWidth: 1))
@@ -2336,7 +2336,7 @@ struct CategoryOrderEditor: View {
         }) {
             HStack(spacing: 12) {
                 Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 22)).foregroundColor(.s8kGoldMid)
+                    .font(.system(size: 22)).foregroundColor(.s8kAccentText)
                 Text(cat.name).font(S8KFont.subhead).foregroundColor(.s8kTextPrimary)
                     .lineLimit(1).frame(maxWidth: .infinity, alignment: .trailing)
             }
@@ -2407,7 +2407,7 @@ struct UnifiedReorderView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(L("common.close")) { dismiss() }
-                        .foregroundColor(.s8kGoldMid).fontWeight(.bold)
+                        .foregroundColor(.s8kAccentText).fontWeight(.bold)
                 }
             }
             .task { await movies.load(); await series.load(); await live.load() }
@@ -3273,7 +3273,7 @@ struct SearchView: View {
                 // gesture on the ~44×17 text. 14 down stops exactly at the search
                 // field below; a Spacer and the 20pt page margin flank it sideways.
                 Text(L("common.close")).s8kMinTouch(h: 12, v: 14)
-            }.foregroundColor(.s8kGoldMid).font(S8KFont.subhead)
+            }.foregroundColor(.s8kAccentText).font(S8KFont.subhead)
         }
     }
 
@@ -3366,7 +3366,7 @@ struct SearchView: View {
                            title: L("search.failed.title"), subtitle: L("search.failed.sub"))
                 Button(action: { vm.search() }) {
                     Label(L("common.retry"), systemImage: "arrow.clockwise")
-                        .font(S8KFont.subhead).foregroundColor(.s8kGoldMid)
+                        .font(S8KFont.subhead).foregroundColor(.s8kAccentText)
                 }.buttonStyle(S8KButtonStyle())
             }
         case .working:
@@ -3391,7 +3391,7 @@ struct SearchView: View {
                 VStack(alignment: .trailing, spacing: 12) {
                     HStack {
                         Button(L("search.clear_all")) { vm.clearRecent() }
-                            .font(S8KFont.caption1.weight(.semibold)).foregroundColor(.s8kGoldMid)
+                            .font(S8KFont.caption1.weight(.semibold)).foregroundColor(.s8kAccentText)
                         Spacer()
                         Text(L("search.recent")).font(S8KFont.subhead).foregroundColor(.s8kTextPrimary)
                     }
@@ -3470,7 +3470,7 @@ struct SearchView: View {
                     .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.s8kBorder, lineWidth: 1))
                 VStack(alignment: .trailing, spacing: 3) {
                     Text(r.title).font(S8KFont.subhead).foregroundColor(.s8kTextPrimary).lineLimit(1)
-                    Text(r.type.label).font(S8KFont.caption3).foregroundColor(.s8kGoldMid)
+                    Text(r.type.label).font(S8KFont.caption3).foregroundColor(.s8kAccentText)
                 }
                 Spacer()
                 Image(systemName: "chevron.left").font(.system(size: 12)).foregroundColor(.s8kTextDisabled)

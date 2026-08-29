@@ -476,7 +476,7 @@ struct GatewayView: View {
             .navigationTitle(L("accounts.title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) {
-                Button(L("common.close")) { showAccounts = false }.foregroundColor(.s8kGoldMid)
+                Button(L("common.close")) { showAccounts = false }.foregroundColor(.s8kAccentText)
             } }
             .toolbarBackground(Color.s8kBlack, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)

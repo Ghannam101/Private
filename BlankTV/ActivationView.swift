@@ -276,7 +276,7 @@ extension AdmissionDeniedScreen {
             VStack(spacing: S8KSpace.lg) {
                 Label(L("actgate.device_id"), systemImage: "number")
                     .font(S8KFont.caption1.weight(.bold))
-                    .foregroundColor(.s8kGoldMid)
+                    .foregroundColor(.s8kAccentText)
                     .frame(maxWidth: .infinity, alignment: .center)
 
                 Text(act.deviceID)
@@ -340,7 +340,7 @@ extension AdmissionDeniedScreen {
                 Text(L("actgate.recheck"))
             }
             .font(S8KFont.subhead)
-            .foregroundColor(.s8kGoldMid)
+            .foregroundColor(.s8kAccentText)
             .frame(maxWidth: .infinity, minHeight: 50)
             .overlay(RoundedRectangle(cornerRadius: S8KRadius.md, style: .continuous)
                 .strokeBorder(Color.s8kGoldHigh.opacity(0.4), lineWidth: 1.5))

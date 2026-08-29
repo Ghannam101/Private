@@ -832,7 +832,7 @@ struct BrandTheme {
     var accentDeep: Color
 
     /// The active theme the whole app renders with. Change it → the app re-skins.
-    static var active: BrandTheme = .blankGreen
+    static var active: BrandTheme = .trexEmber
 
     // ---- Ready-made palettes ----
 
@@ -931,6 +931,33 @@ extension Color {
     static var s8kGoldMid:    Color { BrandTheme.active.accentMid }
     static var s8kGoldLow:    Color { BrandTheme.active.accentLow }
     static var s8kGoldDeep:   Color { BrandTheme.active.accentDeep }
+
+    /// The accent, but guaranteed READABLE — measured, never assumed.
+    ///
+    /// `trexEmber`'s own comment states the contract the ramp was built to: "everything
+    /// below accentHigh is fill and border only — never text." The code broke it in
+    /// sixty-one places, and nobody noticed, because the palette shipping at the time
+    /// had an accentMid that happened to clear AA. Restoring Trex made a latent defect
+    /// visible: #C0432A on `elevated` measures 2.94 : 1, well under the 4.5 floor, on
+    /// every one of those labels.
+    ///
+    /// So this measures instead of trusting, exactly as `S8KBrand.accentInk` does for
+    /// button ink. It checks against `elevated` — the LIGHTEST surface accent text can
+    /// land on — because a token that passes on the background and fails on a card has
+    /// not solved anything.
+    ///
+    /// It is deliberately conservative in both directions:
+    ///   • blankGreen's accentMid reads 5.41 : 1 there, so that identity keeps its exact
+    ///     current appearance — this change is invisible to it.
+    ///   • trexEmber's fails, so it resolves to accentHigh at 5.19 : 1.
+    ///
+    /// And it is the only shape that survives a white-label product: the reseller
+    /// supplies the colour, so no fixed choice can be correct in advance.
+    static var s8kAccentText: Color {
+        let bg  = BrandTheme.active.elevated
+        let mid = BrandTheme.active.accentMid
+        return mid.s8kContrast(bg) >= 4.5 ? mid : BrandTheme.active.accentHigh
+    }
 
     // Neutral text — not brand-driven.
     static let s8kTextPrimary   = Color.white
@@ -1220,7 +1247,7 @@ struct OutlineButton: View {
                 if let icon { Image(systemName: icon).font(.system(size: 13, weight: .semibold)) }
                 Text(title).font(S8KFont.callout.weight(.semibold))
             }
-            .foregroundColor(.s8kGoldMid)
+            .foregroundColor(.s8kAccentText)
             .frame(maxWidth: .infinity, minHeight: 50)
             .background(.clear)
             .clipShape(RoundedRectangle(cornerRadius: S8KRadius.md))
@@ -1978,14 +2005,14 @@ struct S8KWatermark: View {
 /// languages at once — which is exactly what it was.
 enum S8KBrand {
     /// The product name as the user reads it.
-    static let name = "Blank Premium"
+    static let name = "Trex TV"
     /// The short form, for the wordmark and other tight places.
-    static let shortName = "Blank"
+    static let shortName = "Trex"
     /// The second half of the two-part wordmark. It lives here, and not as a literal
     /// inside S8KWordmark, because a literal there is invisible to brandlint: the old
     /// one said "Prime", and a rename that edited only `shortName` would have shipped
     /// the new name welded to the old one across every top bar in the app.
-    static let markSuffix = "Premium"
+    static let markSuffix = "TV"
     /// The bundled logo asset. Swapping identity = replacing the file under this name.
     static let logoAsset = "Logo"
     /// Where content reports go (Guideline 4.7.1). A reviewer reads this, so it must

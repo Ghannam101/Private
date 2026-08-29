@@ -10,7 +10,7 @@ exact base and accent, was never referenced, and still shipped. Archive here, sh
 
 ---
 
-## buyer1 — Blank Premium · بلانك ستور  ← **SHIPPING NOW**
+## buyer1 — Blank Premium · بلانك ستور  ← *archived 2026-08-29*
 
 > **NAME CORRECTED 2026-08-21.** This archive recorded `"Blank Prime"`, and the
 > restore was carried out under that name until the owner corrected it: the buyer's
@@ -124,10 +124,42 @@ which is the exact decay it exists to catch, occurring inside the tool.
 
 ---
 
-## trex-tv — Trex TV
+## trex-tv — Trex TV  ← **SHIPPING NOW**
 
-Archived 2026-08-21 when buyer1 was restored. Skull mark; violet-dark ramp with an
-ember accent, every value measured out of the owner's own logo file.
+**Restored 2026-08-29**, when buyer-1 withdrew. This is the OWNER's identity, not a
+buyer's — it was never retired for a conflict or a rejection, only displaced so the
+buyer's colours could ship. Skull mark; violet-dark ramp with an ember accent, every
+value measured out of the owner's own logo file.
+
+**Both archived defects were fixed during the restore, not carried forward.**
+
+**1× logo — fixed.** The archived `logo.png` was 193 bytes at 120×120: 14,393 of its
+14,400 pixels fully transparent and seven others invisible. Regenerated from the 3×
+master with Lanczos — 9,348 bytes, 1,614 colours, 4,712 visible pixels. Nothing on a
+modern device requests 1×, which is exactly why a blank one survives unnoticed.
+
+**Contrast — measured now, not inherited, and it found something the archive did not.**
+
+| pair | ratio | verdict |
+|---|---|---|
+| `accentInk` on `#F4702A` | white **2.92** vs dark **6.70** | resolves DARK, correctly |
+| `#F4702A` as text on base / surface / card / elevated | 6.70 / 6.28 / 5.84 / 5.19 | all AA |
+| `accentMid #C0432A` on base | 3.79 | below AA |
+| `accentMid #C0432A` on `elevated` | **2.94** | **well below AA** |
+| `accentLow` / `accentDeep` on base | 2.11 / 1.37 | fills only — 0 text uses, verified |
+
+This palette's own note says "everything below accentHigh is fill and border only —
+never text". **The code broke that contract in sixty-two places** and nothing caught it,
+because the palette shipping at the time (blankGreen) had an accentMid that happened to
+clear AA at 5.41. Restoring Trex did not create the defect; it exposed one that had been
+latent for weeks.
+
+Raising accentMid to clear AA was computed and rejected: at the same hue and saturation
+it lands on `#F55636`, within 26/12 of accentHigh — the step stops being a step. So the
+fix is `Color.s8kAccentText`, which MEASURES accentMid against `elevated` and falls back
+to accentHigh when it fails. blankGreen keeps its exact appearance (5.41 passes); Trex
+resolves to accentHigh at 5.19. Any future reseller palette is protected by the same
+rule rather than by someone remembering to check.
 
 | slot | value |
 |---|---|
