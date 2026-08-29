@@ -23,6 +23,7 @@ getting it wrong writes to the wrong record:
     appInfoLocalizations         name, subtitle, privacyPolicyUrl
     appStoreVersionLocalizations description, keywords, supportUrl, whatsNew
 """
+import io
 import json
 import os
 import sys
@@ -47,13 +48,25 @@ LOCALE = "en-US"
 # decoration: Guideline 5.2.3 turns on whether the app supplies content, and this
 # is where we say plainly that it supplies none.
 
-NAME = "Blank Premium"
+def _brand(field):
+    """Read an identity string out of DesignSystem.swift at run time — see the identical
+    note in ascwrite.py. A second hand-maintained copy of the shipping name is exactly
+    the decay brandlint exists to catch, and it had two of them."""
+    import re
+    src = io.open("BlankTV/DesignSystem.swift", encoding="utf-8").read()
+    m = re.search(r'static let %s = "([^"]+)"' % field, src)
+    if not m:
+        raise SystemExit("cannot read S8KBrand.%s from DesignSystem.swift" % field)
+    return m.group(1)
+
+
+NAME = _brand("name")
 SUBTITLE = "IPTV Player for your line"          # 25 / 30
 
 # 100-char ceiling. No spaces after commas — Apple counts them.
 KEYWORDS = "iptv,m3u,xtream,player,playlist,stream,live tv,movies,series,epg,vod,channels"
 
-DESCRIPTION = """Blank Premium is a media player for iPhone and iPad, built for speed and clarity.
+DESCRIPTION = f"""{NAME} is a media player for iPhone and iPad, built for speed and clarity.
 
 Sign in with your own subscription — Xtream Codes or an M3U link — and your library arrives organised: films, series and live channels, in an interface designed to be read from across the room.
 
@@ -67,7 +80,7 @@ Sign in with your own subscription — Xtream Codes or an M3U link — and your 
 • A demo mode you can try before entering any subscription
 
 IMPORTANT
-Blank Premium is a player, and only a player. It does not provide or host any channels, films or content of any kind, and ships with none built in. You need your own subscription from a licensed provider, and you alone are responsible for that subscription and for the legality of what you access through it.
+{NAME} is a player, and only a player. It does not provide or host any channels, films or content of any kind, and ships with none built in. You need your own subscription from a licensed provider, and you alone are responsible for that subscription and for the legality of what you access through it.
 
 PRIVACY
 We collect nothing for tracking or advertising. Your provider sign-in details stay on your device. You can delete your account and your data from inside the app at any time."""

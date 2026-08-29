@@ -16,8 +16,10 @@ Usage, from the repo root:
 actually resolves, Apple opens them during review, and the owner has not settled his yet.
 Nothing here invents a URL.
 """
+import io
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -32,11 +34,28 @@ LOCALE = "ar-SA"
 SUBTITLE = "مشغّل قنوات · IPTV Player"
 
 KEYWORDS = ("iptv,player,مشغل,اشتراك,افلام,مسلسلات,بث,مباشر,قنوات,"
-            "xtream,m3u,بلاير,تلفزيون,بلانك")
+            "xtream,m3u,بلاير,تلفزيون,تريكس")
 
-APP_NAME = "Blank Premium"
+def _brand(field):
+    """Read an identity string out of DesignSystem.swift at run time.
 
-DESCRIPTION = """Blank Premium — مشغّل وسائط للآيفون والآيباد، مبنيّ للسرعة والوضوح.
+    NOT a constant here, and the reason is written in `identities/README.md`: brandlint
+    used to hard-code the shipping name, so throughout the whole Trex TV period it
+    reported CLEAN over a codebase it was not inspecting. This file had the same shape
+    of bug waiting — a second copy of the name, updated by hand, silently stale the
+    moment an identity is swapped. There is one source of truth now, and it is the one
+    the binary ships.
+    """
+    src = io.open("BlankTV/DesignSystem.swift", encoding="utf-8").read()
+    m = re.search(r'static let %s = "([^"]+)"' % field, src)
+    if not m:
+        raise SystemExit("cannot read S8KBrand.%s from DesignSystem.swift" % field)
+    return m.group(1)
+
+
+APP_NAME = _brand("name")
+
+DESCRIPTION = f"""{APP_NAME} — مشغّل وسائط للآيفون والآيباد، مبنيّ للسرعة والوضوح.
 
 أدخل اشتراكك الخاص (Xtream Codes أو رابط M3U) وستجد مكتبتك منظّمة أمامك: أفلام ومسلسلات وقنوات مباشرة، بواجهة عربية مصمَّمة لتُقرأ من مسافة الأريكة.
 
@@ -50,7 +69,7 @@ DESCRIPTION = """Blank Premium — مشغّل وسائط للآيفون والآ
 • وضع تجريبي تجرّبه قبل أن تُدخل اشتراكك
 
 ملاحظة مهمة
-Blank Premium مشغّل فقط. لا يوفّر ولا يستضيف أي قنوات أو أفلام أو محتوى، ولا يأتي بأي محتوى مدمج. يلزمك اشتراك خاص من مزوّد مرخّص، وأنت وحدك مسؤول عن اشتراكك وعن مشروعية ما تصل إليه.
+{APP_NAME} مشغّل فقط. لا يوفّر ولا يستضيف أي قنوات أو أفلام أو محتوى، ولا يأتي بأي محتوى مدمج. يلزمك اشتراك خاص من مزوّد مرخّص، وأنت وحدك مسؤول عن اشتراكك وعن مشروعية ما تصل إليه.
 
 الخصوصية
 لا نجمع بياناتك لأغراض التتبّع أو الإعلانات. يمكنك حذف حسابك وبياناتك من داخل التطبيق في أي وقت."""
